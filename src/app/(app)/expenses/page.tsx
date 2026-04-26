@@ -1,13 +1,7 @@
-import type { Prisma } from "@prisma/client";
-
 import { ExpensesManager } from "@/components/expenses-manager";
 import { db } from "@/lib/db";
 import { formatMonthKey } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
-
-type ExpenseWithBank = Prisma.ExpenseGetPayload<{
-  include: { bank: { select: { id: true; name: true } } };
-}>;
 
 export default async function ExpensesPage() {
   const userId = await requireUserId();
@@ -16,22 +10,23 @@ export default async function ExpensesPage() {
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
-  const expenses: ExpenseWithBank[] = await db.expense.findMany({
+  const expenses = await db.expense.findMany({
     where: { userId },
     include: { bank: { select: { id: true, name: true } } },
     orderBy: { name: "asc" },
   });
 
-  const initialExpenses = expenses.map((expense: ExpenseWithBank) => ({
-    id: expense.id,
-    name: expense.name,
-    amount: expense.amount.toString(),
-    bankId: expense.bankId,
-    bank: expense.bank,
-    isRecurring: expense.isRecurring,
-    startMonth: formatMonthKey(expense.startMonth),
-    endMonth: expense.endMonth ? formatMonthKey(expense.endMonth) : null,
-    category: expense.category,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const initialExpenses = (expenses as any[]).map((expense) => ({
+    id: expense.id as string,
+    name: expense.name as string,
+    amount: String(expense.amount),
+    bankId: expense.bankId as string,
+    bank: expense.bank as { id: string; name: string },
+    isRecurring: expense.isRecurring as boolean,
+    startMonth: formatMonthKey(expense.startMonth as Date),
+    endMonth: expense.endMonth ? formatMonthKey(expense.endMonth as Date) : null,
+    category: expense.category as string,
   }));
 
   return (
