@@ -6,7 +6,7 @@ import { FormEvent, useMemo, useState } from "react";
 
 import type { MonthPageDataWithRecord, MonthLinePayload } from "@/lib/month-page-types";
 import { formatCurrency } from "@/lib/format";
-import { expenseCategoryOptions } from "@/lib/validators";
+import { expenseCategoryOptions, isInvestmentCategory } from "@/lib/validators";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, PlusIcon } from "lucide-react";
+import { ChevronDown, PlusIcon, TrendingUp } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -59,10 +59,14 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     const paid = expenses
       .filter((item) => item.paid)
       .reduce((sum, item) => sum + Number(item.amount), 0);
+    const investment = expenses
+      .filter((item) => isInvestmentCategory(item.category))
+      .reduce((sum, item) => sum + Number(item.amount), 0);
     return {
       planned,
       paid,
       remaining: planned - paid,
+      investment,
     };
   }, [expenses]);
 
@@ -386,10 +390,17 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
             <CardTitle className="text-muted-foreground text-sm">Gastos (plan.)</CardTitle>
           </CardHeader>
           <CardContent
-            className={cn("text-xl font-semibold", "text-red-600 dark:text-red-500")}
             title="Total de gastos planificados (pagados y no pagados)"
           >
-            {formatCurrency(totals.planned)}
+            <p className={cn("text-xl font-semibold", "text-red-600 dark:text-red-500")}>
+              {formatCurrency(totals.planned)}
+            </p>
+            {totals.investment > 0 ? (
+              <p className="mt-1 flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400">
+                <TrendingUp className="size-3" />
+                {formatCurrency(totals.investment)} inversión
+              </p>
+            ) : null}
           </CardContent>
         </Card>
         <Card>
@@ -556,10 +567,21 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium leading-tight">
                           {expense.name}
+                          {isInvestmentCategory(expense.category) ? (
+                            <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 py-px text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400">
+                              <TrendingUp className="size-2.5" />
+                              inversión
+                            </span>
+                          ) : null}
                         </p>
                         <p className="text-muted-foreground truncate text-xs">
                           {expense.category ? `${expense.category.toLowerCase()} · ` : null}
-                          <span className="text-red-600 tabular-nums dark:text-red-500">
+                          <span className={cn(
+                            "tabular-nums",
+                            isInvestmentCategory(expense.category)
+                              ? "text-indigo-600 dark:text-indigo-400"
+                              : "text-red-600 dark:text-red-500",
+                          )}>
                             {formatCurrency(Number(expense.amount))}
                           </span>
                         </p>

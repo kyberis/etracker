@@ -19,19 +19,39 @@ enum ExpenseCategory {
   IMPUESTOS
   AHORRO
   REGALOS
+  CRYPTO
+  STOCK
   OTROS
 }
 
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  passwordHash  String
-  monthlyIncome Decimal        @default(0) @db.Decimal(12, 2)
-  banks         Bank[]
-  expenses      Expense[]
-  monthRecords  MonthRecord[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                       String              @id @default(cuid())
+  email                    String              @unique
+  passwordHash             String
+  monthlyIncome            Decimal             @default(0) @db.Decimal(12, 2)
+  whatsappPhone            String?             @unique
+  whatsappVerifiedAt       DateTime?
+  whatsappLinkCode         String?
+  whatsappLinkCodeExpires  DateTime?
+  banks                    Bank[]
+  expenses                 Expense[]
+  monthRecords             MonthRecord[]
+  whatsappMessages         WhatsappMessage[]
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+}
+
+// Conversation history for the WhatsApp channel of the expense assistant.
+// We store a rolling window per user to give the agent context across messages.
+model WhatsappMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String   // "user" | "assistant"
+  text      String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Bank {

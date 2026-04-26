@@ -15,8 +15,16 @@ const expenseCategoryValues = [
   "IMPUESTOS",
   "AHORRO",
   "REGALOS",
+  "CRYPTO",
+  "STOCK",
   "OTROS",
 ] as const;
+
+const INVESTMENT_CATEGORIES = new Set<string>(["CRYPTO", "STOCK"]);
+
+export function isInvestmentCategory(category: string): boolean {
+  return INVESTMENT_CATEGORIES.has(category);
+}
 
 export const expenseCategorySchema = z.enum(expenseCategoryValues);
 export const expenseCategoryOptions = expenseCategoryValues;
@@ -138,4 +146,16 @@ export const settingsSchema = z.object({
 
 export const monthlyIncomeSchema = z.object({
   amount: z.coerce.number().min(0, "Monthly income must be zero or positive."),
+});
+
+const phoneRegex = /^\+[1-9]\d{6,14}$/;
+
+export const whatsappLinkStartSchema = z.object({
+  phone: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/[\s\-()]/g, ""))
+    .refine((value) => phoneRegex.test(value), {
+      message: "Use formato internacional, p. ej. +5491112345678.",
+    }),
 });

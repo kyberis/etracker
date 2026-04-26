@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import { formatCurrency } from "@/lib/format";
-import { expenseCategoryOptions } from "@/lib/validators";
+import { expenseCategoryOptions, isInvestmentCategory } from "@/lib/validators";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -288,10 +288,20 @@ export function ExpensesManager({ initialBanks, initialExpenses }: ExpensesManag
               className="flex items-center justify-between rounded-md border p-3"
             >
               <div>
-                <p className="font-medium">{expense.name}</p>
+                <p className="font-medium">
+                  {expense.name}
+                  {isInvestmentCategory(expense.category) ? (
+                    <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 py-px text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400">
+                      inversión
+                    </span>
+                  ) : null}
+                </p>
                 <p className="text-muted-foreground text-sm">
-                  {expense.bank.name} · {formatCurrency(Number(expense.amount))} ·{" "}
-                  {expense.isRecurring ? "Recurring" : "One-off"} · {expense.category.toLowerCase()}
+                  {expense.bank.name} ·{" "}
+                  <span className={isInvestmentCategory(expense.category) ? "text-indigo-600 dark:text-indigo-400" : ""}>
+                    {formatCurrency(Number(expense.amount))}
+                  </span>{" "}
+                  · {expense.isRecurring ? "Recurring" : "One-off"} · {expense.category.toLowerCase()}
                 </p>
               </div>
               <div className="flex gap-2">

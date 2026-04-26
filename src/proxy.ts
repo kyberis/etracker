@@ -21,5 +21,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)"],
+  matcher: [
+    // Skip auth for: NextAuth, the WhatsApp webhook (called by Meta with no
+    // session cookie), static assets, favicon/sitemap/robots, and the PWA
+    // public assets (manifest, icons, service worker).
+    "/((?!api/auth|api/webhooks|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|manifest.webmanifest|sw.js|icon.svg|apple-icon|manifest-icon).*)",
+  ],
 };
