@@ -27,6 +27,7 @@ export default async function ExpensesPage() {
     isRecurring: expense.isRecurring,
     startMonth: formatMonthKey(expense.startMonth),
     endMonth: expense.endMonth ? formatMonthKey(expense.endMonth) : null,
+    category: expense.category,
   }));
 
   return (

@@ -3,6 +3,7 @@
 import { format, parse } from "date-fns";
 import { useMemo, useState } from "react";
 
+import type { MonthPageDataWithRecord } from "@/lib/month-page-types";
 import { formatCurrency } from "@/lib/format";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,27 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 
-type ExpenseItem = {
-  id: string;
-  name: string;
-  amount: string | number;
-  bankId: string;
-  bankName: string;
-  paid: boolean;
-};
-
-type MonthResponse = {
-  month: string;
-  income: number;
-  defaultIncome: number;
-  incomeHistory: Array<{ month: string; amount: number }>;
-  totals: { planned: number; paid: number; remaining: number };
-  bankTotals: Array<{ bankId: string; bankName: string; color?: string | null }>;
-  expenses: ExpenseItem[];
-};
-
 type MonthDashboardProps = {
-  data: MonthResponse;
+  data: MonthPageDataWithRecord;
 };
 
 export function MonthDashboard({ data }: MonthDashboardProps) {
@@ -53,7 +35,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   }, [expenses]);
 
   const expensesByBank = useMemo(() => {
-    const grouped = new Map<string, ExpenseItem[]>();
+    const grouped = new Map<string, typeof expenses>();
     for (const expense of expenses) {
       const list = grouped.get(expense.bankId) ?? [];
       list.push(expense);
@@ -62,20 +44,20 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     return grouped;
   }, [expenses]);
 
-  async function togglePayment(expenseId: string, nextPaid: boolean) {
+  async function toggleLinePaid(lineId: string, nextPaid: boolean) {
     setExpenses((current) =>
-      current.map((item) => (item.id === expenseId ? { ...item, paid: nextPaid } : item)),
+      current.map((item) => (item.id === lineId ? { ...item, paid: nextPaid } : item)),
     );
 
-    const response = await fetch(`/api/expenses/${expenseId}/payments`, {
-      method: nextPaid ? "POST" : "DELETE",
+    const response = await fetch(`/api/month-expense-lines/${lineId}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ month: data.month }),
+      body: JSON.stringify({ paid: nextPaid }),
     });
 
     if (!response.ok) {
       setExpenses((current) =>
-        current.map((item) => (item.id === expenseId ? { ...item, paid: !nextPaid } : item)),
+        current.map((item) => (item.id === lineId ? { ...item, paid: !nextPaid } : item)),
       );
     }
   }
@@ -167,14 +149,14 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Income history</CardTitle>
+          <CardTitle className="text-sm">Income history (recent month overrides)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="text-muted-foreground text-sm">
-            Default income (used when month has no override): {formatCurrency(data.defaultIncome)}
+            Default income (new months start from this): {formatCurrency(data.defaultIncome)}
           </div>
           {data.incomeHistory.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No custom month income yet.</p>
+            <p className="text-muted-foreground text-sm">No other months yet.</p>
           ) : (
             <div className="space-y-2">
               {data.incomeHistory.map((entry) => (
@@ -227,13 +209,16 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                       <p className="font-medium">{expense.name}</p>
                       <p className="text-muted-foreground text-sm">
                         {formatCurrency(Number(expense.amount))}
+                        {expense.category ? ` · ${expense.category.toLowerCase()}` : null}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm">Paid</span>
                       <Checkbox
                         checked={expense.paid}
-                        onCheckedChange={(checked) => togglePayment(expense.id, checked === true)}
+                        onCheckedChange={(checked) =>
+                          toggleLinePaid(expense.id, checked === true)
+                        }
                       />
                     </div>
                   </label>

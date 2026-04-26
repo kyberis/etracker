@@ -2,117 +2,27 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 
-import { db } from "@/lib/db";
 import { jsonError } from "@/lib/http";
-import { expenseAppliesToMonth, formatMonthKey, parseMonthKey, toMonthStart } from "@/lib/months";
-import { getMonthlyIncomeModel } from "@/lib/monthly-income";
+import { loadMonthPageData } from "@/lib/month-page-data";
+import { parseMonthKey, toMonthStart } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
-import { monthlyIncomeSchema } from "@/lib/validators";
+import { monthlyIncomeSchema, monthParamSchema } from "@/lib/validators";
+
+import { db } from "@/lib/db";
 
 export async function GET(_request: Request, context: { params: Promise<{ month: string }> }) {
   try {
     const userId = await requireUserId();
-    const { month: monthKey } = await context.params;
-    const month = parseMonthKey(monthKey);
-    const monthlyIncomeModel = getMonthlyIncomeModel();
-
-    const [user, monthIncome, banks, expenses] = await Promise.all([
-      db.user.findUnique({
-        where: { id: userId },
-        select: { monthlyIncome: true },
-      }),
-      monthlyIncomeModel
-        ? monthlyIncomeModel.findUnique({
-            where: {
-              userId_month: {
-                userId,
-                month: toMonthStart(month),
-              },
-            },
-            select: { amount: true },
-          })
-        : Promise.resolve(null),
-      db.bank.findMany({
-        where: { userId },
-        orderBy: { name: "asc" },
-      }),
-      db.expense.findMany({
-        where: { userId },
-        include: {
-          bank: true,
-          payments: {
-            where: {
-              month: toMonthStart(month),
-            },
-            select: {
-              expenseId: true,
-              month: true,
-            },
-          },
-        },
-        orderBy: [{ name: "asc" }],
-      }),
-    ]);
-
-    const resolvedExpenses = expenses
-      .filter((expense) => expenseAppliesToMonth(expense, month))
-      .map((expense) => {
-        const paid = expense.payments.some(
-          (payment) => toMonthStart(payment.month).getTime() === toMonthStart(month).getTime(),
-        );
-
-        return {
-          id: expense.id,
-          name: expense.name,
-          amount: expense.amount,
-          bankId: expense.bankId,
-          bankName: expense.bank.name,
-          isRecurring: expense.isRecurring,
-          startMonth: formatMonthKey(expense.startMonth),
-          endMonth: expense.endMonth ? formatMonthKey(expense.endMonth) : null,
-          paid,
-        };
-      });
-
-    const bankTotals = banks.map((bank) => {
-      const entries = resolvedExpenses.filter((expense) => expense.bankId === bank.id);
-      const planned = entries.reduce((sum, expense) => sum + Number(expense.amount), 0);
-      const paid = entries
-        .filter((expense) => expense.paid)
-        .reduce((sum, expense) => sum + Number(expense.amount), 0);
-
-      return {
-        bankId: bank.id,
-        bankName: bank.name,
-        color: bank.color,
-        planned,
-        paid,
-      };
-    });
-
-    const totals = bankTotals.reduce(
-      (acc, bank) => {
-        acc.planned += bank.planned;
-        acc.paid += bank.paid;
-        return acc;
-      },
-      { planned: 0, paid: 0 },
-    );
-
-    return NextResponse.json({
-      month: monthKey,
-      income: Number(monthIncome?.amount ?? user?.monthlyIncome ?? 0),
-      totals: {
-        planned: totals.planned,
-        paid: totals.paid,
-        remaining: totals.planned - totals.paid,
-      },
-      bankTotals,
-      expenses: resolvedExpenses,
-    });
+    const { month: monthParam } = await context.params;
+    const { month: monthKey } = monthParamSchema.parse({ month: monthParam });
+    const data = await loadMonthPageData(userId, monthKey);
+    return NextResponse.json(data);
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return jsonError("Unauthorized.", 401);
+    }
+    if (error instanceof ZodError) {
+      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
     }
     if (error instanceof Error && error.message.includes("Invalid month format")) {
       return jsonError("Month must be in yyyy-MM format.", 400);
@@ -124,39 +34,30 @@ export async function GET(_request: Request, context: { params: Promise<{ month:
 export async function PATCH(request: Request, context: { params: Promise<{ month: string }> }) {
   try {
     const userId = await requireUserId();
-    const { month: monthKey } = await context.params;
-    const month = parseMonthKey(monthKey);
-    const monthlyIncomeModel = getMonthlyIncomeModel();
-    if (!monthlyIncomeModel) {
-      return jsonError(
-        "Monthly income model is unavailable. Run Prisma generate and restart the server.",
-        500,
-      );
-    }
+    const { month: monthParam } = await context.params;
+    const { month: monthKey } = monthParamSchema.parse({ month: monthParam });
+    const month = toMonthStart(parseMonthKey(monthKey));
 
     const body = await request.json();
     const payload = monthlyIncomeSchema.parse(body);
 
-    const record = await monthlyIncomeModel.upsert({
-      where: {
-        userId_month: {
-          userId,
-          month: toMonthStart(month),
-        },
-      },
-      create: {
-        userId,
-        month: toMonthStart(month),
-        amount: new Prisma.Decimal(payload.amount.toFixed(2)),
-      },
-      update: {
-        amount: new Prisma.Decimal(payload.amount.toFixed(2)),
+    const existing = await db.monthRecord.findFirst({
+      where: { userId, month },
+    });
+    if (!existing) {
+      return jsonError("Month not set up. Create the month first.", 404);
+    }
+
+    const record = await db.monthRecord.update({
+      where: { id: existing.id },
+      data: {
+        income: new Prisma.Decimal(payload.amount.toFixed(2)),
       },
     });
 
     return NextResponse.json({
       month: monthKey,
-      income: Number(record.amount),
+      income: Number(record.income),
     });
   } catch (error) {
     if (error instanceof ZodError) {

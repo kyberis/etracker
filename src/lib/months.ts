@@ -1,6 +1,6 @@
 import { addMonths } from "date-fns";
 
-import { type Expense, type Payment } from "@prisma/client";
+import { type Expense } from "@prisma/client";
 
 export function toMonthStart(value: Date): Date {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
@@ -47,16 +47,4 @@ export function expenseAppliesToMonth(expense: Expense, month: Date): boolean {
   }
 
   return true;
-}
-
-export function isExpensePaidForMonth(
-  expenseId: string,
-  month: Date,
-  payments: Array<Pick<Payment, "expenseId" | "month">>,
-): boolean {
-  const monthStart = toMonthStart(month).getTime();
-  return payments.some(
-    (payment) =>
-      payment.expenseId === expenseId && toMonthStart(payment.month).getTime() === monthStart,
-  );
 }

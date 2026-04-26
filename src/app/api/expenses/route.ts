@@ -44,6 +44,7 @@ export async function POST(request: Request) {
         isRecurring: payload.isRecurring,
         startMonth: parseMonthKey(payload.startMonth),
         endMonth: payload.endMonth ? parseMonthKey(payload.endMonth) : null,
+        category: payload.category,
       },
       include: { bank: true },
     });

@@ -34,6 +34,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         isRecurring: payload.isRecurring,
         startMonth: parseMonthKey(payload.startMonth),
         endMonth: payload.endMonth ? parseMonthKey(payload.endMonth) : null,
+        category: payload.category,
       },
       include: { bank: true },
     });

@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import { formatCurrency } from "@/lib/format";
+import { expenseCategoryOptions } from "@/lib/validators";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ type Expense = {
   isRecurring: boolean;
   startMonth: string;
   endMonth: string | null;
+  category: string;
 };
 
 const currentMonth = new Date().toISOString().slice(0, 7);
@@ -46,6 +48,7 @@ export function ExpensesManager({ initialBanks, initialExpenses }: ExpensesManag
   const [isRecurring, setIsRecurring] = useState(true);
   const [startMonth, setStartMonth] = useState(currentMonth);
   const [endMonth, setEndMonth] = useState("");
+  const [category, setCategory] = useState<string>("OTROS");
 
   const [search, setSearch] = useState("");
   const [bankFilter, setBankFilter] = useState("all");
@@ -98,6 +101,7 @@ export function ExpensesManager({ initialBanks, initialExpenses }: ExpensesManag
         isRecurring,
         startMonth,
         endMonth: isRecurring && endMonth ? endMonth : undefined,
+        category,
       }),
     });
 
@@ -112,6 +116,7 @@ export function ExpensesManager({ initialBanks, initialExpenses }: ExpensesManag
     setIsRecurring(true);
     setStartMonth(currentMonth);
     setEndMonth("");
+    setCategory("OTROS");
     await loadData();
   }
 
@@ -131,6 +136,7 @@ export function ExpensesManager({ initialBanks, initialExpenses }: ExpensesManag
         isRecurring: expense.isRecurring,
         startMonth: expense.startMonth.slice(0, 7),
         endMonth: expense.endMonth ? expense.endMonth.slice(0, 7) : undefined,
+        category: expense.category,
       }),
     });
 
@@ -203,6 +209,18 @@ export function ExpensesManager({ initialBanks, initialExpenses }: ExpensesManag
                   onChange={(event) => setStartMonth(event.target.value)}
                   required
                 />
+                <Select value={category} onValueChange={(v) => setCategory(v ?? "OTROS")}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseCategoryOptions.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c.toLowerCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center gap-3">
                 <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
@@ -273,7 +291,7 @@ export function ExpensesManager({ initialBanks, initialExpenses }: ExpensesManag
                 <p className="font-medium">{expense.name}</p>
                 <p className="text-muted-foreground text-sm">
                   {expense.bank.name} · {formatCurrency(Number(expense.amount))} ·{" "}
-                  {expense.isRecurring ? "Recurring" : "One-off"}
+                  {expense.isRecurring ? "Recurring" : "One-off"} · {expense.category.toLowerCase()}
                 </p>
               </div>
               <div className="flex gap-2">

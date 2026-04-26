@@ -1,6 +1,25 @@
 import { z } from "zod";
 
 const monthRegex = /^\d{4}-\d{2}$/;
+
+const expenseCategoryValues = [
+  "VIVIENDA",
+  "SERVICIOS",
+  "TRANSPORTE",
+  "ALIMENTACION",
+  "SALUD",
+  "EDUCACION",
+  "ENTRETENIMIENTO",
+  "SUSCRIPCIONES",
+  "DEUDAS",
+  "IMPUESTOS",
+  "AHORRO",
+  "REGALOS",
+  "OTROS",
+] as const;
+
+export const expenseCategorySchema = z.enum(expenseCategoryValues);
+export const expenseCategoryOptions = expenseCategoryValues;
 const colorRegex = /^#?[0-9a-fA-F]{6}$/;
 
 export const registerSchema = z.object({
@@ -33,6 +52,7 @@ export const expenseSchema = z
       .trim()
       .optional()
       .transform((value) => (value && value.length ? value : undefined)),
+    category: expenseCategorySchema.optional().default("OTROS"),
   })
   .refine(
     (data) => !data.endMonth || monthRegex.test(data.endMonth),
@@ -67,8 +87,41 @@ export const monthParamSchema = z.object({
   month: z.string().regex(monthRegex, "Month must be yyyy-MM."),
 });
 
-export const paymentToggleSchema = z.object({
-  month: z.string().regex(monthRegex, "month must be yyyy-MM."),
+export const createMonthSchema = z
+  .object({
+    month: z.string().regex(monthRegex, "Month must be yyyy-MM."),
+    mode: z.enum(["templates", "copyFrom"]),
+    copyFromMonth: z
+      .string()
+      .trim()
+      .optional()
+      .transform((v) => (v && v.length ? v : undefined)),
+  })
+  .refine(
+    (data) => {
+      if (data.mode === "copyFrom" && !data.copyFromMonth) {
+        return false;
+      }
+      if (data.copyFromMonth) {
+        return monthRegex.test(data.copyFromMonth);
+      }
+      return true;
+    },
+    { message: "copyFromMonth must be yyyy-MM when mode is copyFrom.", path: ["copyFromMonth"] },
+  );
+
+export const monthExpenseLineUpdateSchema = z.object({
+  paid: z.coerce.boolean().optional(),
+  name: z.string().min(1).max(120).optional(),
+  amount: z.coerce.number().positive().optional(),
+});
+
+export const yearParamSchema = z.object({
+  year: z.coerce
+    .number()
+    .int()
+    .min(1970)
+    .max(2100),
 });
 
 export const settingsSchema = z.object({
