@@ -5,18 +5,16 @@ import { requireUserId } from "@/lib/session";
 
 export default async function ExpensesPage() {
   const userId = await requireUserId();
-  const [banks, expenses] = await Promise.all([
-    db.bank.findMany({
-      where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    db.expense.findMany({
-      where: { userId },
-      include: { bank: { select: { id: true, name: true } } },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  const banks = await db.bank.findMany({
+    where: { userId },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+  const expenses = await db.expense.findMany({
+    where: { userId },
+    include: { bank: { select: { id: true, name: true } } },
+    orderBy: { name: "asc" },
+  });
 
   const initialExpenses = expenses.map((expense) => ({
     id: expense.id,
