@@ -10,9 +10,10 @@ export function generateLinkCode(): string {
 }
 
 /**
- * Normalize a phone number from the user or from a Meta webhook payload to a
- * canonical E.164 string starting with `+`. Meta sometimes sends numbers
- * without the leading `+` so we add it when the rest of the value is digits.
+ * Normalize a phone number from the user or from a Twilio webhook payload to
+ * a canonical E.164 string starting with `+`. Twilio sends numbers as
+ * `whatsapp:+5491134567890`; the caller is expected to strip the channel
+ * prefix before calling this function.
  */
 export function normalizePhone(value: string): string | null {
   const trimmed = value.replace(/[\s\-()]/g, "");

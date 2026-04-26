@@ -3,12 +3,13 @@ import { NextResponse } from "next/server";
 
 import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
 import { db } from "@/lib/db";
-import {
-  fetchWhatsappMedia,
-  sendWhatsappText,
-  verifySignature,
-} from "@/lib/whatsapp/cloud-api";
 import { findUserByLinkCode, normalizePhone } from "@/lib/whatsapp/link";
+import {
+  buildPublicUrl,
+  fetchTwilioMedia,
+  sendTwilioWhatsapp,
+  verifyTwilioSignature,
+} from "@/lib/whatsapp/twilio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,133 +18,92 @@ const HISTORY_WINDOW = 12;
 const UNLINKED_HINT =
   "No tengo este número vinculado a una cuenta de eTracker todavía. Iniciá la vinculación en Ajustes → eTracker Assistant y mandame el código (LINK 123456) por acá.";
 
-// --- GET: Meta verification handshake ---------------------------------------
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const mode = url.searchParams.get("hub.mode");
-  const token = url.searchParams.get("hub.verify_token");
-  const challenge = url.searchParams.get("hub.challenge");
+const TWIML_OK = '<?xml version="1.0" encoding="UTF-8"?><Response/>';
 
-  if (
-    mode === "subscribe" &&
-    token &&
-    process.env.WHATSAPP_VERIFY_TOKEN &&
-    token === process.env.WHATSAPP_VERIFY_TOKEN
-  ) {
-    return new NextResponse(challenge ?? "", { status: 200 });
-  }
-  return new NextResponse("Forbidden", { status: 403 });
+function twimlResponse(): NextResponse {
+  return new NextResponse(TWIML_OK, {
+    status: 200,
+    headers: { "Content-Type": "text/xml; charset=utf-8" },
+  });
 }
 
-// --- POST: incoming messages -------------------------------------------------
+// Twilio doesn't do a verification handshake (Meta-style). We only accept POST.
 export async function POST(request: Request) {
   const rawBody = await request.text();
-  const signature = request.headers.get("x-hub-signature-256");
-  if (!verifySignature(rawBody, signature)) {
+  const params = Object.fromEntries(new URLSearchParams(rawBody));
+  const signature = request.headers.get("x-twilio-signature");
+  const url = buildPublicUrl(request);
+
+  if (!verifyTwilioSignature(signature, url, params)) {
     return new NextResponse("Invalid signature", { status: 401 });
   }
 
-  // Always 200 fast: Meta retries on non-2xx, and we'd rather process work
-  // in the background.
-  void handlePayload(rawBody).catch((error) => {
-    console.error("[whatsapp] handler error", error);
+  // Always 200 fast: Twilio retries on non-2xx and the agent call can take a
+  // few seconds. We acknowledge with empty TwiML and send the actual reply via
+  // the REST API once it's ready.
+  void handleMessage(params).catch((error) => {
+    console.error("[twilio whatsapp] handler error", error);
   });
 
-  return new NextResponse("ok", { status: 200 });
+  return twimlResponse();
 }
 
-type IncomingMessage = {
-  from: string;
-  id: string;
-  type: string;
-  text?: { body?: string };
-  image?: { id: string; mime_type?: string; caption?: string };
-};
-
-async function handlePayload(rawBody: string) {
-  const payload = safeParse(rawBody);
-  if (!payload) return;
-
-  const messages = extractMessages(payload);
-  for (const message of messages) {
-    await handleSingleMessage(message);
-  }
-}
-
-function safeParse(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function extractMessages(payload: unknown): IncomingMessage[] {
-  if (!payload || typeof payload !== "object") return [];
-  const root = payload as { entry?: Array<{ changes?: Array<{ value?: { messages?: IncomingMessage[] } }> }> };
-  const out: IncomingMessage[] = [];
-  for (const entry of root.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      for (const message of change.value?.messages ?? []) {
-        out.push(message);
-      }
-    }
-  }
-  return out;
-}
-
-async function handleSingleMessage(message: IncomingMessage) {
-  const phone = normalizePhone(message.from);
+async function handleMessage(params: Record<string, string>) {
+  const fromRaw = params.From ?? "";
+  const phone = normalizePhone(fromRaw.replace(/^whatsapp:/i, ""));
   if (!phone) return;
 
-  // Resolve identity. If the phone isn't linked yet, the only valid action is
-  // a `LINK 123456` style message that completes verification.
+  const text = (params.Body ?? "").trim();
+  const numMedia = Number.parseInt(params.NumMedia ?? "0", 10) || 0;
+
   const linkedUser = await db.user.findUnique({
     where: { whatsappPhone: phone },
     select: { id: true },
   });
 
-  if (message.type === "text" && message.text) {
-    const text = message.text.body ?? "";
-    if (!linkedUser) {
+  if (!linkedUser) {
+    if (text) {
       await tryCompleteLink(phone, text);
-      return;
+    } else {
+      await sendTwilioWhatsapp(phone, UNLINKED_HINT);
     }
-    await respondToUser(linkedUser.id, phone, text);
     return;
   }
 
-  if (message.type === "image" && message.image) {
-    if (!linkedUser) {
-      await sendWhatsappText(phone, UNLINKED_HINT);
+  if (numMedia > 0) {
+    const mediaUrl = params.MediaUrl0;
+    const mediaType = params.MediaContentType0 ?? "";
+    if (!mediaUrl || !mediaType.startsWith("image/")) {
+      await sendTwilioWhatsapp(
+        phone,
+        "Por ahora solo proceso texto y fotos. Mandame uno de esos formatos.",
+      );
       return;
     }
-    const caption = message.image.caption ?? "Procesá esta captura.";
-    const media = await fetchWhatsappMedia(message.image.id);
+    const media = await fetchTwilioMedia(mediaUrl);
     if (!media) {
-      await sendWhatsappText(phone, "No pude descargar la imagen, ¿la mandás de nuevo?");
+      await sendTwilioWhatsapp(
+        phone,
+        "No pude descargar la imagen, ¿la mandás de nuevo?",
+      );
       return;
     }
-    await respondToUser(linkedUser.id, phone, caption, {
+    await respondToUser(linkedUser.id, phone, text || "Procesá esta captura.", {
       mediaType: media.mediaType,
       buffer: media.buffer,
     });
     return;
   }
 
-  // Other message types (audio, sticker, etc.) – politely ack.
-  if (linkedUser) {
-    await sendWhatsappText(
-      phone,
-      "Por ahora solo proceso texto y fotos. Mandame uno de esos formatos.",
-    );
+  if (text) {
+    await respondToUser(linkedUser.id, phone, text);
   }
 }
 
 async function tryCompleteLink(phone: string, text: string) {
   const match = await findUserByLinkCode(text);
   if (!match) {
-    await sendWhatsappText(phone, UNLINKED_HINT);
+    await sendTwilioWhatsapp(phone, UNLINKED_HINT);
     return;
   }
   await db.user.update({
@@ -155,7 +115,7 @@ async function tryCompleteLink(phone: string, text: string) {
       whatsappLinkCodeExpires: null,
     },
   });
-  await sendWhatsappText(
+  await sendTwilioWhatsapp(
     phone,
     "Listo, vinculé este número a tu cuenta de eTracker. Decime qué querés saber del mes o mandame una captura del banco.",
   );
@@ -191,12 +151,12 @@ async function respondToUser(
       messages: [...history, userMessage],
     });
   } catch (error) {
-    console.error("[whatsapp] agent error", error);
+    console.error("[twilio whatsapp] agent error", error);
     reply = "Tuve un problema procesando tu mensaje. Probá de nuevo en un momento.";
   }
 
   await persistMessage(userId, "assistant", reply);
-  await sendWhatsappText(phone, reply);
+  await sendTwilioWhatsapp(phone, reply);
 }
 
 async function loadHistory(userId: string): Promise<ModelMessage[]> {
@@ -214,7 +174,11 @@ async function loadHistory(userId: string): Promise<ModelMessage[]> {
     );
 }
 
-async function persistMessage(userId: string, role: "user" | "assistant", text: string) {
+async function persistMessage(
+  userId: string,
+  role: "user" | "assistant",
+  text: string,
+) {
   await db.whatsappMessage.create({
     data: { userId, role, text: text.slice(0, 4000) },
   });
