@@ -116,6 +116,13 @@ export const monthExpenseLineUpdateSchema = z.object({
   amount: z.coerce.number().positive().optional(),
 });
 
+export const monthExpenseLineCreateSchema = z.object({
+  name: z.string().min(1, "Name is required.").max(120),
+  amount: z.coerce.number().positive("Amount must be greater than 0."),
+  bankId: z.string().min(1, "Bank is required."),
+  category: expenseCategorySchema.optional().default("OTROS"),
+});
+
 export const yearParamSchema = z.object({
   year: z.coerce
     .number()

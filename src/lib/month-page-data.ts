@@ -1,4 +1,5 @@
-import { formatMonthKey, parseMonthKey, toMonthStart } from "@/lib/months";
+import { listPendingTemplateExpensesForMonth } from "@/lib/month-bucket";
+import { formatMonthKey, isCurrentMonthKey, parseMonthKey, toMonthStart } from "@/lib/months";
 
 import { db } from "./db";
 import type { MonthLinePayload, MonthPageData } from "./month-page-types";
@@ -35,6 +36,8 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     month: formatMonthKey(e.month),
     amount: Number(e.income),
   }));
+
+  const isCurrentMonth = isCurrentMonthKey(monthKey);
 
   if (!monthRecord) {
     return {
@@ -78,18 +81,35 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     { planned: 0, paid: 0 },
   );
 
+  const balance = income - totals.planned;
+
+  const existingTemplateIds = new Set(
+    monthRecord.lines
+      .map((l) => l.templateId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const pendingFromTemplates = await listPendingTemplateExpensesForMonth(
+    userId,
+    monthKey,
+    existingTemplateIds,
+  );
+
   return {
     month: monthKey,
     hasRecord: true as const,
     defaultIncome,
     income,
+    isCurrentMonth,
     incomeHistory: history,
     totals: {
       planned: totals.planned,
       paid: totals.paid,
       remaining: totals.planned - totals.paid,
     },
+    balance,
     bankTotals,
     expenses,
+    banks: banks.map((b) => ({ id: b.id, name: b.name })),
+    pendingFromTemplates,
   };
 }

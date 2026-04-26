@@ -60,7 +60,10 @@ export default async function MonthPage({ params }: PageProps) {
         </CardContent>
       </Card>
       {data.hasRecord ? (
-        <MonthDashboard data={data} />
+        <MonthDashboard
+          key={`${data.month}-${data.expenses.map((e) => e.id).join(".")}-${data.income}-${data.pendingFromTemplates.map((p) => p.templateId).join()}`}
+          data={data}
+        />
       ) : (
         <CreateMonthSection month={month} suggestedCopyFrom={suggestedCopyFrom} />
       )}

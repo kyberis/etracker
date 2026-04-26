@@ -1,6 +1,7 @@
 import { type Expense, type ExpenseCategory, Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import type { PendingTemplateExpense } from "@/lib/month-page-types";
 import { expenseAppliesToMonth, parseMonthKey, toMonthStart } from "@/lib/months";
 
 type LineInput = {
@@ -139,4 +140,77 @@ export async function findPreviousMonthWithRecord(userId: string, beforeMonth: D
     },
     orderBy: { month: "desc" },
   });
+}
+
+/**
+ * Expense templates that apply to the month and are not yet represented
+ * as a line linked to that template (`templateId`) in the bucket.
+ */
+export async function listPendingTemplateExpensesForMonth(
+  userId: string,
+  monthKey: string,
+  existingLineTemplateIds: Set<string>,
+): Promise<PendingTemplateExpense[]> {
+  const month = parseMonthKey(monthKey);
+  const expenses = await db.expense.findMany({
+    where: { userId },
+    include: { bank: { select: { name: true } } },
+  });
+  const pending: PendingTemplateExpense[] = [];
+  for (const e of expenses) {
+    if (!expenseAppliesToMonth(e, month)) {
+      continue;
+    }
+    if (existingLineTemplateIds.has(e.id)) {
+      continue;
+    }
+    pending.push({
+      templateId: e.id,
+      name: e.name,
+      amount: e.amount.toString(),
+      bankId: e.bankId,
+      bankName: e.bank.name,
+      category: e.category,
+    });
+  }
+  return pending;
+}
+
+/**
+ * Create month lines for every template that applies but is still missing. Idempotent.
+ */
+export async function mergePendingTemplateLinesIntoMonth(userId: string, monthKey: string) {
+  const start = toMonthStart(parseMonthKey(monthKey));
+  const monthRecord = await db.monthRecord.findFirst({
+    where: { userId, month: start },
+    include: { lines: { select: { templateId: true } } },
+  });
+  if (!monthRecord) {
+    throw new Error("NO_RECORD");
+  }
+  const existing = new Set(
+    monthRecord.lines
+      .map((l) => l.templateId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const pending = await listPendingTemplateExpensesForMonth(userId, monthKey, existing);
+  if (pending.length === 0) {
+    return { added: 0 };
+  }
+  await db.$transaction(
+    pending.map((p) =>
+      db.monthExpenseLine.create({
+        data: {
+          monthRecordId: monthRecord.id,
+          templateId: p.templateId,
+          bankId: p.bankId,
+          name: p.name,
+          amount: new Prisma.Decimal(p.amount),
+          category: p.category as ExpenseCategory,
+          paid: false,
+        },
+      }),
+    ),
+  );
+  return { added: pending.length };
 }

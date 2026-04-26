@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 
 import { cn } from "@/lib/utils";
 
+import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 
 const links = [
@@ -22,8 +23,12 @@ export function AppNav() {
     <header className="bg-background border-b">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-4">
-          <Link href="/" className="font-semibold">
-            Expense Tracker
+          <Link
+            href="/"
+            className="focus-visible:ring-ring focus-visible:ring-offset-background rounded-md focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+            aria-label="eTracker home"
+          >
+            <Logo size="md" />
           </Link>
           <nav className="flex items-center gap-2">
             {links.map((link) => {

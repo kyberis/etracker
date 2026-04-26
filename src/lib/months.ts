@@ -25,6 +25,15 @@ export function formatMonthKey(date: Date): string {
   return `${year}-${month}`;
 }
 
+/** yyyy-MM of the current calendar month in UTC. */
+export function getCurrentMonthKey() {
+  return formatMonthKey(new Date());
+}
+
+export function isCurrentMonthKey(monthKey: string) {
+  return monthKey === getCurrentMonthKey();
+}
+
 export function monthRange(start: Date, count: number): Date[] {
   return Array.from({ length: count }).map((_, index) => addMonths(start, index));
 }

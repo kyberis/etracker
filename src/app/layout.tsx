@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Planned Expenses Tracker",
+  title: "eTracker — Planned expenses",
   description: "Track recurring and one-off monthly expenses by bank.",
+  icons: { icon: "/icon.svg" },
 };
 
 export default function RootLayout({
