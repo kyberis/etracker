@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Planned Expenses Tracker
 
-## Getting Started
+A Next.js app to plan recurring and one-off monthly expenses, grouped by bank, with per-month paid tracking.
 
-First, run the development server:
+## Features
+
+- Email/password login
+- Bank management (create, edit, delete)
+- Expense management (create, edit, delete)
+- Recurring expenses with start/end month rules
+- One-off expenses for a single month
+- Monthly dashboard with:
+  - Income
+  - Planned total
+  - Paid total
+  - Remaining amount
+  - Per-bank subtotals
+- Mark expenses as paid/unpaid per month
+
+## Tech stack
+
+- Next.js 16 (App Router, TypeScript)
+- Tailwind CSS + shadcn/ui
+- NextAuth (credentials)
+- Prisma + PostgreSQL
+
+## Local setup
+
+1. Install dependencies
+
+```bash
+npm install
+```
+
+2. Copy environment variables
+
+```bash
+cp .env.example .env
+```
+
+3. Start PostgreSQL
+
+```bash
+docker compose up -d
+```
+
+4. Run migrations
+
+```bash
+npm run prisma:migrate
+```
+
+5. Start the app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Useful scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` - start dev server
+- `npm run build` - production build
+- `npm run start` - run production server
+- `npm run lint` - run ESLint
+- `npm run format` - run Prettier
+- `npm run prisma:generate` - generate Prisma client
+- `npm run prisma:migrate` - run development migrations
+- `npm run prisma:deploy` - run migrations in production
 
-## Learn More
+## Deploy to Vercel + Neon
 
-To learn more about Next.js, take a look at the following resources:
+1. Create a Neon Postgres database.
+2. Set environment variables in Vercel:
+   - `DATABASE_URL`
+   - `NEXTAUTH_URL` (your deployed URL)
+   - `NEXTAUTH_SECRET`
+3. In Vercel build settings, run migrations before build:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run prisma:deploy && npm run build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+4. Deploy.
