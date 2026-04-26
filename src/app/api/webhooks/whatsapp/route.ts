@@ -1,5 +1,5 @@
 import { type ModelMessage } from "ai";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
 import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
 import { db } from "@/lib/db";
@@ -13,6 +13,11 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// The agent + tool calls + outbound Twilio request can comfortably take more
+// than the default 10s. 60s is the Pro/Fluid ceiling and gives us breathing
+// room without blowing past Twilio's own request timeout (which is irrelevant
+// here because we already responded with empty TwiML).
+export const maxDuration = 60;
 
 const HISTORY_WINDOW = 12;
 const UNLINKED_HINT =
@@ -35,14 +40,31 @@ export async function POST(request: Request) {
   const url = buildPublicUrl(request);
 
   if (!verifyTwilioSignature(signature, url, params)) {
+    console.warn("[twilio whatsapp] invalid signature", {
+      hasSignature: Boolean(signature),
+      url,
+    });
     return new NextResponse("Invalid signature", { status: 401 });
   }
 
-  // Always 200 fast: Twilio retries on non-2xx and the agent call can take a
-  // few seconds. We acknowledge with empty TwiML and send the actual reply via
-  // the REST API once it's ready.
-  void handleMessage(params).catch((error) => {
-    console.error("[twilio whatsapp] handler error", error);
+  console.info("[twilio whatsapp] inbound", {
+    from: params.From,
+    bodyLength: (params.Body ?? "").length,
+    numMedia: params.NumMedia ?? "0",
+    messageSid: params.MessageSid,
+  });
+
+  // Acknowledge with empty TwiML immediately so Twilio doesn't retry. The
+  // actual processing (agent + outbound Twilio REST call) is scheduled with
+  // `after()` so Vercel keeps the function alive past the response — using
+  // `void promise.catch()` doesn't work on serverless because the runtime can
+  // freeze the execution context as soon as we return.
+  after(async () => {
+    try {
+      await handleMessage(params);
+    } catch (error) {
+      console.error("[twilio whatsapp] handler error", error);
+    }
   });
 
   return twimlResponse();

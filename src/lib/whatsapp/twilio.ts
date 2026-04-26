@@ -74,7 +74,34 @@ export async function sendTwilioWhatsapp(
   const to = withChannel(toPhone);
   const chunks = chunkText(text || "(sin respuesta)", 1500);
   for (const chunk of chunks) {
-    await client.messages.create({ from, to, body: chunk });
+    try {
+      const result = await client.messages.create({ from, to, body: chunk });
+      console.info("[twilio whatsapp] outbound ok", {
+        sid: result.sid,
+        to,
+        status: result.status,
+        chars: chunk.length,
+      });
+    } catch (error) {
+      // Twilio errors carry `code`, `status`, `moreInfo` — useful for
+      // diagnosing sandbox-not-joined (63007), channel disabled, invalid
+      // sender, etc.
+      const e = error as {
+        code?: number;
+        status?: number;
+        message?: string;
+        moreInfo?: string;
+      };
+      console.error("[twilio whatsapp] outbound failed", {
+        to,
+        from,
+        code: e.code,
+        status: e.status,
+        message: e.message,
+        moreInfo: e.moreInfo,
+      });
+      throw error;
+    }
   }
 }
 
