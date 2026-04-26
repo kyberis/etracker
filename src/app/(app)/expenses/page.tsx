@@ -1,7 +1,13 @@
+import type { Prisma } from "@prisma/client";
+
 import { ExpensesManager } from "@/components/expenses-manager";
 import { db } from "@/lib/db";
 import { formatMonthKey } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
+
+type ExpenseWithBank = Prisma.ExpenseGetPayload<{
+  include: { bank: { select: { id: true; name: true } } };
+}>;
 
 export default async function ExpensesPage() {
   const userId = await requireUserId();
@@ -10,13 +16,13 @@ export default async function ExpensesPage() {
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
-  const expenses = await db.expense.findMany({
+  const expenses: ExpenseWithBank[] = await db.expense.findMany({
     where: { userId },
     include: { bank: { select: { id: true, name: true } } },
     orderBy: { name: "asc" },
   });
 
-  const initialExpenses = expenses.map((expense) => ({
+  const initialExpenses = expenses.map((expense: ExpenseWithBank) => ({
     id: expense.id,
     name: expense.name,
     amount: expense.amount.toString(),
