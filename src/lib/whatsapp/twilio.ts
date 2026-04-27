@@ -146,18 +146,99 @@ export function verifyTwilioWebhookRequest(
   return { ok: false };
 }
 
+export type SendTwilioWhatsappOptions = {
+  /** Public HTTPS URL(s) of audio (e.g. MP3) for voice-note style replies. */
+  voiceMediaUrls?: string[];
+};
+
 /**
  * Send a plain-text WhatsApp message via Twilio REST. Twilio caps each message
  * at 1600 chars, so we segment longer payloads.
+ *
+ * With `voiceMediaUrls`, sends one message whose body is the first text chunk
+ * and attaches the audio (WhatsApp shows it as a voice/media note).
  */
 export async function sendTwilioWhatsapp(
   toPhone: string,
   text: string,
+  opts?: SendTwilioWhatsappOptions,
 ): Promise<void> {
   const client = getClient();
   const from = getFrom();
   const to = withChannel(toPhone);
+  const voiceUrls = opts?.voiceMediaUrls?.filter((u) => u.startsWith("https://")) ?? [];
+
   const chunks = chunkText(text || "(sin respuesta)", 1500);
+
+  if (voiceUrls.length > 0) {
+    const firstBody = chunks[0] ?? "(sin respuesta)";
+    try {
+      const result = await client.messages.create({
+        from,
+        to,
+        body: firstBody,
+        mediaUrl: voiceUrls,
+      });
+      console.log("[etracker.twilio] outbound_ok", {
+        sid: result.sid,
+        to,
+        status: result.status,
+        chars: firstBody.length,
+        voiceAttachments: voiceUrls.length,
+      });
+    } catch (error) {
+      const e = error as {
+        code?: number;
+        status?: number;
+        message?: string;
+        moreInfo?: string;
+      };
+      console.error("[etracker.twilio] outbound_failed", {
+        to,
+        from,
+        code: e.code,
+        status: e.status,
+        message: e.message,
+        moreInfo: e.moreInfo,
+      });
+      throw error;
+    }
+
+    for (let i = 1; i < chunks.length; i++) {
+      try {
+        const result = await client.messages.create({
+          from,
+          to,
+          body: chunks[i],
+        });
+        console.log("[etracker.twilio] outbound_ok", {
+          sid: result.sid,
+          to,
+          status: result.status,
+          chars: chunks[i].length,
+          segment: i + 1,
+        });
+      } catch (error) {
+        const e = error as {
+          code?: number;
+          status?: number;
+          message?: string;
+          moreInfo?: string;
+        };
+        console.error("[etracker.twilio] outbound_failed", {
+          to,
+          from,
+          code: e.code,
+          status: e.status,
+          message: e.message,
+          moreInfo: e.moreInfo,
+        });
+        throw error;
+      }
+    }
+    return;
+  }
+
   for (const chunk of chunks) {
     try {
       const result = await client.messages.create({ from, to, body: chunk });

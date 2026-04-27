@@ -3,13 +3,16 @@ import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 
 import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
+import { synthesizeSpeechMp3 } from "@/lib/ai/text-to-speech";
 import { transcribeAudioOpenAI } from "@/lib/ai/transcribe-audio";
 import { db } from "@/lib/db";
+import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import { findUserByLinkCode, normalizePhone } from "@/lib/whatsapp/link";
 import {
   candidateWebhookUrls,
   fetchTwilioMedia,
   sendTwilioWhatsapp,
+  type SendTwilioWhatsappOptions,
   verifyTwilioWebhookRequest,
 } from "@/lib/whatsapp/twilio";
 
@@ -19,6 +22,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const HISTORY_WINDOW = 12;
+/** OpenAI TTS input limit; longer replies stay text-only when voice is enabled. */
+const WHATSAPP_TTS_MAX_CHARS = 4096;
+
+function isWhatsappVoiceReplyEnabled(): boolean {
+  const v = process.env.WHATSAPP_VOICE_REPLY?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
 const UNLINKED_HINT =
   "No tengo este número vinculado a una cuenta de eTracker todavía. Iniciá la vinculación en Ajustes → eTracker Assistant y mandame el código (LINK 123456) por acá.";
 
@@ -275,7 +285,33 @@ async function respondToUser(
   }
 
   await persistMessage(userId, "assistant", reply);
-  await sendTwilioWhatsapp(phone, reply);
+
+  let voiceOpts: SendTwilioWhatsappOptions | undefined;
+  const baseUrl = getPublicAppBaseUrl();
+  if (
+    isWhatsappVoiceReplyEnabled() &&
+    baseUrl?.startsWith("https://") &&
+    process.env.OPENAI_API_KEY &&
+    reply.length > 0 &&
+    reply.length <= WHATSAPP_TTS_MAX_CHARS
+  ) {
+    const mp3 = await synthesizeSpeechMp3(reply);
+    if (mp3) {
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      const row = await db.ttsAudioCache.create({
+        data: {
+          data: new Uint8Array(mp3),
+          mimeType: "audio/mpeg",
+          expiresAt,
+        },
+      });
+      voiceOpts = {
+        voiceMediaUrls: [`${baseUrl}/api/audio/tts/${row.id}`],
+      };
+    }
+  }
+
+  await sendTwilioWhatsapp(phone, reply, voiceOpts);
 }
 
 async function loadHistory(userId: string): Promise<ModelMessage[]> {

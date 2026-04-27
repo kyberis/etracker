@@ -191,3 +191,14 @@ model IgnoredTransaction {
 
   @@unique([connectionId, transactionId])
 }
+
+/// Short-lived MP3 for WhatsApp voice replies (Twilio fetches URL once; row deleted after send).
+model TtsAudioCache {
+  id        String   @id @default(uuid())
+  data      Bytes
+  mimeType  String   @default("audio/mpeg")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}

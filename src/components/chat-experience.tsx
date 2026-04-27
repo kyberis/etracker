@@ -27,8 +27,23 @@ export type ChatExperienceProps = {
   activeMonth?: string;
 };
 
+function assistantPlainText(message: UIMessage): string {
+  let s = "";
+  for (const p of message.parts) {
+    if (p.type === "text") s += p.text;
+  }
+  return s;
+}
+
 export function ChatExperience({ activeMonth }: ChatExperienceProps = {}) {
   const [conversationMode, setConversationMode] = useState(false);
+  const [voiceResponses, setVoiceResponses] = useState(false);
+  const [voiceUrlByMessageId, setVoiceUrlByMessageId] = useState<Record<string, string>>(
+    {},
+  );
+  const [ttsLoadingMessageId, setTtsLoadingMessageId] = useState<string | null>(null);
+  const ttsRequestedRef = useRef(new Set<string>());
+
   const requestOptsRef = useRef({
     conversationMode: false,
     activeMonth: undefined as string | undefined,
@@ -65,13 +80,59 @@ export function ChatExperience({ activeMonth }: ChatExperienceProps = {}) {
   /* eslint-enable react-hooks/refs */
   const { messages, sendMessage, status, error, stop } = useChat({ chat });
 
+  const isStreaming = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    if (!voiceResponses || isStreaming) return;
+
+    const assistants = messages.filter((m) => m.role === "assistant");
+    const lastAssistant = assistants[assistants.length - 1];
+    if (!lastAssistant) return;
+
+    const plain = assistantPlainText(lastAssistant);
+    if (!plain.trim() || plain.length > 4096) return;
+    if (ttsRequestedRef.current.has(lastAssistant.id)) return;
+
+    ttsRequestedRef.current.add(lastAssistant.id);
+    setTtsLoadingMessageId(lastAssistant.id);
+
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch("/api/audio/speech", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: plain }),
+          signal: ac.signal,
+        });
+        if (!res.ok) {
+          ttsRequestedRef.current.delete(lastAssistant.id);
+          return;
+        }
+        const data = (await res.json()) as { audioUrl?: string };
+        if (!data.audioUrl) {
+          ttsRequestedRef.current.delete(lastAssistant.id);
+          return;
+        }
+        setVoiceUrlByMessageId((prev) => ({ ...prev, [lastAssistant.id]: data.audioUrl! }));
+      } catch {
+        ttsRequestedRef.current.delete(lastAssistant.id);
+      } finally {
+        setTtsLoadingMessageId((cur) => (cur === lastAssistant.id ? null : cur));
+      }
+    })();
+
+    return () => {
+      ac.abort();
+    };
+  }, [messages, isStreaming, voiceResponses]);
+
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<FileList | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wasStreamingRef = useRef(false);
-
-  const isStreaming = status === "submitted" || status === "streaming";
 
   // Bring focus back to the textarea once the assistant finishes streaming
   // so the user can keep typing without clicking the input again.
@@ -146,24 +207,55 @@ export function ChatExperience({ activeMonth }: ChatExperienceProps = {}) {
   return (
     <Card>
       <CardContent className="flex h-[70vh] flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-border border-b pb-3">
-          <Label
-            htmlFor="etracker-conversation-mode"
-            className="text-muted-foreground cursor-pointer font-normal"
-          >
-            Modo conversación
-          </Label>
-          <Switch
-            id="etracker-conversation-mode"
-            checked={conversationMode}
-            onCheckedChange={setConversationMode}
-          />
+        <div className="space-y-2 border-border border-b pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label
+              htmlFor="etracker-conversation-mode"
+              className="text-muted-foreground cursor-pointer font-normal"
+            >
+              Modo conversación
+            </Label>
+            <Switch
+              id="etracker-conversation-mode"
+              checked={conversationMode}
+              onCheckedChange={setConversationMode}
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label
+              htmlFor="etracker-voice-reply"
+              className="text-muted-foreground cursor-pointer font-normal"
+            >
+              Respuesta en audio
+            </Label>
+            <Switch
+              id="etracker-voice-reply"
+              checked={voiceResponses}
+              onCheckedChange={(v) => {
+                setVoiceResponses(v);
+                if (!v) {
+                  ttsRequestedRef.current = new Set();
+                  setVoiceUrlByMessageId({});
+                  setTtsLoadingMessageId(null);
+                }
+              }}
+            />
+          </div>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto pr-2">
           {messages.length === 0 ? (
             <EmptyState />
           ) : (
-            messages.map((m) => <MessageBubble key={m.id} message={m} />)
+            messages.map((m) => (
+              <MessageBubble
+                key={m.id}
+                message={m}
+                audioSrc={m.role === "assistant" ? voiceUrlByMessageId[m.id] : undefined}
+                audioLoading={
+                  m.role === "assistant" && ttsLoadingMessageId === m.id
+                }
+              />
+            ))
           )}
         </div>
 
@@ -341,7 +433,15 @@ function MarkdownContent({ text }: { text: string }) {
   );
 }
 
-function MessageBubble({ message }: { message: UIMessage }) {
+function MessageBubble({
+  message,
+  audioSrc,
+  audioLoading,
+}: {
+  message: UIMessage;
+  audioSrc?: string;
+  audioLoading?: boolean;
+}) {
   const isUser = message.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -411,6 +511,17 @@ function MessageBubble({ message }: { message: UIMessage }) {
             }
             return null;
           })}
+          {!isUser && audioLoading ?
+            <p className="text-muted-foreground text-xs italic">Generando audio…</p>
+          : null}
+          {!isUser && audioSrc ?
+            <audio
+              controls
+              className="mt-1 h-9 w-full max-w-[min(100%,20rem)]"
+              src={audioSrc}
+              preload="metadata"
+            />
+          : null}
         </div>
       </div>
     </div>
