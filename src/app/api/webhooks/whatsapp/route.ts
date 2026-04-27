@@ -6,10 +6,10 @@ import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
 import { db } from "@/lib/db";
 import { findUserByLinkCode, normalizePhone } from "@/lib/whatsapp/link";
 import {
-  buildPublicUrl,
+  candidateWebhookUrls,
   fetchTwilioMedia,
   sendTwilioWhatsapp,
-  verifyTwilioSignature,
+  verifyTwilioWebhookRequest,
 } from "@/lib/whatsapp/twilio";
 
 export const runtime = "nodejs";
@@ -30,22 +30,46 @@ function twimlResponse(): NextResponse {
   });
 }
 
+/** Sanity check from a browser or `curl` — Twilio only uses POST. */
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    service: "etracker-whatsapp-webhook",
+    ts: new Date().toISOString(),
+  });
+}
+
 // Twilio doesn't do a verification handshake (Meta-style). We only accept POST.
 export async function POST(request: Request) {
   try {
     const rawBody = await request.text();
+    console.log(
+      "[etracker.twilio] post_raw",
+      JSON.stringify({
+        bodyBytes: rawBody.length,
+        host: request.headers.get("host"),
+        xfHost: request.headers.get("x-forwarded-host"),
+        xfProto: request.headers.get("x-forwarded-proto"),
+        url: request.url,
+      }),
+    );
+
     const params = Object.fromEntries(new URLSearchParams(rawBody));
     const signature = request.headers.get("x-twilio-signature");
-    const url = buildPublicUrl(request);
+    const auth = verifyTwilioWebhookRequest(signature, request, params);
 
-    if (!verifyTwilioSignature(signature, url, params)) {
-      // console.warn is easy to miss in Vercel's default log view — use stderr.
+    if (!auth.ok) {
+      const candidates = candidateWebhookUrls(request);
       console.error("[etracker.twilio] invalid_signature", {
         hasSignature: Boolean(signature),
-        url,
+        candidateCount: candidates.length,
+        sampleCandidates: candidates.slice(0, 5),
+        hint: "If this persists, set TWILIO_WEBHOOK_PUBLIC_URL in Vercel to the exact webhook URL from Twilio (https://…/api/webhooks/whatsapp).",
       });
       return new NextResponse("Invalid signature", { status: 401 });
     }
+
+    console.log("[etracker.twilio] signature_ok", JSON.stringify({ url: auth.matchedUrl }));
 
     console.log(
       "[etracker.twilio] inbound",

@@ -62,6 +62,91 @@ export function buildPublicUrl(request: Request): string {
 }
 
 /**
+ * Twilio signs the **exact** URL it POSTed to. Behind reverse proxies the
+ * `Host` / `x-forwarded-*` headers sometimes disagree with that string by one
+ * character (https vs http, port, first vs last value in a comma-separated
+ * list), which makes validation fail and the handler return 401 before any
+ * business logic runs — looks like "no logs, no WhatsApp reply".
+ *
+ * Optional: set `TWILIO_WEBHOOK_PUBLIC_URL` to the same string you pasted in
+ * the Twilio console (including path, no trailing slash unless Twilio has one).
+ */
+export function candidateWebhookUrls(request: Request): string[] {
+  const url = new URL(request.url);
+  const pathWithQuery = url.pathname + url.search;
+
+  const out: string[] = [];
+
+  const explicit = process.env.TWILIO_WEBHOOK_PUBLIC_URL?.trim();
+  if (explicit) {
+    out.push(explicit);
+  }
+
+  const hostCandidates = new Set<string>();
+  const xfHost = request.headers.get("x-forwarded-host");
+  const hostHeader = request.headers.get("host");
+  if (xfHost) {
+    for (const part of xfHost.split(",")) {
+      const h = part.trim();
+      if (h) hostCandidates.add(h);
+    }
+  }
+  if (hostHeader?.trim()) hostCandidates.add(hostHeader.trim());
+  if (url.host) hostCandidates.add(url.host);
+
+  const protoCandidates = new Set<string>();
+  const xfProto = request.headers.get("x-forwarded-proto");
+  if (xfProto) {
+    for (const part of xfProto.split(",")) {
+      const p = part.trim();
+      if (p) protoCandidates.add(p);
+    }
+  }
+  const fromUrlProto = url.protocol.replace(":", "");
+  if (fromUrlProto) protoCandidates.add(fromUrlProto);
+  protoCandidates.add("https");
+  protoCandidates.add("http");
+
+  for (const proto of protoCandidates) {
+    for (const host of hostCandidates) {
+      let h = host;
+      // Twilio typically signs without explicit :443 / :80.
+      h = h.replace(/:(443|80)$/i, "");
+      out.push(`${proto}://${h}${pathWithQuery}`);
+    }
+  }
+
+  // Some setups configure a trailing slash in the console.
+  const withSlash = pathWithQuery.endsWith("/") || pathWithQuery === "/";
+  if (!withSlash) {
+    const snapshot = [...out];
+    for (const u of snapshot) {
+      if (!u.endsWith("/")) out.push(`${u}/`);
+    }
+  }
+
+  return [...new Set(out)];
+}
+
+/** Try each candidate URL until `validateRequest` succeeds. */
+export function verifyTwilioWebhookRequest(
+  signature: string | null,
+  request: Request,
+  params: Record<string, string>,
+): { ok: boolean; matchedUrl?: string } {
+  if (!signature) return { ok: false };
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (!token) return { ok: false };
+
+  for (const candidate of candidateWebhookUrls(request)) {
+    if (twilio.validateRequest(token, signature, candidate, params)) {
+      return { ok: true, matchedUrl: candidate };
+    }
+  }
+  return { ok: false };
+}
+
+/**
  * Send a plain-text WhatsApp message via Twilio REST. Twilio caps each message
  * at 1600 chars, so we segment longer payloads.
  */
