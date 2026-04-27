@@ -219,7 +219,9 @@ export function SettingsManager({
             <p className="text-muted-foreground text-sm">
               Definí reglas en lenguaje natural: qué movimientos <strong>no</strong> importar desde
               Revolut (transferencias entre cuentas, recargas, etc.), cómo categorizar ciertos
-              comercios, o convenciones que use el asistente en el chat y con fotos del banco.
+              comercios, o convenciones que use el asistente en el chat y con fotos del banco. Podés
+              pedirle al asistente en el chat que guarde una preferencia para más adelante; se
+              escribe acá mismo.
             </p>
             <Textarea
               id="expenseImportInstructions"

@@ -94,6 +94,7 @@ Contexto del producto:
 Reglas de uso de tools:
 - No inventes ids ni montos. Si falta info, pedí solo el dato que falta (una pregunta por turno).
 - Si el usuario nombra un banco, resolvé el id con listBanks.
+- Si quiere que una preferencia quede guardada para futuras sesiones (reglas de Revolut/importaciones, categorías por defecto, marcar importaciones como pagadas, etc.), llamá updateExpenseImportInstructions; también puede editarlo en Configuración de la app.
 - "Cuánto me queda / cómo voy" → getMonthState con el mes pedido o el actual.
 - Imagen (Revolut, captura del banco, ticket): extraé las transacciones, mostralas en una lista compacta agrupadas por banco y pedí confirmación antes de aplicar nada. Para cada movimiento elegí updateMonthLine (si ya existe una línea similar) o addMonthLine (movimiento nuevo).
 - CSV / extracto en texto: a veces el usuario pega o adjunta un CSV ya convertido a lista en el mensaje (fechas, descripciones, importes). Tratalo como movimientos del banco: misma regla que una imagen — lista compacta, respetá las instrucciones personales del usuario sobre qué ignorar o cómo categorizar, y pedí confirmación antes de usar tools.

@@ -70,16 +70,32 @@ export function buildPublicUrl(request: Request): string {
  *
  * Optional: set `TWILIO_WEBHOOK_PUBLIC_URL` to the same string you pasted in
  * the Twilio console (including path, no trailing slash unless Twilio has one).
+ *
+ * For **message status callbacks** (different path), set
+ * `TWILIO_STATUS_CALLBACK_PUBLIC_URL` to the URL configured under "Status
+ * callback URL" in Twilio so signature checks match behind proxies.
  */
-export function candidateWebhookUrls(request: Request): string[] {
+export type TwilioWebhookUrlRole = "inbound" | "status";
+
+export function candidateWebhookUrls(
+  request: Request,
+  role: TwilioWebhookUrlRole = "inbound",
+): string[] {
   const url = new URL(request.url);
   const pathWithQuery = url.pathname + url.search;
 
   const out: string[] = [];
 
-  const explicit = process.env.TWILIO_WEBHOOK_PUBLIC_URL?.trim();
-  if (explicit) {
-    out.push(explicit);
+  if (role === "status") {
+    const statusExplicit = process.env.TWILIO_STATUS_CALLBACK_PUBLIC_URL?.trim();
+    if (statusExplicit) {
+      out.push(statusExplicit);
+    }
+  } else {
+    const explicit = process.env.TWILIO_WEBHOOK_PUBLIC_URL?.trim();
+    if (explicit) {
+      out.push(explicit);
+    }
   }
 
   const hostCandidates = new Set<string>();
@@ -133,12 +149,13 @@ export function verifyTwilioWebhookRequest(
   signature: string | null,
   request: Request,
   params: Record<string, string>,
+  role: TwilioWebhookUrlRole = "inbound",
 ): { ok: boolean; matchedUrl?: string } {
   if (!signature) return { ok: false };
   const token = process.env.TWILIO_AUTH_TOKEN;
   if (!token) return { ok: false };
 
-  for (const candidate of candidateWebhookUrls(request)) {
+  for (const candidate of candidateWebhookUrls(request, role)) {
     if (twilio.validateRequest(token, signature, candidate, params)) {
       return { ok: true, matchedUrl: candidate };
     }

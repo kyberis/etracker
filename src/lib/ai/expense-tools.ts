@@ -25,6 +25,9 @@ const monthKey = z
 const optionalMonthKey = monthKey.optional();
 const categoryEnum = z.enum(expenseCategoryOptions);
 
+/** Matches DB practical limit; avoids oversized prompts. */
+const MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS = 12_000;
+
 function formatMoney(value: number): string {
   return value.toLocaleString("es-AR", {
     minimumFractionDigits: 2,
@@ -314,6 +317,52 @@ export function buildExpenseTools(userId: string) {
           }
           throw e;
         }
+      },
+    }),
+
+    updateExpenseImportInstructions: tool({
+      description:
+        "Guarda en la cuenta del usuario las instrucciones persistentes para importaciones (Revolut, CSV, fotos), categorías y cómo marcar líneas (p. ej. pagado al importar). Usalo cuando pida recordar algo de forma permanente ('guardá que…', 'de ahora en más…', 'no quiero tener que repetir…'). Si solo agrega una regla nueva sin borrar el resto, usá mode=append (el texto actual está en el system prompt como bloque «Instrucciones personales»). Si reescribe todo el bloque, mode=replace. Después del tool, confirmá en una frase lo guardado.",
+      inputSchema: z.object({
+        mode: z
+          .enum(["replace", "append"])
+          .describe(
+            "append: concatena debajo de lo ya guardado. replace: reemplaza por completo.",
+          ),
+        instructions: z
+          .string()
+          .min(1)
+          .max(MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS),
+      }),
+      execute: async ({ mode, instructions }) => {
+        const trimmed = instructions.trim();
+        const existing = await db.user.findUnique({
+          where: { id: userId },
+          select: { expenseImportInstructions: true },
+        });
+        const current = existing?.expenseImportInstructions?.trim() ?? "";
+        const next =
+          mode === "append" && current ?
+            `${current}\n\n${trimmed}`
+          : trimmed;
+
+        if (next.length > MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS) {
+          return {
+            error: `El texto supera el máximo de ${MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS} caracteres. Pedí al usuario que acorte o borre reglas viejas desde Configuración.`,
+          };
+        }
+
+        await db.user.update({
+          where: { id: userId },
+          data: { expenseImportInstructions: next },
+        });
+
+        return {
+          ok: true as const,
+          mode,
+          length: next.length,
+          preview: next.length > 600 ? `${next.slice(0, 600)}…` : next,
+        };
       },
     }),
 
