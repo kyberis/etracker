@@ -76,7 +76,7 @@ export async function sendTwilioWhatsapp(
   for (const chunk of chunks) {
     try {
       const result = await client.messages.create({ from, to, body: chunk });
-      console.info("[twilio whatsapp] outbound ok", {
+      console.log("[etracker.twilio] outbound_ok", {
         sid: result.sid,
         to,
         status: result.status,
@@ -92,7 +92,7 @@ export async function sendTwilioWhatsapp(
         message?: string;
         moreInfo?: string;
       };
-      console.error("[twilio whatsapp] outbound failed", {
+      console.error("[etracker.twilio] outbound_failed", {
         to,
         from,
         code: e.code,

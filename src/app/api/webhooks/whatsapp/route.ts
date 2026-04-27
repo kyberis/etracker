@@ -1,5 +1,6 @@
 import { type ModelMessage } from "ai";
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 
 import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
 import { db } from "@/lib/db";
@@ -13,10 +14,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// The agent + tool calls + outbound Twilio request can comfortably take more
-// than the default 10s. 60s is the Pro/Fluid ceiling and gives us breathing
-// room without blowing past Twilio's own request timeout (which is irrelevant
-// here because we already responded with empty TwiML).
+// OpenAI tool loops + Twilio REST can exceed the default 10s on Hobby/Pro.
 export const maxDuration = 60;
 
 const HISTORY_WINDOW = 12;
@@ -34,64 +32,95 @@ function twimlResponse(): NextResponse {
 
 // Twilio doesn't do a verification handshake (Meta-style). We only accept POST.
 export async function POST(request: Request) {
-  const rawBody = await request.text();
-  const params = Object.fromEntries(new URLSearchParams(rawBody));
-  const signature = request.headers.get("x-twilio-signature");
-  const url = buildPublicUrl(request);
+  try {
+    const rawBody = await request.text();
+    const params = Object.fromEntries(new URLSearchParams(rawBody));
+    const signature = request.headers.get("x-twilio-signature");
+    const url = buildPublicUrl(request);
 
-  if (!verifyTwilioSignature(signature, url, params)) {
-    console.warn("[twilio whatsapp] invalid signature", {
-      hasSignature: Boolean(signature),
-      url,
-    });
-    return new NextResponse("Invalid signature", { status: 401 });
-  }
-
-  console.info("[twilio whatsapp] inbound", {
-    from: params.From,
-    bodyLength: (params.Body ?? "").length,
-    numMedia: params.NumMedia ?? "0",
-    messageSid: params.MessageSid,
-  });
-
-  // Acknowledge with empty TwiML immediately so Twilio doesn't retry. The
-  // actual processing (agent + outbound Twilio REST call) is scheduled with
-  // `after()` so Vercel keeps the function alive past the response — using
-  // `void promise.catch()` doesn't work on serverless because the runtime can
-  // freeze the execution context as soon as we return.
-  after(async () => {
-    try {
-      await handleMessage(params);
-    } catch (error) {
-      console.error("[twilio whatsapp] handler error", error);
+    if (!verifyTwilioSignature(signature, url, params)) {
+      // console.warn is easy to miss in Vercel's default log view — use stderr.
+      console.error("[etracker.twilio] invalid_signature", {
+        hasSignature: Boolean(signature),
+        url,
+      });
+      return new NextResponse("Invalid signature", { status: 401 });
     }
-  });
 
-  return twimlResponse();
+    console.log(
+      "[etracker.twilio] inbound",
+      JSON.stringify({
+        from: params.From,
+        bodyLen: (params.Body ?? "").length,
+        numMedia: params.NumMedia ?? "0",
+        messageSid: params.MessageSid,
+      }),
+    );
+
+    const fromRaw = params.From ?? "";
+    const phone = normalizePhone(fromRaw.replace(/^whatsapp:/i, ""));
+    if (!phone) {
+      console.log("[etracker.twilio] skip_no_phone", JSON.stringify({ fromRaw }));
+      return twimlResponse();
+    }
+
+    const text = (params.Body ?? "").trim();
+    const numMedia = Number.parseInt(params.NumMedia ?? "0", 10) || 0;
+
+    const linkedUser = await db.user.findUnique({
+      where: { whatsappPhone: phone },
+      select: { id: true },
+    });
+
+    /**
+     * Critical: the "link this number" path must finish *before* we return
+     * TwiML. On Vercel, `after()` / fire-and-forget promises are not reliable
+     * — the isolate is frozen right after the response is sent, so
+     * `tryCompleteLink` + `sendTwilioWhatsapp` never ran. Users saw HTTP 200 in
+     * Vercel (empty TwiML ack) but no WhatsApp reply and no logs from the
+     * background work.
+     *
+     * The heavy path (OpenAI + tools) still uses `waitUntil()` so we respond
+     * fast to Twilio but keep the function alive until the outbound message is
+     * sent.
+     */
+    if (!linkedUser) {
+      if (text) {
+        console.log("[etracker.twilio] path=unlinked_text await tryCompleteLink");
+        await tryCompleteLink(phone, text);
+      } else {
+        console.log("[etracker.twilio] path=unlinked_no_text await hint");
+        await sendTwilioWhatsapp(phone, UNLINKED_HINT);
+      }
+      return twimlResponse();
+    }
+
+    console.log("[etracker.twilio] path=linked schedule agent");
+    waitUntil(
+      (async () => {
+        try {
+          await handleLinkedUser(linkedUser.id, phone, text, numMedia, params);
+        } catch (error) {
+          console.error("[etracker.twilio] linked handler error", error);
+        }
+      })(),
+    );
+
+    return twimlResponse();
+  } catch (error) {
+    console.error("[etracker.twilio] POST fatal", error);
+    // Still 200 so Twilio doesn't hammer retries for our bug; check logs.
+    return twimlResponse();
+  }
 }
 
-async function handleMessage(params: Record<string, string>) {
-  const fromRaw = params.From ?? "";
-  const phone = normalizePhone(fromRaw.replace(/^whatsapp:/i, ""));
-  if (!phone) return;
-
-  const text = (params.Body ?? "").trim();
-  const numMedia = Number.parseInt(params.NumMedia ?? "0", 10) || 0;
-
-  const linkedUser = await db.user.findUnique({
-    where: { whatsappPhone: phone },
-    select: { id: true },
-  });
-
-  if (!linkedUser) {
-    if (text) {
-      await tryCompleteLink(phone, text);
-    } else {
-      await sendTwilioWhatsapp(phone, UNLINKED_HINT);
-    }
-    return;
-  }
-
+async function handleLinkedUser(
+  userId: string,
+  phone: string,
+  text: string,
+  numMedia: number,
+  params: Record<string, string>,
+) {
   if (numMedia > 0) {
     const mediaUrl = params.MediaUrl0;
     const mediaType = params.MediaContentType0 ?? "";
@@ -110,7 +139,7 @@ async function handleMessage(params: Record<string, string>) {
       );
       return;
     }
-    await respondToUser(linkedUser.id, phone, text || "Procesá esta captura.", {
+    await respondToUser(userId, phone, text || "Procesá esta captura.", {
       mediaType: media.mediaType,
       buffer: media.buffer,
     });
@@ -118,7 +147,7 @@ async function handleMessage(params: Record<string, string>) {
   }
 
   if (text) {
-    await respondToUser(linkedUser.id, phone, text);
+    await respondToUser(userId, phone, text);
   }
 }
 
@@ -173,7 +202,7 @@ async function respondToUser(
       messages: [...history, userMessage],
     });
   } catch (error) {
-    console.error("[twilio whatsapp] agent error", error);
+    console.error("[etracker.twilio] agent error", error);
     reply = "Tuve un problema procesando tu mensaje. Probá de nuevo en un momento.";
   }
 
