@@ -1,5 +1,6 @@
 "use client";
 
+import { format } from "date-fns";
 import { Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -18,20 +19,33 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-const links = [
-  { href: "/", label: "Dashboard" },
-  { href: "/banks", label: "Banks" },
-  { href: "/expenses", label: "Expenses" },
-  { href: "/chat", label: "Chat" },
-  { href: "/settings", label: "Settings" },
-];
+type NavLink = {
+  href: string;
+  label: string;
+  isActive?: (pathname: string) => boolean;
+};
 
 export function AppNav() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const monthKey = format(new Date(), "yyyy-MM");
 
-  const linkClass = (href: string) => {
-    const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
+  const links: NavLink[] = [
+    {
+      href: `/m/${monthKey}`,
+      label: "Dashboard",
+      isActive: (p) => p.startsWith("/m/"),
+    },
+    { href: "/banks", label: "Banks" },
+    { href: "/expenses", label: "Expenses" },
+    { href: "/chat", label: "Chat" },
+    { href: "/settings", label: "Settings" },
+  ];
+
+  const linkClass = (link: NavLink) => {
+    const isActive = link.isActive
+      ? link.isActive(pathname)
+      : pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href));
     return cn(
       "text-muted-foreground hover:bg-muted hover:text-foreground rounded-md px-3 py-2 text-sm md:px-3 md:py-1.5",
       isActive && "bg-muted text-foreground",
@@ -51,7 +65,7 @@ export function AppNav() {
           </Link>
           <nav className="text-muted-foreground hidden min-w-0 items-center gap-1 md:flex md:gap-2">
             {links.map((link) => (
-              <Link key={link.href} href={link.href} className={linkClass(link.href)}>
+              <Link key={link.label} href={link.href} className={linkClass(link)}>
                 {link.label}
               </Link>
             ))}
@@ -79,9 +93,9 @@ export function AppNav() {
               <nav className="flex flex-col gap-1">
                 {links.map((link) => (
                   <Link
-                    key={link.href}
+                    key={link.label}
                     href={link.href}
-                    className={linkClass(link.href)}
+                    className={linkClass(link)}
                     onClick={() => setMobileOpen(false)}
                   >
                     {link.label}
