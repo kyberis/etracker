@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
+import { RevolutConnectionCard } from "@/components/revolut-connection-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,12 +18,32 @@ type WhatsappStatus = {
   pendingExpiresAt: string | null;
 };
 
+type BankOption = { id: string; name: string };
+
+type RevolutInitial =
+  | { connected: false }
+  | {
+      connected: true;
+      linked: boolean;
+      pending: boolean;
+      institutionId: string;
+      lastSyncAt: string | null;
+      defaultImportBankId: string | null;
+    };
+
 type SettingsManagerProps = {
   initialUser: UserSettings;
   initialWhatsapp: WhatsappStatus;
+  initialBanks: BankOption[];
+  initialRevolut: RevolutInitial;
 };
 
-export function SettingsManager({ initialUser, initialWhatsapp }: SettingsManagerProps) {
+export function SettingsManager({
+  initialUser,
+  initialWhatsapp,
+  initialBanks,
+  initialRevolut,
+}: SettingsManagerProps) {
   const [settings, setSettings] = useState<UserSettings | null>(initialUser);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -108,6 +129,8 @@ export function SettingsManager({ initialUser, initialWhatsapp }: SettingsManage
       </Card>
 
       <WhatsappLinkCard initial={initialWhatsapp} />
+
+      <RevolutConnectionCard initialBanks={initialBanks} initialStatus={initialRevolut} />
     </div>
   );
 }

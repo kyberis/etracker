@@ -6,6 +6,7 @@ import { FormEvent, useMemo, useState } from "react";
 
 import type { MonthPageDataWithRecord, MonthLinePayload } from "@/lib/month-page-types";
 import { formatCurrency } from "@/lib/format";
+import type { ImportableTransaction } from "@/lib/revolut/types";
 import { expenseCategoryOptions, isInvestmentCategory } from "@/lib/validators";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, PlusIcon, TrendingUp } from "lucide-react";
+import { ChevronDown, PlusIcon, RefreshCw, TrendingUp } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -53,6 +54,12 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   /** `true` = colapsada (líneas ocultas). Sin clave = expandida. */
   const [bankCollapsed, setBankCollapsed] = useState<Record<string, boolean>>({});
+  const [revolutSyncing, setRevolutSyncing] = useState(false);
+  const [revolutError, setRevolutError] = useState<string | null>(null);
+  const [revolutFeedback, setRevolutFeedback] = useState<string | null>(null);
+  const [revolutDialogOpen, setRevolutDialogOpen] = useState(false);
+  const [revolutImportable, setRevolutImportable] = useState<ImportableTransaction[]>([]);
+  const [revolutRowBusy, setRevolutRowBusy] = useState<string | null>(null);
 
   const totals = useMemo(() => {
     const planned = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -174,6 +181,102 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     router.refresh();
   }
 
+  async function onRevolutSync() {
+    setRevolutSyncing(true);
+    setRevolutError(null);
+    setRevolutFeedback(null);
+    try {
+      const res = await fetch("/api/revolut/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: data.month }),
+      });
+      const payload = (await res.json()) as {
+        error?: string;
+        matched?: { lineId: string }[];
+        importable?: ImportableTransaction[];
+      };
+      if (!res.ok) {
+        setRevolutError(payload.error ?? "No se pudo sincronizar.");
+        return;
+      }
+      const matched = payload.matched ?? [];
+      if (matched.length > 0) {
+        const ids = new Set(matched.map((m) => m.lineId));
+        setExpenses((cur) => cur.map((e) => (ids.has(e.id) ? { ...e, paid: true } : e)));
+      }
+      const importable = payload.importable ?? [];
+      setRevolutImportable(importable);
+      if (importable.length > 0) {
+        setRevolutDialogOpen(true);
+        setRevolutFeedback(
+          matched.length > 0
+            ? `${matched.length} gasto(s) marcado(s) como pagado(s). Revisá importaciones abajo.`
+            : "No hubo coincidencias automáticas. Podés importar o ignorar movimientos.",
+        );
+      } else if (matched.length > 0) {
+        setRevolutFeedback(`${matched.length} gasto(s) marcado(s) como pagado(s).`);
+      } else {
+        setRevolutFeedback("Sincronizado: no hay movimientos nuevos para importar.");
+      }
+      router.refresh();
+    } finally {
+      setRevolutSyncing(false);
+    }
+  }
+
+  async function onRevolutIgnore(ids: string[]) {
+    if (ids.length === 0) return;
+    const res = await fetch("/api/revolut/ignore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionIds: ids }),
+    });
+    if (!res.ok) {
+      const p = (await res.json()) as { error?: string };
+      setRevolutError(p.error ?? "No se pudo ignorar.");
+      return;
+    }
+    const idSet = new Set(ids);
+    setRevolutImportable((cur) => cur.filter((t) => !idSet.has(t.transactionId)));
+  }
+
+  async function onRevolutImport(tx: ImportableTransaction) {
+    const bankId = data.revolut.defaultImportBankId;
+    if (!bankId) {
+      setRevolutError("Elegí un banco de importación en Ajustes → Revolut.");
+      return;
+    }
+    setRevolutRowBusy(tx.transactionId);
+    setRevolutError(null);
+    try {
+      const amount = Math.abs(Number(tx.amount));
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setRevolutError("Monto inválido en el movimiento.");
+        return;
+      }
+      const res = await fetch(`/api/months/${data.month}/lines`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: tx.description.slice(0, 120),
+          amount,
+          bankId,
+          category: "OTROS",
+        }),
+      });
+      if (!res.ok) {
+        const p = (await res.json()) as { error?: string };
+        setRevolutError(p.error ?? "No se pudo importar.");
+        return;
+      }
+      setRevolutImportable((cur) => cur.filter((t) => t.transactionId !== tx.transactionId));
+      router.refresh();
+    } finally {
+      setRevolutRowBusy(null);
+    }
+  }
+
   async function onMergePendingTemplates() {
     setMergeError(null);
     setMergingPending(true);
@@ -241,6 +344,124 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
           </CardContent>
         </Card>
       ) : null}
+
+      {data.isCurrentMonth && data.revolut.linked ? (
+        <Card className="border-violet-500/30 bg-violet-500/[0.06]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Revolut</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Sincronizá movimientos del mes para marcar gastos como pagados e importar lo que falte.
+            </p>
+            {!data.revolut.defaultImportBankId ? (
+              <p className="text-amber-700 dark:text-amber-400">
+                Elegí un banco local para importar en{" "}
+                <a href="/settings" className="underline">
+                  Ajustes → Revolut
+                </a>
+                .
+              </p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="gap-2"
+                disabled={revolutSyncing}
+                onClick={() => void onRevolutSync()}
+              >
+                <RefreshCw className={revolutSyncing ? "size-4 animate-spin" : "size-4"} />
+                {revolutSyncing ? "Sincronizando…" : "Sincronizar Revolut"}
+              </Button>
+            </div>
+            {revolutError ? <p className="text-destructive text-sm">{revolutError}</p> : null}
+            {revolutFeedback ? (
+              <p className="text-muted-foreground text-sm">{revolutFeedback}</p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Dialog open={revolutDialogOpen} onOpenChange={setRevolutDialogOpen}>
+        <DialogContent
+          className="max-h-[min(90vh,640px)] overflow-y-auto sm:max-w-lg"
+          showCloseButton
+        >
+          <DialogHeader>
+            <DialogTitle>Importar desde Revolut</DialogTitle>
+            <DialogDescription>
+              Movimientos del mes sin coincidencia con tus gastos planificados. Importá como gasto
+              del mes o ignorá para no volver a verlos al sincronizar.
+            </DialogDescription>
+          </DialogHeader>
+          {revolutImportable.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No quedan movimientos pendientes.</p>
+          ) : (
+            <ul className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
+              {revolutImportable.map((tx) => (
+                <li
+                  key={tx.transactionId}
+                  className="space-y-2 rounded-md border p-3 text-sm"
+                >
+                  <p className="font-medium leading-snug">{tx.description}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {tx.bookingDate ? `${tx.bookingDate} · ` : null}
+                    <span className="font-mono tabular-nums text-red-600 dark:text-red-400">
+                      {formatCurrency(Math.abs(Number(tx.amount)))}
+                    </span>
+                    {tx.currency ? ` ${tx.currency}` : null}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={
+                        !data.revolut.defaultImportBankId || revolutRowBusy === tx.transactionId
+                      }
+                      onClick={() => void onRevolutImport(tx)}
+                    >
+                      {revolutRowBusy === tx.transactionId ? "Importando…" : "Importar"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={revolutRowBusy === tx.transactionId}
+                      onClick={() => void onRevolutIgnore([tx.transactionId])}
+                    >
+                      Ignorar
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {revolutImportable.length > 0 ? (
+            <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-muted-foreground"
+                onClick={() =>
+                  void onRevolutIgnore(revolutImportable.map((t) => t.transactionId))
+                }
+              >
+                Ignorar todas las restantes
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setRevolutDialogOpen(false)}>
+                Cerrar
+              </Button>
+            </DialogFooter>
+          ) : (
+            <DialogFooter>
+              <Button type="button" onClick={() => setRevolutDialogOpen(false)}>
+                Cerrar
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {data.isCurrentMonth && data.banks.length === 0 ? (
         <p className="text-muted-foreground text-sm">

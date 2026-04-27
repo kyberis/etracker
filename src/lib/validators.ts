@@ -159,3 +159,29 @@ export const whatsappLinkStartSchema = z.object({
       message: "Use formato internacional, p. ej. +5491112345678.",
     }),
 });
+
+const countryCodeSchema = z
+  .string()
+  .trim()
+  .length(2, "Country must be a 2-letter ISO code.")
+  .regex(/^[a-zA-Z]{2}$/, "Country must be a 2-letter ISO code.");
+
+export const revolutInstitutionsQuerySchema = z.object({
+  country: countryCodeSchema,
+});
+
+export const revolutConnectSchema = z.object({
+  institutionId: z.string().min(1, "Institution is required."),
+});
+
+export const revolutSyncSchema = z.object({
+  month: z.string().regex(monthRegex, "Month must be yyyy-MM."),
+});
+
+export const revolutIgnoreSchema = z.object({
+  transactionIds: z.array(z.string().min(1)).min(1, "At least one transaction id is required."),
+});
+
+export const revolutDefaultBankSchema = z.object({
+  bankId: z.string().min(1, "Bank is required."),
+});

@@ -37,6 +37,7 @@ model User {
   expenses                 Expense[]
   monthRecords             MonthRecord[]
   whatsappMessages         WhatsappMessage[]
+  revolutConnection        RevolutConnection?
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 }
@@ -119,4 +120,30 @@ model MonthExpenseLine {
   updatedAt     DateTime        @updatedAt
 
   @@index([monthRecordId])
+}
+
+model RevolutConnection {
+  id                   String               @id @default(cuid())
+  userId               String               @unique
+  requisitionId        String               @unique
+  accountId            String?
+  institutionId        String
+  status               String               @default("PENDING")
+  lastSyncAt           DateTime?
+  defaultImportBankId  String?
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ignoredTxs           IgnoredTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model IgnoredTransaction {
+  id            String            @id @default(cuid())
+  connectionId  String
+  transactionId String
+  connection    RevolutConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime          @default(now())
+
+  @@unique([connectionId, transactionId])
 }

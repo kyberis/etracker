@@ -47,6 +47,11 @@ export type MonthPageDataWithRecord = {
   banks: Array<{ id: string; name: string }>;
   /** Templates that apply to this month but are not yet copied into this bucket. */
   pendingFromTemplates: PendingTemplateExpense[];
+  /** GoCardless / Revolut link state for this user. */
+  revolut: {
+    linked: boolean;
+    defaultImportBankId: string | null;
+  };
 };
 
 export type MonthPageData = MonthPageDataNoRecord | MonthPageDataWithRecord;

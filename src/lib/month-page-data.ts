@@ -8,7 +8,7 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
   const monthStart = parseMonthKey(monthKey);
   const monthForQuery = toMonthStart(monthStart);
 
-  const [user, monthRecord, banks, incomeHistory] = await Promise.all([
+  const [user, monthRecord, banks, incomeHistory, revolutConnection] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
       select: { monthlyIncome: true },
@@ -29,6 +29,10 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
       take: 12,
       select: { month: true, income: true },
     }),
+    db.revolutConnection.findUnique({
+      where: { userId },
+      select: { status: true, accountId: true, defaultImportBankId: true },
+    }),
   ]);
 
   const defaultIncome = user ? Number(user.monthlyIncome) : 0;
@@ -38,6 +42,11 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
   }));
 
   const isCurrentMonth = isCurrentMonthKey(monthKey);
+
+  const revolutState = {
+    linked: Boolean(revolutConnection?.accountId),
+    defaultImportBankId: revolutConnection?.defaultImportBankId ?? null,
+  };
 
   if (!monthRecord) {
     return {
@@ -111,5 +120,6 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     expenses,
     banks: banks.map((b) => ({ id: b.id, name: b.name })),
     pendingFromTemplates,
+    revolut: revolutState,
   };
 }

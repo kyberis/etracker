@@ -5,16 +5,33 @@ import { requireUserId } from "@/lib/session";
 async function loadSettingsData() {
   const userId = await requireUserId();
   const now = new Date();
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: {
-      email: true,
-      whatsappPhone: true,
-      whatsappVerifiedAt: true,
-      whatsappLinkCode: true,
-      whatsappLinkCodeExpires: true,
-    },
-  });
+  const [user, banks, revolutConnection] = await Promise.all([
+    db.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        whatsappPhone: true,
+        whatsappVerifiedAt: true,
+        whatsappLinkCode: true,
+        whatsappLinkCodeExpires: true,
+      },
+    }),
+    db.bank.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    db.revolutConnection.findUnique({
+      where: { userId },
+      select: {
+        status: true,
+        institutionId: true,
+        accountId: true,
+        lastSyncAt: true,
+        defaultImportBankId: true,
+      },
+    }),
+  ]);
 
   if (!user) {
     throw new Error("User not found.");
@@ -24,6 +41,8 @@ async function loadSettingsData() {
     user.whatsappLinkCode &&
     user.whatsappLinkCodeExpires &&
     user.whatsappLinkCodeExpires > now;
+
+  const linked = Boolean(revolutConnection?.accountId);
 
   return {
     initialUser: { email: user.email },
@@ -37,6 +56,17 @@ async function loadSettingsData() {
         ? user.whatsappLinkCodeExpires!.toISOString()
         : null,
     },
+    initialBanks: banks.map((b) => ({ id: b.id, name: b.name })),
+    initialRevolut: revolutConnection
+      ? ({
+          connected: true as const,
+          linked,
+          pending: !linked,
+          institutionId: revolutConnection.institutionId,
+          lastSyncAt: revolutConnection.lastSyncAt?.toISOString() ?? null,
+          defaultImportBankId: revolutConnection.defaultImportBankId,
+        } as const)
+      : ({ connected: false as const } as const),
   } as const;
 }
 
@@ -49,6 +79,8 @@ export default async function SettingsPage() {
       <SettingsManager
         initialUser={data.initialUser}
         initialWhatsapp={data.initialWhatsapp}
+        initialBanks={data.initialBanks}
+        initialRevolut={data.initialRevolut}
       />
     </div>
   );
