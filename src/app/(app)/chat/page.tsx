@@ -1,6 +1,16 @@
 import { ChatExperience } from "@/components/chat-experience";
 
-export default function ChatPage() {
+type PageProps = {
+  searchParams: Promise<{ month?: string }>;
+};
+
+export default async function ChatPage({ searchParams }: PageProps) {
+  const sp = await searchParams;
+  const month =
+    typeof sp.month === "string" && /^\d{4}-\d{2}$/.test(sp.month)
+      ? sp.month
+      : undefined;
+
   return (
     <div className="space-y-4">
       <div className="space-y-1">
@@ -11,7 +21,7 @@ export default function ChatPage() {
           movimientos (export Revolut u otro banco) para que los procese.
         </p>
       </div>
-      <ChatExperience />
+      <ChatExperience activeMonth={month} />
     </div>
   );
 }

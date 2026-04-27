@@ -1,0 +1,40 @@
+---
+description: Sub-agente arquitectura y dominio eTracker (siempre activo)
+alwaysApply: true
+---
+
+# Sub-agente · Arquitectura eTracker
+
+**Rol:** Consultor fijo de **visión de sistema y dominio**. En cada tarea del usuario (cualquier tamaño), aplicá estas restricciones y mapas mentales como si fuera una revisión previa obligatoria. Si chocan con el pedido literal, explicá el conflicto y proponé el ajuste más seguro.
+
+## Qué es el producto
+
+App **Next.js** (App Router) para **gastos** mensuales: bancos, plantillas, registros por mes, categorías, importaciones (instrucciones del usuario, Revolut vía GoCardless en `.env.example`), y **asistente con IA**.
+
+## Capas
+
+- **UI**: `src/app/`, `src/components/`.
+- **API**: `src/app/api/` — NextAuth, chat, webhooks WhatsApp, datos de gastos.
+- **Datos**: Prisma + PostgreSQL (`src/lib/db.ts`, `prisma/schema.prisma`).
+- **Sesión**: NextAuth (`@auth/prisma-adapter`), `src/lib/session.ts`.
+- **IA**: `src/lib/ai/*` (agente, costos, transcripción, TTS); `ai` + OpenAI por env.
+- **WhatsApp**: `src/lib/whatsapp/*`, `src/app/api/webhooks/whatsapp/`.
+
+## Dominio rápido
+
+- `User`: OAuth, WhatsApp opcional, ingresos, instrucciones de importación.
+- `Bank` → `Expense` (plantillas); meses vía `MonthRecord` / `MonthExpenseLine`.
+- Categorías: enum `ExpenseCategory` w Prisma.
+
+## Principios (siempre)
+
+1. **Auth:** `userId` seguro en mutaciones; no confiar en el cliente.
+2. **Multi-canal:** si afecta al asistente, coordinar con el sub-agente **Chat** (regla `etracker-subagent-chat.mdc`).
+3. **Persistencia:** cambios de modelo → migraciones y deploy; coordinar con **Deploy/DB** (`etracker-subagent-deploy-db.mdc`).
+4. **Next.js:** respetar `AGENTS.md` y docs del repo (convenciones Next actuales).
+
+## Dónde mirar antes de inventar
+
+- Agente: `src/lib/ai/run-expense-agent.ts`.
+- Costes: `src/lib/ai/cost.ts`, `.env.example`.
+- URL pública: `src/lib/public-app-url.ts`.

@@ -1,16 +1,16 @@
 "use client";
 
 import { format } from "date-fns";
-import { Menu } from "lucide-react";
+import { Menu, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 
 import { cn } from "@/lib/utils";
 
 import { Logo } from "@/components/logo";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -38,9 +38,13 @@ export function AppNav() {
     },
     { href: "/banks", label: "Banks" },
     { href: "/expenses", label: "Expenses" },
-    { href: "/chat", label: "Chat" },
     { href: "/settings", label: "Configuración" },
   ];
+
+  const chatHref = useMemo(() => {
+    const m = pathname.match(/^\/m\/(\d{4}-\d{2})(?:\/|$)/);
+    return m?.[1] ? `/chat?month=${encodeURIComponent(m[1])}` : "/chat";
+  }, [pathname]);
 
   const linkClass = (link: NavLink) => {
     const isActive = link.isActive
@@ -72,6 +76,17 @@ export function AppNav() {
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href={chatHref}
+            className={cn(
+              buttonVariants({ variant: "outline", size: "icon" }),
+              pathname.startsWith("/chat") && "bg-muted ring-ring/50 ring-2",
+            )}
+            aria-label="Asistente de gastos"
+            title="Asistente de gastos"
+          >
+            <Sparkles className="size-4" />
+          </Link>
           <Dialog open={mobileOpen} onOpenChange={setMobileOpen}>
             <DialogTrigger
               render={
