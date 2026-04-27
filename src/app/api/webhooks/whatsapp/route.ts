@@ -110,7 +110,7 @@ export async function POST(request: Request) {
      */
     if (!linkedUser) {
       if (text) {
-        console.log("[etracker.twilio] path=unlinked_text await tryCompleteLink");
+        console.log("[etracker.twilio] path=unlinked has_text (link code resolution)");
         await tryCompleteLink(phone, text);
       } else {
         console.log("[etracker.twilio] path=unlinked_no_text await hint");
@@ -178,6 +178,10 @@ async function handleLinkedUser(
 async function tryCompleteLink(phone: string, text: string) {
   const match = await findUserByLinkCode(text);
   if (!match) {
+    console.log(
+      "[etracker.twilio] link_no_match",
+      JSON.stringify({ phone, bodyLen: text.length }),
+    );
     await sendTwilioWhatsapp(phone, UNLINKED_HINT);
     return;
   }
@@ -190,6 +194,10 @@ async function tryCompleteLink(phone: string, text: string) {
       whatsappLinkCodeExpires: null,
     },
   });
+  console.log(
+    "[etracker.twilio] link_ok",
+    JSON.stringify({ userId: match.user.id, phone }),
+  );
   await sendTwilioWhatsapp(
     phone,
     "Listo, vinculé este número a tu cuenta de eTracker. Decime qué querés saber del mes o mandame una captura del banco.",
