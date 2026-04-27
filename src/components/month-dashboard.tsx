@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, PlusIcon, RefreshCw, TrendingUp } from "lucide-react";
+import { ChevronDown, PlusIcon, RefreshCw, Sparkles, TrendingUp } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { ChatFullscreenDialog } from "@/components/chat-fullscreen-dialog";
 
 type MonthDashboardProps = {
   data: MonthPageDataWithRecord;
@@ -60,6 +61,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   const [revolutDialogOpen, setRevolutDialogOpen] = useState(false);
   const [revolutImportable, setRevolutImportable] = useState<ImportableTransaction[]>([]);
   const [revolutRowBusy, setRevolutRowBusy] = useState<string | null>(null);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
 
   const totals = useMemo(() => {
     const planned = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -574,18 +576,34 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
               </form>
             </DialogContent>
           </Dialog>
-          <Button
-            type="button"
-            onClick={() => {
-              setAddError(null);
-              setAddDialogOpen(true);
-            }}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 fixed right-4 bottom-4 z-50 size-14 rounded-full shadow-lg sm:right-6 sm:bottom-6"
-            size="icon"
-            aria-label="Nuevo gasto en este mes"
-          >
-            <PlusIcon className="size-7" />
-          </Button>
+          <div className="fixed right-4 bottom-4 z-50 flex items-center gap-3 sm:right-6 sm:bottom-6">
+            <Button
+              type="button"
+              onClick={() => {
+                setAddError(null);
+                setAddDialogOpen(true);
+              }}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 size-14 rounded-full shadow-lg"
+              size="icon"
+              aria-label="Nuevo gasto en este mes"
+            >
+              <PlusIcon className="size-7" />
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setAiChatOpen(true)}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 hidden size-14 rounded-full shadow-lg md:inline-flex"
+              size="icon"
+              aria-label="Abrir asistente de gastos a pantalla completa"
+            >
+              <Sparkles className="size-7" />
+            </Button>
+          </div>
+          <ChatFullscreenDialog
+            open={aiChatOpen}
+            onOpenChange={setAiChatOpen}
+            activeMonth={data.month}
+          />
         </>
       ) : null}
 
