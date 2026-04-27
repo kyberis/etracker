@@ -10,6 +10,7 @@ async function loadSettingsData() {
       where: { id: userId },
       select: {
         email: true,
+        expenseImportInstructions: true,
         whatsappPhone: true,
         whatsappVerifiedAt: true,
         whatsappLinkCode: true,
@@ -45,7 +46,10 @@ async function loadSettingsData() {
   const linked = Boolean(revolutConnection?.accountId);
 
   return {
-    initialUser: { email: user.email },
+    initialUser: {
+      email: user.email,
+      expenseImportInstructions: user.expenseImportInstructions,
+    },
     initialWhatsapp: {
       phone: user.whatsappVerifiedAt ? user.whatsappPhone : null,
       verifiedAt: user.whatsappVerifiedAt

@@ -6,9 +6,11 @@ import { RevolutConnectionCard } from "@/components/revolut-connection-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 type UserSettings = {
   email: string;
+  expenseImportInstructions: string | null;
 };
 
 type WhatsappStatus = {
@@ -45,6 +47,12 @@ export function SettingsManager({
   initialRevolut,
 }: SettingsManagerProps) {
   const [settings, setSettings] = useState<UserSettings | null>(initialUser);
+  const [importInstructions, setImportInstructions] = useState(
+    initialUser.expenseImportInstructions ?? "",
+  );
+  const [instructionsMessage, setInstructionsMessage] = useState<string | null>(null);
+  const [instructionsError, setInstructionsError] = useState<string | null>(null);
+  const [instructionsSaving, setInstructionsSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -54,6 +62,32 @@ export function SettingsManager({
     const response = await fetch("/api/settings");
     const data = (await response.json()) as { user: UserSettings };
     setSettings(data.user);
+    setImportInstructions(data.user.expenseImportInstructions ?? "");
+  }
+
+  async function onSaveInstructions(event: FormEvent) {
+    event.preventDefault();
+    setInstructionsError(null);
+    setInstructionsMessage(null);
+    setInstructionsSaving(true);
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expenseImportInstructions: importInstructions.trim() ? importInstructions.trim() : null,
+        }),
+      });
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        setInstructionsError(data.error ?? "No se pudo guardar.");
+        return;
+      }
+      setInstructionsMessage("Instrucciones guardadas.");
+      await loadSettings();
+    } finally {
+      setInstructionsSaving(false);
+    }
   }
 
   async function onSubmit(event: FormEvent) {
@@ -124,6 +158,43 @@ export function SettingsManager({
             {message ? <p className="text-sm text-green-600">{message}</p> : null}
 
             <Button type="submit">Save</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Instrucciones para el asistente e importaciones</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={onSaveInstructions}>
+            <p className="text-muted-foreground text-sm">
+              Definí reglas en lenguaje natural: qué movimientos <strong>no</strong> importar desde
+              Revolut (transferencias entre cuentas, recargas, etc.), cómo categorizar ciertos
+              comercios, o convenciones que use el asistente en el chat y con fotos del banco.
+            </p>
+            <Textarea
+              id="expenseImportInstructions"
+              value={importInstructions}
+              onChange={(e) => setImportInstructions(e.target.value)}
+              placeholder='Ej.: No importar transferencias a mi cuenta USD ni movimientos con "Top up". Supermercados siempre ALIMENTACION. Spotify y Netflix → SUSCRIPCIONES.'
+              rows={8}
+              maxLength={12000}
+              className="min-h-[140px] resize-y font-mono text-sm"
+            />
+            <p className="text-muted-foreground text-xs">
+              Máximo 12.000 caracteres. Requiere <code className="text-foreground">OPENAI_API_KEY</code>{" "}
+              en el servidor para aplicar reglas al sincronizar Revolut.
+            </p>
+            {instructionsError ? (
+              <p className="text-destructive text-sm">{instructionsError}</p>
+            ) : null}
+            {instructionsMessage ? (
+              <p className="text-green-600 text-sm dark:text-green-400">{instructionsMessage}</p>
+            ) : null}
+            <Button type="submit" disabled={instructionsSaving}>
+              {instructionsSaving ? "Guardando…" : "Guardar instrucciones"}
+            </Button>
           </form>
         </CardContent>
       </Card>

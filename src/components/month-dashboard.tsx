@@ -7,7 +7,7 @@ import { FormEvent, useMemo, useState } from "react";
 import type { MonthPageDataWithRecord, MonthLinePayload } from "@/lib/month-page-types";
 import { formatCurrency } from "@/lib/format";
 import type { ImportableTransaction } from "@/lib/revolut/types";
-import { expenseCategoryOptions, isInvestmentCategory } from "@/lib/validators";
+import { expenseCategoryOptions, expenseCategorySchema, isInvestmentCategory } from "@/lib/validators";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -255,6 +255,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         setRevolutError("Monto inválido en el movimiento.");
         return;
       }
+      const categoryParsed = expenseCategorySchema.safeParse(tx.suggestedCategory);
+      const category = categoryParsed.success ? categoryParsed.data : "OTROS";
       const res = await fetch(`/api/months/${data.month}/lines`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -262,7 +264,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
           name: tx.description.slice(0, 120),
           amount,
           bankId,
-          category: "OTROS",
+          category,
         }),
       });
       if (!res.ok) {
@@ -353,6 +355,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
           <CardContent className="space-y-3 text-sm">
             <p className="text-muted-foreground">
               Sincronizá movimientos del mes para marcar gastos como pagados e importar lo que falte.
+              Con instrucciones en Ajustes, se filtran y categorizan movimientos con el asistente
+              (requiere OpenAI).
             </p>
             {!data.revolut.defaultImportBankId ? (
               <p className="text-amber-700 dark:text-amber-400">
@@ -391,8 +395,10 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
           <DialogHeader>
             <DialogTitle>Importar desde Revolut</DialogTitle>
             <DialogDescription>
-              Movimientos del mes sin coincidencia con tus gastos planificados. Importá como gasto
-              del mes o ignorá para no volver a verlos al sincronizar.
+              Movimientos del mes sin coincidencia con tus gastos planificados. Si definiste
+              instrucciones en Ajustes, el asistente puede haber filtrado transferencias u otros
+              movimientos y sugerir categoría. Importá como gasto del mes o ignorá para no volver a
+              verlos al sincronizar.
             </DialogDescription>
           </DialogHeader>
           {revolutImportable.length === 0 ? (
@@ -412,6 +418,13 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                     </span>
                     {tx.currency ? ` ${tx.currency}` : null}
                   </p>
+                  {tx.suggestedCategory ? (
+                    <p className="text-muted-foreground text-xs">
+                      Categoría sugerida:{" "}
+                      <span className="text-foreground font-medium">{tx.suggestedCategory}</span>
+                      {tx.assistantNote ? ` — ${tx.assistantNote}` : null}
+                    </p>
+                  ) : null}
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"

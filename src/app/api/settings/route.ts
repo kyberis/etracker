@@ -12,13 +12,18 @@ export async function GET() {
     const userId = await requireUserId();
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { email: true },
+      select: { email: true, expenseImportInstructions: true },
     });
     if (!user) {
       return jsonError("User not found.", 404);
     }
 
-    return NextResponse.json({ user });
+    return NextResponse.json({
+      user: {
+        email: user.email,
+        expenseImportInstructions: user.expenseImportInstructions,
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return jsonError("Unauthorized.", 401);
@@ -54,6 +59,9 @@ export async function PATCH(request: Request) {
       data: {
         ...(payload.newPassword
           ? { passwordHash: await bcrypt.hash(payload.newPassword, 12) }
+          : {}),
+        ...(payload.expenseImportInstructions !== undefined
+          ? { expenseImportInstructions: payload.expenseImportInstructions }
           : {}),
       },
     });

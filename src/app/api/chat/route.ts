@@ -1,11 +1,43 @@
 import { type UIMessage, convertToModelMessages } from "ai";
 
-import { streamExpenseAgent } from "@/lib/ai/run-expense-agent";
+import {
+  type ExpenseAgentResponseStyle,
+  streamExpenseAgent,
+} from "@/lib/ai/run-expense-agent";
 import { jsonError } from "@/lib/http";
 import { requireUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function parseChatBody(raw: unknown): {
+  messages: UIMessage[];
+  responseStyle: ExpenseAgentResponseStyle;
+  activeMonth: string | undefined;
+} {
+  const body = raw as {
+    messages?: UIMessage[];
+    conversationMode?: boolean;
+    responseStyle?: string;
+    activeMonth?: string;
+  };
+
+  const messages = body.messages ?? [];
+
+  let responseStyle: ExpenseAgentResponseStyle = "concise";
+  if (body.responseStyle === "conversational" || body.responseStyle === "concise") {
+    responseStyle = body.responseStyle;
+  } else if (body.conversationMode === true) {
+    responseStyle = "conversational";
+  }
+
+  let activeMonth: string | undefined;
+  if (typeof body.activeMonth === "string" && /^\d{4}-\d{2}$/.test(body.activeMonth)) {
+    activeMonth = body.activeMonth;
+  }
+
+  return { messages, responseStyle, activeMonth };
+}
 
 export async function POST(request: Request) {
   let userId: string;
@@ -19,10 +51,16 @@ export async function POST(request: Request) {
     return jsonError("OPENAI_API_KEY no está configurada en el servidor.", 500);
   }
 
-  const body = (await request.json()) as { messages?: UIMessage[] };
-  const uiMessages = body.messages ?? [];
+  const { messages: uiMessages, responseStyle, activeMonth } = parseChatBody(
+    await request.json(),
+  );
   const modelMessages = await convertToModelMessages(uiMessages);
 
-  const result = streamExpenseAgent({ userId, messages: modelMessages });
+  const result = await streamExpenseAgent({
+    userId,
+    messages: modelMessages,
+    responseStyle,
+    activeMonth,
+  });
   return result.toUIMessageStreamResponse();
 }

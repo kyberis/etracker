@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { parseMonthKey, toMonthStart } from "@/lib/months";
 
+import { classifyImportableTransactions } from "./import-classifier";
 import {
   getAccountTransactions,
   resolveTransactionId,
@@ -89,6 +90,8 @@ export async function runRevolutSyncForMonth(params: {
   accountId: string;
   monthKey: string;
   ignoredTransactionIds: Set<string>;
+  /** Instrucciones del usuario para filtrar/categorizar importaciones (p. ej. no importar transferencias). */
+  expenseImportInstructions?: string | null;
 }): Promise<{
   matched: MatchedLine[];
   importable: ImportableTransaction[];
@@ -194,7 +197,12 @@ export async function runRevolutSyncForMonth(params: {
     });
   }
 
-  return { matched, importable };
+  const importableFiltered = await classifyImportableTransactions(
+    params.expenseImportInstructions ?? "",
+    importable,
+  );
+
+  return { matched, importable: importableFiltered };
 }
 
 export async function importRevolutLine(params: {

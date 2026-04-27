@@ -24,12 +24,18 @@ export async function POST(request: Request) {
 
     const ignoredTransactionIds = new Set(connection.ignoredTxs.map((i) => i.transactionId));
 
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { expenseImportInstructions: true },
+    });
+
     const result = await runRevolutSyncForMonth({
       userId,
       connectionId: connection.id,
       accountId: connection.accountId,
       monthKey: payload.month,
       ignoredTransactionIds,
+      expenseImportInstructions: user?.expenseImportInstructions,
     });
 
     return NextResponse.json(result);

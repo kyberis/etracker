@@ -16,19 +16,53 @@ import remarkGfm from "remark-gfm";
 import { ChatChart } from "@/components/chat-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
+import { formatBankCsvForAgent } from "@/lib/chat/bank-csv-for-agent";
 
-export function ChatExperience() {
+export type ChatExperienceProps = {
+  /** When set (yyyy-MM), the agent prefers this month for ambiguous queries. */
+  activeMonth?: string;
+};
+
+export function ChatExperience({ activeMonth }: ChatExperienceProps = {}) {
+  const [conversationMode, setConversationMode] = useState(false);
+  const requestOptsRef = useRef({
+    conversationMode: false,
+    activeMonth: undefined as string | undefined,
+  });
+
+  useEffect(() => {
+    requestOptsRef.current.conversationMode = conversationMode;
+    requestOptsRef.current.activeMonth = activeMonth;
+  }, [conversationMode, activeMonth]);
+
   // Centralizing the chat instance so transport configuration sits next to the
   // hook and we can wire image attachments through `sendMessage({ files })`.
+  // Ref keeps flags current without recreating Chat (which would drop history).
+  /* eslint-disable react-hooks/refs -- prepareSendMessagesRequest runs when the transport POSTs, not during render */
   const chat = useMemo(
     () =>
       new Chat({
-        transport: new DefaultChatTransport({ api: "/api/chat" }),
+        transport: new DefaultChatTransport({
+          api: "/api/chat",
+          prepareSendMessagesRequest: ({ messages, body }) => ({
+            body: {
+              ...(body ?? {}),
+              messages,
+              responseStyle: requestOptsRef.current.conversationMode ? "conversational" : "concise",
+              ...(requestOptsRef.current.activeMonth ?
+                { activeMonth: requestOptsRef.current.activeMonth }
+              : {}),
+            },
+          }),
+        }),
       }),
     [],
   );
+  /* eslint-enable react-hooks/refs */
   const { messages, sendMessage, status, error, stop } = useChat({ chat });
 
   const [input, setInput] = useState("");
@@ -56,11 +90,50 @@ export function ChatExperience() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const text = input.trim();
-    if (!text && (!files || files.length === 0)) return;
+    const fileArray = files ? Array.from(files) : [];
+    const imageFiles = fileArray.filter((f) => f.type.startsWith("image/"));
+    const csvFiles = fileArray.filter(
+      (f) =>
+        f.type === "text/csv" ||
+        f.type === "application/csv" ||
+        f.name.toLowerCase().endsWith(".csv"),
+    );
+
+    if (!text && imageFiles.length === 0 && csvFiles.length === 0) return;
+
+    const csvBlocks: string[] = [];
+    for (const csvFile of csvFiles) {
+      try {
+        const raw = await csvFile.text();
+        csvBlocks.push(formatBankCsvForAgent(raw, csvFile.name));
+      } catch {
+        csvBlocks.push(`(_No se pudo leer el CSV ${csvFile.name}._)`);
+      }
+    }
+
+    let messageText = text;
+    if (csvBlocks.length > 0) {
+      const csvSection = csvBlocks.join("\n\n---\n\n");
+      const intro =
+        "Te adjunto movimientos exportados del banco (CSV). Usá la lista que sigue; respetá mis instrucciones personales si las hay. Pedí confirmación antes de cargar o marcar pagos.";
+      messageText = messageText
+        ? `${messageText}\n\n${intro}\n\n${csvSection}`
+        : `${intro}\n\n${csvSection}`;
+    }
+
+    if (!messageText && imageFiles.length > 0) {
+      messageText = "Imagen adjunta.";
+    }
+
+    const dt = new DataTransfer();
+    for (const img of imageFiles) {
+      dt.items.add(img);
+    }
+    const imageList = dt.files;
 
     await sendMessage({
-      text: text || "Imagen adjunta.",
-      ...(files && files.length > 0 ? { files } : {}),
+      text: messageText,
+      ...(imageList.length > 0 ? { files: imageList } : {}),
     });
     setInput("");
     clearFiles();
@@ -73,6 +146,19 @@ export function ChatExperience() {
   return (
     <Card>
       <CardContent className="flex h-[70vh] flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-border border-b pb-3">
+          <Label
+            htmlFor="etracker-conversation-mode"
+            className="text-muted-foreground cursor-pointer font-normal"
+          >
+            Modo conversación
+          </Label>
+          <Switch
+            id="etracker-conversation-mode"
+            checked={conversationMode}
+            onCheckedChange={setConversationMode}
+          />
+        </div>
         <div className="flex-1 space-y-3 overflow-y-auto pr-2">
           {messages.length === 0 ? (
             <EmptyState />
@@ -93,7 +179,7 @@ export function ChatExperience() {
             autoFocus
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Preguntá por tu mes, agregá un gasto, o adjuntá una captura del banco."
+            placeholder="Preguntá por tu mes, agregá un gasto, adjuntá una captura del banco o un CSV (Revolut / extracto)."
             rows={2}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
@@ -108,7 +194,7 @@ export function ChatExperience() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.csv,text/csv,application/csv"
                 multiple
                 onChange={handleFiles}
                 className="text-muted-foreground text-xs file:mr-2 file:cursor-pointer file:rounded-md file:border file:border-input file:bg-background file:px-2 file:py-1 file:text-foreground"
@@ -116,6 +202,13 @@ export function ChatExperience() {
               {files && files.length > 0 ? (
                 <span className="text-muted-foreground text-xs">
                   {files.length} archivo{files.length === 1 ? "" : "s"}
+                  {Array.from(files).some(
+                    (f) =>
+                      f.name.toLowerCase().endsWith(".csv") ||
+                      f.type.includes("csv"),
+                  )
+                    ? " (imágenes y/o CSV)"
+                    : ""}
                 </span>
               ) : null}
             </div>
@@ -146,7 +239,7 @@ function EmptyState() {
         <li>· “¿Cuánto me queda este mes?”</li>
         <li>· “Agregá Netflix 8.99 USD al banco Visa.”</li>
         <li>· “Marcá el alquiler como pagado.”</li>
-        <li>· Adjuntá una captura del banco para registrarla.</li>
+        <li>· Adjuntá una captura del banco o un **CSV** de movimientos (p. ej. export de Revolut).</li>
       </ul>
     </div>
   );
@@ -263,9 +356,9 @@ function MessageBubble({ message }: { message: UIMessage }) {
           {message.parts.map((part, i) => {
             if (part.type === "text") {
               return isUser ? (
-                <p key={i} className="whitespace-pre-wrap">
-                  {part.text}
-                </p>
+                <div key={i} className="max-h-[min(70vh,28rem)] overflow-y-auto">
+                  <p className="whitespace-pre-wrap">{part.text}</p>
+                </div>
               ) : (
                 <MarkdownContent key={i} text={part.text} />
               );

@@ -15,6 +15,7 @@ import {
   summarizeToolCalls,
   summarizeToolResults,
 } from "@/lib/ai/logger";
+import { db } from "@/lib/db";
 import { getCurrentMonthKey } from "@/lib/months";
 import { expenseCategoryOptions } from "@/lib/validators";
 
@@ -22,10 +23,22 @@ const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
 
 type AgentSource = "web" | "whatsapp";
 
-function buildSystemPrompt() {
-  return `Sos el asistente de gastos de eTracker. Hablás en español rioplatense.
+/** Web chat can switch tone; WhatsApp stays concise unless overridden. */
+export type ExpenseAgentResponseStyle = "concise" | "conversational";
 
-Estilo de respuesta:
+function toneAndFollowUpBlock(style: ExpenseAgentResponseStyle): string {
+  if (style === "conversational") {
+    return `Estilo de respuesta:
+- Español rioplatense, tono conversacional: podés saludar si el usuario saluda; cierres breves si cierra el tema ("listo", "gracias").
+- Extensión según la consulta: pedidos concretos → respuesta corta con los datos; preguntas abiertas o "explicame" → podés usar un párrafo corto o viñetas sin ser verboso.
+- Seguí siendo preciso: no inventes montos, fechas ni ids; números en formato simple (USD 120.50, ARS 1.500); mes como YYYY-MM cuando haga falta.
+- Markdown cuando sume (listas, **negritas** en totales); emojis con moderación.
+
+Siguiente paso (flexible):
+- Si aporta, ofrecé un siguiente paso o una pregunta corta; si el usuario solo charla o ya cerró, no insistas.`;
+  }
+
+  return `Estilo de respuesta:
 - Directo y al grano. Sin saludos, sin cierres ("avisame", "espero que te sirva", etc.), sin repetir lo que dijo el usuario.
 - Lo más corto posible: 1–2 oraciones o una lista. Solo los datos clave (montos, mes, banco). Sin explicaciones de qué es cada métrica salvo que las pidan.
 - Numeros en formato simple (USD 120.50, ARS 1.500). Mes en formato YYYY-MM cuando hace falta nombrarlo.
@@ -33,7 +46,43 @@ Estilo de respuesta:
 
 Acción siguiente (importante):
 - Después de cada respuesta, sugerí el próximo paso útil con una pregunta o opciones cortas (p. ej. "¿Lo marco como pagado?", "¿Querés que agregue X al mes?", "¿Lo cargo en Visa o en Galicia?").
-- Solo NO sugerís nada si el usuario cierra con "listo", "gracias", "ok", "nada más" o similares: ahí respondés con un cierre mínimo (p. ej. "Listo." o "👍") y nada más.
+- Solo NO sugerís nada si el usuario cierra con "listo", "gracias", "ok", "nada más" o similares: ahí respondés con un cierre mínimo (p. ej. "Listo." o "👍") y nada más.`;
+}
+
+function activeMonthUiBlock(activeMonth: string): string {
+  return `
+
+Contexto de UI:
+- El usuario tiene abierto el mes ${activeMonth} (yyyy-MM) en esta pantalla. Preferí ese mes cuando la consulta sea ambigua salvo que pida otro explícitamente.`;
+}
+
+function buildSystemPrompt(
+  userImportInstructions?: string | null,
+  options?: {
+    responseStyle?: ExpenseAgentResponseStyle;
+    activeMonth?: string | null;
+  },
+) {
+  const responseStyle = options?.responseStyle ?? "concise";
+  const activeMonth =
+    options?.activeMonth && /^\d{4}-\d{2}$/.test(options.activeMonth.trim()) ?
+      options.activeMonth.trim()
+    : null;
+
+  const personal =
+    userImportInstructions?.trim() ?
+      `
+
+Instrucciones personales del usuario (prioridad alta al interpretar movimientos del banco, importaciones Revolut, fotos de movimientos y categorías):
+"""
+${userImportInstructions.trim()}
+"""
+Aplicá estas reglas al sugerir categorías, al decidir qué registrar como gasto del mes y al conciliar. Si una regla choca con un dato concreto del movimiento, explicá brevemente la decisión.`
+    : "";
+
+  return `Sos el asistente de gastos de eTracker. Hablás en español rioplatense.
+
+${toneAndFollowUpBlock(responseStyle)}
 
 Contexto del producto:
 - "balance" del mes = ingreso del mes − total planificado (lo libre después de comprometer todos los gastos).
@@ -47,6 +96,7 @@ Reglas de uso de tools:
 - Si el usuario nombra un banco, resolvé el id con listBanks.
 - "Cuánto me queda / cómo voy" → getMonthState con el mes pedido o el actual.
 - Imagen (Revolut, captura del banco, ticket): extraé las transacciones, mostralas en una lista compacta agrupadas por banco y pedí confirmación antes de aplicar nada. Para cada movimiento elegí updateMonthLine (si ya existe una línea similar) o addMonthLine (movimiento nuevo).
+- CSV / extracto en texto: a veces el usuario pega o adjunta un CSV ya convertido a lista en el mensaje (fechas, descripciones, importes). Tratalo como movimientos del banco: misma regla que una imagen — lista compacta, respetá las instrucciones personales del usuario sobre qué ignorar o cómo categorizar, y pedí confirmación antes de usar tools.
 
 Gráficos (renderChart):
 - Cuando un visual aporta más que una lista, llamá renderChart DESPUÉS de obtener los datos (nunca con números inventados).
@@ -56,7 +106,7 @@ Gráficos (renderChart):
   · "evolución por mes" → line o area con xValues = meses (yyyy-MM) y una serie por métrica.
   · "comparar bancos en planificado vs pagado" → bar con dos series.
 - Pasá 'currency' (USD/ARS) cuando los valores son montos del usuario.
-- Tras emitir el gráfico, agregá UNA frase corta con la conclusión (p. ej. "Restante a pagar: USD 320") y, si corresponde, una sugerencia de siguiente paso.`;
+- Tras emitir el gráfico, agregá UNA frase corta con la conclusión (p. ej. "Restante a pagar: USD 320") y, si corresponde, una sugerencia de siguiente paso.${activeMonth ? activeMonthUiBlock(activeMonth) : ""}${personal}`;
 }
 
 export type ExpenseAgentMessages = Array<ModelMessage>;
@@ -64,22 +114,34 @@ export type ExpenseAgentMessages = Array<ModelMessage>;
 /**
  * Stream the agent for the in-app chat (used by /api/chat with useChat).
  */
-export function streamExpenseAgent({
+export async function streamExpenseAgent({
   userId,
   messages,
   source = "web",
+  responseStyle = "concise",
+  activeMonth,
 }: {
   userId: string;
   messages: ExpenseAgentMessages;
   source?: AgentSource;
+  responseStyle?: ExpenseAgentResponseStyle;
+  activeMonth?: string | null;
 }) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { expenseImportInstructions: true },
+  });
+
   const traceId = newTraceId();
   const startedAt = Date.now();
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   return streamText({
     model: openai(DEFAULT_MODEL),
-    system: buildSystemPrompt(),
+    system: buildSystemPrompt(user?.expenseImportInstructions ?? null, {
+      responseStyle,
+      activeMonth,
+    }),
     messages,
     tools: buildExpenseTools(userId),
     stopWhen: stepCountIs(8),
@@ -121,18 +183,27 @@ export async function generateExpenseAgentReply({
   userId,
   messages,
   source = "whatsapp",
+  responseStyle = "concise",
 }: {
   userId: string;
   messages: ExpenseAgentMessages;
   source?: AgentSource;
+  responseStyle?: ExpenseAgentResponseStyle;
 }): Promise<string> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { expenseImportInstructions: true },
+  });
+
   const traceId = newTraceId();
   const startedAt = Date.now();
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   const result = await generateText({
     model: openai(DEFAULT_MODEL),
-    system: buildSystemPrompt(),
+    system: buildSystemPrompt(user?.expenseImportInstructions ?? null, {
+      responseStyle,
+    }),
     messages,
     tools: buildExpenseTools(userId),
     stopWhen: stepCountIs(8),

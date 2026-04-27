@@ -7,7 +7,8 @@ export default function ChatPage() {
         <h1 className="text-2xl font-semibold">eTracker Assistant</h1>
         <p className="text-muted-foreground text-sm">
           Hablá con tu asistente de gastos. Podés consultar el mes, agregar
-          gastos o adjuntar una captura de tu banco para que la procese.
+          gastos, adjuntar una captura del banco o un <strong>CSV</strong> de
+          movimientos (export Revolut u otro banco) para que los procese.
         </p>
       </div>
       <ChatExperience />

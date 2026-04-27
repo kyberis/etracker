@@ -33,6 +33,8 @@ model User {
   whatsappVerifiedAt       DateTime?
   whatsappLinkCode         String?
   whatsappLinkCodeExpires  DateTime?
+  /// Reglas del usuario para el asistente e importaciones (Revolut / fotos): qué no importar, categorías, etc.
+  expenseImportInstructions String?
   banks                    Bank[]
   expenses                 Expense[]
   monthRecords             MonthRecord[]

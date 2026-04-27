@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { notFound } from "next/navigation";
 
+import { ChatExperience } from "@/components/chat-experience";
 import { CreateMonthSection } from "@/components/create-month-section";
 import { MonthDashboard } from "@/components/month-dashboard";
 import { MonthPicker } from "@/components/month-picker";
@@ -67,6 +68,14 @@ export default async function MonthPage({ params }: PageProps) {
       ) : (
         <CreateMonthSection month={month} suggestedCopyFrom={suggestedCopyFrom} />
       )}
+
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold">Asistente</h2>
+        <p className="text-muted-foreground text-sm">
+          Consultá este mes o registrá gastos sin salir del dashboard.
+        </p>
+        <ChatExperience activeMonth={month} />
+      </div>
     </div>
   );
 }
