@@ -22,10 +22,13 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
 import { formatBankCsvForAgent } from "@/lib/chat/bank-csv-for-agent";
+import { cn } from "@/lib/utils";
 
 export type ChatExperienceProps = {
   /** When set (yyyy-MM), the agent prefers this month for ambiguous queries. */
   activeMonth?: string;
+  /** `fullscreen`: fills parent (e.g. fullscreen dialog). Default: fixed 70vh card. */
+  layout?: "default" | "fullscreen";
 };
 
 function assistantPlainText(message: UIMessage): string {
@@ -36,7 +39,7 @@ function assistantPlainText(message: UIMessage): string {
   return s;
 }
 
-export function ChatExperience({ activeMonth }: ChatExperienceProps = {}) {
+export function ChatExperience({ activeMonth, layout = "default" }: ChatExperienceProps = {}) {
   const [conversationMode, setConversationMode] = useState(false);
   const [voiceResponses, setVoiceResponses] = useState(false);
   const [voiceUrlByMessageId, setVoiceUrlByMessageId] = useState<Record<string, string>>(
@@ -206,8 +209,18 @@ export function ChatExperience({ activeMonth }: ChatExperienceProps = {}) {
   }
 
   return (
-    <Card>
-      <CardContent className="flex h-[70vh] flex-col gap-4">
+    <Card
+      className={
+        layout === "fullscreen" ? "flex h-full min-h-0 flex-1 flex-col border-0 shadow-none" : ""
+      }
+    >
+      <CardContent
+        className={
+          layout === "fullscreen"
+            ? "flex h-full min-h-0 flex-1 flex-col gap-4 px-3 py-3 sm:px-4"
+            : "flex h-[70vh] flex-col gap-4"
+        }
+      >
         <div className="space-y-2 border-border border-b pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -257,7 +270,12 @@ export function ChatExperience({ activeMonth }: ChatExperienceProps = {}) {
             />
           </div>
         </div>
-        <div className="flex-1 space-y-3 overflow-y-auto pr-2">
+        <div
+          className={cn(
+            "flex-1 space-y-3 overflow-y-auto pr-2",
+            layout === "fullscreen" && "min-h-0",
+          )}
+        >
           {messages.length === 0 ? (
             <EmptyState />
           ) : (
