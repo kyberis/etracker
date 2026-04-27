@@ -139,21 +139,11 @@ export const yearParamSchema = z.object({
     .max(2100),
 });
 
-export const settingsSchema = z
-  .object({
-    currentPassword: z.string().optional(),
-    newPassword: z.string().min(8).optional(),
-    expenseImportInstructions: z.union([z.string().max(12000), z.null()]).optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.newPassword && !data.currentPassword) {
-        return false;
-      }
-      return true;
-    },
-    { message: "Current password is required.", path: ["currentPassword"] },
-  );
+export const settingsSchema = z.object({
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(8).optional(),
+  expenseImportInstructions: z.union([z.string().max(12000), z.null()]).optional(),
+});
 
 export const monthlyIncomeSchema = z.object({
   amount: z.coerce.number().min(0, "Monthly income must be zero or positive."),

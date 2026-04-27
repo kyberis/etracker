@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
+import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { RevolutConnectionCard } from "@/components/revolut-connection-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 type UserSettings = {
   email: string;
   expenseImportInstructions: string | null;
+  hasPassword: boolean;
+  linkedProviders: string[];
 };
 
 type WhatsappStatus = {
@@ -38,6 +41,7 @@ type SettingsManagerProps = {
   initialWhatsapp: WhatsappStatus;
   initialBanks: BankOption[];
   initialRevolut: RevolutInitial;
+  googleAuthConfigured: boolean;
 };
 
 export function SettingsManager({
@@ -45,6 +49,7 @@ export function SettingsManager({
   initialWhatsapp,
   initialBanks,
   initialRevolut,
+  googleAuthConfigured,
 }: SettingsManagerProps) {
   const [settings, setSettings] = useState<UserSettings | null>(initialUser);
   const [importInstructions, setImportInstructions] = useState(
@@ -95,13 +100,19 @@ export function SettingsManager({
     setError(null);
     setMessage(null);
 
+    const hasPassword = settings?.hasPassword ?? initialUser.hasPassword;
+    const body: Record<string, string | undefined> = {};
+    if (newPassword) {
+      body.newPassword = newPassword;
+      if (hasPassword) {
+        body.currentPassword = currentPassword || undefined;
+      }
+    }
+
     const response = await fetch("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        currentPassword: currentPassword || undefined,
-        newPassword: newPassword || undefined,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -116,6 +127,11 @@ export function SettingsManager({
     await loadSettings();
   }
 
+  const hasPassword = settings?.hasPassword ?? initialUser.hasPassword;
+  const googleLinked = (settings?.linkedProviders ?? initialUser.linkedProviders).includes(
+    "google",
+  );
+
   return (
     <div className="space-y-6">
       <Card>
@@ -129,29 +145,38 @@ export function SettingsManager({
               <p className="font-medium">{settings?.email ?? "..."}</p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="currentPassword">
-                Current password (only needed to change password)
-              </label>
-              <Input
-                id="currentPassword"
-                type="password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
-            </div>
+            {hasPassword ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="currentPassword">
+                  Current password {newPassword ? "(required to change password)" : "(optional)"}
+                </label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                />
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="newPassword">
-                New password
+                {hasPassword ? "New password" : "Set a password (optional)"}
               </label>
               <Input
                 id="newPassword"
                 type="password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
                 minLength={8}
               />
+              {!hasPassword ? (
+                <p className="text-muted-foreground text-xs">
+                  You signed in with Google. Add a password if you also want to sign in with email.
+                </p>
+              ) : null}
             </div>
 
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -161,6 +186,27 @@ export function SettingsManager({
           </form>
         </CardContent>
       </Card>
+
+      {googleAuthConfigured ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign-in methods</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-muted-foreground text-sm">
+              Link Google to sign in with one click. Use the same email as this account so we merge
+              your profile.
+            </p>
+            {googleLinked ? (
+              <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                Google is connected to this account.
+              </p>
+            ) : (
+              <GoogleSignInButton callbackUrl="/settings" label="Connect Google" />
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

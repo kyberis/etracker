@@ -1,4 +1,5 @@
 import { SettingsManager } from "@/components/settings-manager";
+import { isGoogleAuthConfigured } from "@/lib/auth-providers";
 import { db } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 
@@ -11,10 +12,12 @@ async function loadSettingsData() {
       select: {
         email: true,
         expenseImportInstructions: true,
+        passwordHash: true,
         whatsappPhone: true,
         whatsappVerifiedAt: true,
         whatsappLinkCode: true,
         whatsappLinkCodeExpires: true,
+        accounts: { select: { provider: true } },
       },
     }),
     db.bank.findMany({
@@ -49,6 +52,8 @@ async function loadSettingsData() {
     initialUser: {
       email: user.email,
       expenseImportInstructions: user.expenseImportInstructions,
+      hasPassword: user.passwordHash != null,
+      linkedProviders: user.accounts.map((a) => a.provider),
     },
     initialWhatsapp: {
       phone: user.whatsappVerifiedAt ? user.whatsappPhone : null,
@@ -85,6 +90,7 @@ export default async function SettingsPage() {
         initialWhatsapp={data.initialWhatsapp}
         initialBanks={data.initialBanks}
         initialRevolut={data.initialRevolut}
+        googleAuthConfigured={isGoogleAuthConfigured()}
       />
     </div>
   );

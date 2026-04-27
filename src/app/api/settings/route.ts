@@ -12,7 +12,12 @@ export async function GET() {
     const userId = await requireUserId();
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { email: true, expenseImportInstructions: true },
+      select: {
+        email: true,
+        expenseImportInstructions: true,
+        passwordHash: true,
+        accounts: { select: { provider: true } },
+      },
     });
     if (!user) {
       return jsonError("User not found.", 404);
@@ -22,6 +27,8 @@ export async function GET() {
       user: {
         email: user.email,
         expenseImportInstructions: user.expenseImportInstructions,
+        hasPassword: user.passwordHash != null,
+        linkedProviders: user.accounts.map((a) => a.provider),
       },
     });
   } catch (error) {
@@ -44,13 +51,14 @@ export async function PATCH(request: Request) {
     }
 
     if (payload.newPassword) {
-      if (!payload.currentPassword) {
-        return jsonError("Current password is required.", 400);
-      }
-
-      const validCurrent = await bcrypt.compare(payload.currentPassword, user.passwordHash);
-      if (!validCurrent) {
-        return jsonError("Current password is incorrect.", 401);
+      if (user.passwordHash) {
+        if (!payload.currentPassword) {
+          return jsonError("Current password is required.", 400);
+        }
+        const validCurrent = await bcrypt.compare(payload.currentPassword, user.passwordHash);
+        if (!validCurrent) {
+          return jsonError("Current password is incorrect.", 401);
+        }
       }
     }
 

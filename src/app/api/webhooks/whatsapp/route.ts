@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 
 import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
+import { transcribeAudioOpenAI } from "@/lib/ai/transcribe-audio";
 import { db } from "@/lib/db";
 import { findUserByLinkCode, normalizePhone } from "@/lib/whatsapp/link";
 import {
@@ -148,25 +149,60 @@ async function handleLinkedUser(
   if (numMedia > 0) {
     const mediaUrl = params.MediaUrl0;
     const mediaType = params.MediaContentType0 ?? "";
-    if (!mediaUrl || !mediaType.startsWith("image/")) {
+    if (!mediaUrl) {
       await sendTwilioWhatsapp(
         phone,
-        "Por ahora solo proceso texto y fotos. Mandame uno de esos formatos.",
+        "No recibí el archivo. ¿Lo mandás de nuevo?",
       );
       return;
     }
-    const media = await fetchTwilioMedia(mediaUrl);
-    if (!media) {
-      await sendTwilioWhatsapp(
-        phone,
-        "No pude descargar la imagen, ¿la mandás de nuevo?",
-      );
+
+    if (mediaType.startsWith("image/")) {
+      const media = await fetchTwilioMedia(mediaUrl);
+      if (!media) {
+        await sendTwilioWhatsapp(
+          phone,
+          "No pude descargar la imagen, ¿la mandás de nuevo?",
+        );
+        return;
+      }
+      await respondToUser(userId, phone, text || "Procesá esta captura.", {
+        mediaType: media.mediaType,
+        buffer: media.buffer,
+      });
       return;
     }
-    await respondToUser(userId, phone, text || "Procesá esta captura.", {
-      mediaType: media.mediaType,
-      buffer: media.buffer,
-    });
+
+    if (mediaType.startsWith("audio/")) {
+      const media = await fetchTwilioMedia(mediaUrl);
+      if (!media) {
+        await sendTwilioWhatsapp(
+          phone,
+          "No pude descargar el audio, ¿lo mandás de nuevo?",
+        );
+        return;
+      }
+      const transcription = await transcribeAudioOpenAI({
+        buffer: media.buffer,
+        mediaType: media.mediaType || mediaType,
+      });
+      if (!transcription.ok) {
+        await sendTwilioWhatsapp(phone, transcription.message);
+        return;
+      }
+      const caption = text.trim();
+      const combined =
+        caption ?
+          `${caption}\n\n(Nota de voz: ${transcription.text})`
+        : transcription.text;
+      await respondToUser(userId, phone, combined);
+      return;
+    }
+
+    await sendTwilioWhatsapp(
+      phone,
+      "Por ahora proceso texto, fotos y mensajes de voz. Este tipo de archivo no lo puedo usar.",
+    );
     return;
   }
 
@@ -200,7 +236,7 @@ async function tryCompleteLink(phone: string, text: string) {
   );
   await sendTwilioWhatsapp(
     phone,
-    "Listo, vinculé este número a tu cuenta de eTracker. Decime qué querés saber del mes o mandame una captura del banco.",
+    "Listo, vinculé este número a tu cuenta de eTracker. Decime qué querés saber del mes, mandame una captura del banco o un mensaje de voz.",
   );
 }
 
