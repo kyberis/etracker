@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "User" ADD COLUMN "expenseImportInstructions" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "expenseImportInstructions" TEXT;

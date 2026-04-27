@@ -1,5 +1,5 @@
--- CreateTable
-CREATE TABLE "RevolutConnection" (
+-- CreateTable (idempotent)
+CREATE TABLE IF NOT EXISTS "RevolutConnection" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "requisitionId" TEXT NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE "RevolutConnection" (
 );
 
 -- CreateTable
-CREATE TABLE "IgnoredTransaction" (
+CREATE TABLE IF NOT EXISTS "IgnoredTransaction" (
     "id" TEXT NOT NULL,
     "connectionId" TEXT NOT NULL,
     "transactionId" TEXT NOT NULL,
@@ -25,16 +25,26 @@ CREATE TABLE "IgnoredTransaction" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RevolutConnection_userId_key" ON "RevolutConnection"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "RevolutConnection_userId_key" ON "RevolutConnection"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RevolutConnection_requisitionId_key" ON "RevolutConnection"("requisitionId");
+CREATE UNIQUE INDEX IF NOT EXISTS "RevolutConnection_requisitionId_key" ON "RevolutConnection"("requisitionId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "IgnoredTransaction_connectionId_transactionId_key" ON "IgnoredTransaction"("connectionId", "transactionId");
+CREATE UNIQUE INDEX IF NOT EXISTS "IgnoredTransaction_connectionId_transactionId_key" ON "IgnoredTransaction"("connectionId", "transactionId");
 
 -- AddForeignKey
-ALTER TABLE "RevolutConnection" ADD CONSTRAINT "RevolutConnection_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  ALTER TABLE "RevolutConnection" ADD CONSTRAINT "RevolutConnection_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "IgnoredTransaction" ADD CONSTRAINT "IgnoredTransaction_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "RevolutConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  ALTER TABLE "IgnoredTransaction" ADD CONSTRAINT "IgnoredTransaction_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "RevolutConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
