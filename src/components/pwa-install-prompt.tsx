@@ -80,13 +80,19 @@ export function PwaInstallPrompt() {
 
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
 
-    // iOS: no beforeinstallprompt; show a one-line hint on small screens
-    if (shouldShowIosHint()) {
-      setIosHint(true);
-      setVisible(true);
-    }
+    // iOS: no beforeinstallprompt; show a one-line hint on small screens.
+    // Defer state updates so we don't synchronously setState inside the effect body (eslint).
+    const raf = window.requestAnimationFrame(() => {
+      if (shouldShowIosHint()) {
+        setIosHint(true);
+        setVisible(true);
+      }
+    });
 
-    return () => window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+    };
   }, []);
 
   async function onInstall() {

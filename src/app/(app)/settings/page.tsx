@@ -84,7 +84,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <h1 className="text-2xl font-semibold">Configuración</h1>
       <SettingsManager
         initialUser={data.initialUser}
         initialWhatsapp={data.initialWhatsapp}

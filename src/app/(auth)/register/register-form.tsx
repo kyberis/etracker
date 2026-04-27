@@ -28,7 +28,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError("Las contraseñas no coinciden.");
       return;
     }
 
@@ -44,7 +44,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
 
     if (!response.ok) {
       const data = (await response.json()) as { error?: string };
-      setError(data.error ?? "Could not create account.");
+      setError(data.error ?? "No se pudo crear la cuenta.");
       setLoading(false);
       return;
     }
@@ -58,7 +58,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
     setLoading(false);
 
     if (signInResult?.error) {
-      setError("Account created but sign-in failed. Try signing in manually.");
+      setError("La cuenta se creó pero no pudimos iniciar sesión. Probá entrar manualmente.");
       return;
     }
 
@@ -69,19 +69,21 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create account</CardTitle>
-        <CardDescription>Start planning your recurring and one-off expenses.</CardDescription>
+        <CardTitle>Crear cuenta</CardTitle>
+        <CardDescription>
+          Empezá a planificar tus gastos fijos y puntuales mes a mes.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {googleEnabled ? (
           <div className="space-y-3">
-            <GoogleSignInButton callbackUrl="/" label="Sign up with Google" />
+            <GoogleSignInButton callbackUrl="/" label="Registrarse con Google" />
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="border-border w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card text-muted-foreground px-2">or</span>
+                <span className="bg-card text-muted-foreground px-2">o</span>
               </div>
             </div>
           </div>
@@ -89,7 +91,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
 
         <form className="space-y-4" onSubmit={onSubmit} noValidate>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Correo electrónico</Label>
             <Input
               id="email"
               type="email"
@@ -101,7 +103,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Contraseña</Label>
             <Input
               id="password"
               type="password"
@@ -114,7 +116,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
             <Input
               id="confirmPassword"
               type="password"
@@ -129,13 +131,13 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating…" : "Create account"}
+            {loading ? "Creando cuenta…" : "Crear cuenta"}
           </Button>
 
           <p className="text-muted-foreground text-center text-sm">
-            Already have an account?{" "}
+            ¿Ya tenés cuenta?{" "}
             <Link href="/login" className="text-primary underline-offset-4 hover:underline">
-              Sign in
+              Iniciá sesión
             </Link>
           </p>
         </form>

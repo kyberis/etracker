@@ -39,7 +39,7 @@ export function AppNav() {
     { href: "/banks", label: "Banks" },
     { href: "/expenses", label: "Expenses" },
     { href: "/chat", label: "Chat" },
-    { href: "/settings", label: "Settings" },
+    { href: "/settings", label: "Configuración" },
   ];
 
   const linkClass = (link: NavLink) => {

@@ -12,7 +12,7 @@ type GoogleSignInButtonProps = {
 
 export function GoogleSignInButton({
   callbackUrl = "/",
-  label = "Continue with Google",
+  label = "Continuar con Google",
 }: GoogleSignInButtonProps) {
   const [loading, setLoading] = useState(false);
 
@@ -28,7 +28,7 @@ export function GoogleSignInButton({
       }}
     >
       <GoogleGlyph className="size-4 shrink-0" aria-hidden />
-      {loading ? "Redirecting…" : label}
+      {loading ? "Redirigiendo…" : label}
     </Button>
   );
 }

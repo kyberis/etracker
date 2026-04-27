@@ -9,20 +9,20 @@ export function loginErrorMessage(code: string | null): string | null {
     case "OAuthCallback":
     case "OAuthCreateAccount":
     case "Callback":
-      return "Could not sign in with Google. Try again or use email and password.";
+      return "No se pudo iniciar sesión con Google. Probá de nuevo o usá correo y contraseña.";
     case "OAuthAccountNotLinked":
-      return "This Google account is not linked to an eTracker user. Sign in with your email and password first, or use the same email for Google.";
+      return "Esta cuenta de Google no está vinculada. Iniciá sesión con correo y contraseña primero, o usá el mismo correo en Google.";
     case "EmailCreateAccount":
-      return "Could not create an account with this email.";
+      return "No se pudo crear una cuenta con este correo.";
     case "CredentialsSignin":
-      return "Invalid email or password.";
+      return "Correo o contraseña incorrectos.";
     case "SessionRequired":
-      return "You need to sign in to continue.";
+      return "Tenés que iniciar sesión para continuar.";
     case "Configuration":
-      return "Sign-in is misconfigured. Check server environment variables.";
+      return "El inicio de sesión no está bien configurado. Revisá las variables de entorno del servidor.";
     case "AccessDenied":
-      return "Sign in was denied. Google must verify your email.";
+      return "No se permitió el acceso. Google tiene que verificar tu correo.";
     default:
-      return "Something went wrong while signing in. Please try again.";
+      return "Algo salió mal al iniciar sesión. Probá de nuevo.";
   }
 }

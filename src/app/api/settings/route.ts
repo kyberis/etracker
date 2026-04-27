@@ -20,7 +20,7 @@ export async function GET() {
       },
     });
     if (!user) {
-      return jsonError("User not found.", 404);
+      return jsonError("Usuario no encontrado.", 404);
     }
 
     return NextResponse.json({
@@ -33,9 +33,9 @@ export async function GET() {
     });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
+      return jsonError("No autorizado.", 401);
     }
-    return jsonError("Unable to load settings.", 500);
+    return jsonError("No se pudo cargar la configuración.", 500);
   }
 }
 
@@ -47,17 +47,17 @@ export async function PATCH(request: Request) {
 
     const user = await db.user.findUnique({ where: { id: userId } });
     if (!user) {
-      return jsonError("User not found.", 404);
+      return jsonError("Usuario no encontrado.", 404);
     }
 
     if (payload.newPassword) {
       if (user.passwordHash) {
         if (!payload.currentPassword) {
-          return jsonError("Current password is required.", 400);
+          return jsonError("Tenés que ingresar la contraseña actual.", 400);
         }
         const validCurrent = await bcrypt.compare(payload.currentPassword, user.passwordHash);
         if (!validCurrent) {
-          return jsonError("Current password is incorrect.", 401);
+          return jsonError("La contraseña actual no es correcta.", 401);
         }
       }
     }
@@ -77,11 +77,11 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
+      return jsonError(error.issues[0]?.message ?? "Datos no válidos.", 400);
     }
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
+      return jsonError("No autorizado.", 401);
     }
-    return jsonError("Unable to update settings.", 500);
+    return jsonError("No se pudo actualizar la configuración.", 500);
   }
 }

@@ -40,7 +40,7 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
 
     if (result?.error) {
       setError(
-        "Invalid email or password. If you signed in with Google before, use Continue with Google.",
+        "Correo o contraseña incorrectos. Si entraste con Google antes, usá «Continuar con Google».",
       );
       return;
     }
@@ -54,8 +54,8 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sign in</CardTitle>
-        <CardDescription>Track planned monthly expenses by bank.</CardDescription>
+        <CardTitle>Iniciar sesión</CardTitle>
+        <CardDescription>Planificá tus gastos mensuales por banco.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {googleEnabled ? (
@@ -66,7 +66,7 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
                 <span className="border-border w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card text-muted-foreground px-2">or</span>
+                <span className="bg-card text-muted-foreground px-2">o</span>
               </div>
             </div>
           </div>
@@ -74,7 +74,7 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
 
         <form className="space-y-4" onSubmit={onSubmit} noValidate>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Correo electrónico</Label>
             <Input
               id="email"
               type="email"
@@ -87,12 +87,12 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Contraseña</Label>
               <Link
                 href="/register"
                 className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
               >
-                New here?
+                ¿Primera vez?
               </Link>
             </div>
             <Input
@@ -102,7 +102,6 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              minLength={1}
             />
           </div>
 
@@ -110,13 +109,13 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? "Iniciando sesión…" : "Iniciar sesión"}
           </Button>
 
           <p className="text-muted-foreground text-center text-sm">
-            No account yet?{" "}
+            ¿No tenés cuenta?{" "}
             <Link href="/register" className="text-primary underline-offset-4 hover:underline">
-              Create one
+              Creá una
             </Link>
           </p>
         </form>
@@ -131,8 +130,8 @@ export function LoginForm(props: LoginFormProps) {
       fallback={
         <Card>
           <CardHeader>
-            <CardTitle>Sign in</CardTitle>
-            <CardDescription>Loading…</CardDescription>
+            <CardTitle>Iniciar sesión</CardTitle>
+            <CardDescription>Cargando…</CardDescription>
           </CardHeader>
         </Card>
       }

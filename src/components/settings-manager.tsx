@@ -117,13 +117,13 @@ export function SettingsManager({
 
     if (!response.ok) {
       const data = (await response.json()) as { error?: string };
-      setError(data.error ?? "Unable to save settings.");
+      setError(data.error ?? "No se pudieron guardar los cambios.");
       return;
     }
 
     setCurrentPassword("");
     setNewPassword("");
-    setMessage("Settings saved.");
+    setMessage("Cambios guardados.");
     await loadSettings();
   }
 
@@ -136,19 +136,20 @@ export function SettingsManager({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Profile settings</CardTitle>
+          <CardTitle>Perfil</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-2">
-              <p className="text-muted-foreground text-sm">Email</p>
+              <p className="text-muted-foreground text-sm">Correo electrónico</p>
               <p className="font-medium">{settings?.email ?? "..."}</p>
             </div>
 
             {hasPassword ? (
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="currentPassword">
-                  Current password {newPassword ? "(required to change password)" : "(optional)"}
+                  Contraseña actual{" "}
+                  {newPassword ? "(obligatoria para cambiarla)" : "(opcional)"}
                 </label>
                 <Input
                   id="currentPassword"
@@ -162,7 +163,7 @@ export function SettingsManager({
 
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="newPassword">
-                {hasPassword ? "New password" : "Set a password (optional)"}
+                {hasPassword ? "Nueva contraseña" : "Definir contraseña (opcional)"}
               </label>
               <Input
                 id="newPassword"
@@ -174,7 +175,8 @@ export function SettingsManager({
               />
               {!hasPassword ? (
                 <p className="text-muted-foreground text-xs">
-                  You signed in with Google. Add a password if you also want to sign in with email.
+                  Entraste con Google. Podés agregar una contraseña si también querés iniciar sesión
+                  con correo y contraseña.
                 </p>
               ) : null}
             </div>
@@ -182,7 +184,7 @@ export function SettingsManager({
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
             {message ? <p className="text-sm text-green-600">{message}</p> : null}
 
-            <Button type="submit">Save</Button>
+            <Button type="submit">Guardar</Button>
           </form>
         </CardContent>
       </Card>
@@ -190,19 +192,19 @@ export function SettingsManager({
       {googleAuthConfigured ? (
         <Card>
           <CardHeader>
-            <CardTitle>Sign-in methods</CardTitle>
+            <CardTitle>Formas de acceso</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-muted-foreground text-sm">
-              Link Google to sign in with one click. Use the same email as this account so we merge
-              your profile.
+              Vinculá Google para entrar con un clic. Usá el mismo correo que esta cuenta para
+              unificar tu perfil.
             </p>
             {googleLinked ? (
               <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                Google is connected to this account.
+                Google está vinculado a esta cuenta.
               </p>
             ) : (
-              <GoogleSignInButton callbackUrl="/settings" label="Connect Google" />
+              <GoogleSignInButton callbackUrl="/settings" label="Conectar Google" />
             )}
           </CardContent>
         </Card>

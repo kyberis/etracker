@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   try {
     if (!process.env.DATABASE_URL) {
       return jsonError(
-        "Database is not configured. Set DATABASE_URL in your .env file and restart the app.",
+        "La base de datos no está configurada. Definí DATABASE_URL en tu .env y reiniciá la app.",
         500,
       );
     }
@@ -21,7 +21,10 @@ export async function POST(request: Request) {
 
     const existing = await db.user.findUnique({ where: { email: payload.email } });
     if (existing) {
-      return jsonError("Email already in use.", 409);
+      return jsonError(
+        "Ese correo ya está registrado. Si usás Google, iniciá sesión con Google.",
+        409,
+      );
     }
 
     const passwordHash = await bcrypt.hash(payload.password, 12);
@@ -36,17 +39,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
+      return jsonError(error.issues[0]?.message ?? "Datos no válidos.", 400);
     }
     if (
       error instanceof Prisma.PrismaClientInitializationError ||
       error instanceof Prisma.PrismaClientKnownRequestError
     ) {
       return jsonError(
-        "Cannot connect to the database. Verify DATABASE_URL and run Prisma migrations.",
+        "No se pudo conectar a la base de datos. Revisá DATABASE_URL y las migraciones de Prisma.",
         500,
       );
     }
-    return jsonError("Unable to create account.", 500);
+    return jsonError("No se pudo crear la cuenta.", 500);
   }
 }

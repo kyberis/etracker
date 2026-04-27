@@ -35,7 +35,7 @@ export const registerSchema = z.object({
     .string()
     .email()
     .transform((value) => value.toLowerCase().trim()),
-  password: z.string().min(8, "Password must be at least 8 characters."),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
 });
 
 export const bankSchema = z.object({
@@ -141,7 +141,10 @@ export const yearParamSchema = z.object({
 
 export const settingsSchema = z.object({
   currentPassword: z.string().optional(),
-  newPassword: z.string().min(8).optional(),
+  newPassword: z
+    .string()
+    .min(8, "La contraseña debe tener al menos 8 caracteres.")
+    .optional(),
   expenseImportInstructions: z.union([z.string().max(12000), z.null()]).optional(),
 });
 
