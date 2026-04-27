@@ -14,6 +14,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { ChatChart } from "@/components/chat-chart";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -209,18 +210,32 @@ export function ChatExperience({ activeMonth }: ChatExperienceProps = {}) {
       <CardContent className="flex h-[70vh] flex-col gap-4">
         <div className="space-y-2 border-border border-b pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <Label
-              htmlFor="etracker-conversation-mode"
-              className="text-muted-foreground cursor-pointer font-normal"
-            >
-              Modo conversación
-            </Label>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Label
+                htmlFor="etracker-conversation-mode"
+                className="text-muted-foreground cursor-pointer font-normal"
+              >
+                Modo conversación
+              </Label>
+              <Badge
+                variant={conversationMode ? "default" : "secondary"}
+                className="shrink-0"
+              >
+                {conversationMode ? "Conversación" : "Conciso"}
+              </Badge>
+            </div>
             <Switch
               id="etracker-conversation-mode"
               checked={conversationMode}
               onCheckedChange={setConversationMode}
             />
           </div>
+          <p className="text-muted-foreground text-xs leading-snug">
+            No inicia un chat ni cambia lo ya enviado: solo afecta al{" "}
+            <strong>próximo</strong> mensaje que mandes. En <em>Conversación</em> el
+            asistente puede saludar o explicar un poco más; en <em>Conciso</em> prioriza
+            datos y un solo “siguiente paso”.
+          </p>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Label
               htmlFor="etracker-voice-reply"
