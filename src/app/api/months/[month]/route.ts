@@ -1,38 +1,24 @@
-import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { ZodError } from "zod";
 
-import { jsonError } from "@/lib/http";
+import { db } from "@/lib/db";
+import { jsonError, withApi } from "@/lib/http";
 import { loadMonthPageData } from "@/lib/month-page-data";
 import { parseMonthKey, toMonthStart } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
 import { monthlyIncomeSchema, monthParamSchema } from "@/lib/validators";
-
-import { db } from "@/lib/db";
+import { expireYearTimeline } from "@/lib/year-timeline-data";
 
 export async function GET(_request: Request, context: { params: Promise<{ month: string }> }) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const { month: monthParam } = await context.params;
     const { month: monthKey } = monthParamSchema.parse({ month: monthParam });
-    const data = await loadMonthPageData(userId, monthKey);
-    return NextResponse.json(data);
-  } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
-    }
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
-    }
-    if (error instanceof Error && error.message.includes("Invalid month format")) {
-      return jsonError("Month must be in yyyy-MM format.", 400);
-    }
-    return jsonError("Unable to load month data.", 500);
-  }
+    return loadMonthPageData(userId, monthKey);
+  });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ month: string }> }) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const { month: monthParam } = await context.params;
     const { month: monthKey } = monthParamSchema.parse({ month: monthParam });
@@ -55,20 +41,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ month
       },
     });
 
-    return NextResponse.json({
+    await expireYearTimeline(userId, month.getUTCFullYear());
+
+    return {
       month: monthKey,
       income: Number(record.income),
-    });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
-    }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
-    }
-    if (error instanceof Error && error.message.includes("Invalid month format")) {
-      return jsonError("Month must be in yyyy-MM format.", 400);
-    }
-    return jsonError("Unable to update month income.", 500);
-  }
+    };
+  });
 }

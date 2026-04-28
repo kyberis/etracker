@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { ZodError } from "zod";
 
 import { db } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { FxUnavailableError, convertToPrimary } from "@/lib/fx/rates";
+import { jsonError, withApi } from "@/lib/http";
 import { requireUserId } from "@/lib/session";
 import { monthExpenseLineUpdateSchema } from "@/lib/validators";
+import { expireYearTimeline } from "@/lib/year-timeline-data";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const { id } = await context.params;
     const body = await request.json();
@@ -16,6 +16,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     const line = await db.monthExpenseLine.findFirst({
       where: { id, monthRecord: { userId } },
+      include: { monthRecord: { select: { month: true, userId: true } } },
     });
     if (!line) {
       return jsonError("Line not found.", 404);
@@ -25,34 +26,66 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       paid?: boolean;
       name?: string;
       amount?: Prisma.Decimal;
+      currency?: string;
+      fxRate?: Prisma.Decimal;
+      amountConverted?: Prisma.Decimal;
     } = {};
-    if (payload.paid !== undefined) {
-      data.paid = payload.paid;
-    }
-    if (payload.name !== undefined) {
-      data.name = payload.name;
-    }
-    if (payload.amount !== undefined) {
-      data.amount = new Prisma.Decimal(payload.amount.toFixed(2));
+    if (payload.paid !== undefined) data.paid = payload.paid;
+    if (payload.name !== undefined) data.name = payload.name;
+
+    // FX-affecting fields: any change to amount/currency/fxRate triggers a
+    // re-conversion. The rate stays "locked" only when no FX-bearing field
+    // changes — editing the amount alone reuses the existing rate, which is
+    // what we want for "fix a typo" flows.
+    const amountChanged = payload.amount !== undefined;
+    const currencyChanged = payload.currency !== undefined;
+    const rateChanged = payload.fxRate !== undefined;
+
+    if (amountChanged || currencyChanged || rateChanged) {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { primaryCurrency: true },
+      });
+      if (!user) return jsonError("Usuario no encontrado.", 404);
+
+      const nextCurrency = payload.currency ?? line.currency;
+      const nextAmount = payload.amount ?? Number(line.amount);
+      // When the user changes currency without supplying a new rate, fetch a
+      // fresh one. When they just tweak the amount, keep the locked rate.
+      const useExistingRate =
+        !currencyChanged &&
+        !rateChanged &&
+        amountChanged &&
+        nextCurrency.toUpperCase() === line.currency.toUpperCase();
+
+      try {
+        const converted = await convertToPrimary({
+          amount: nextAmount,
+          currency: nextCurrency,
+          primary: user.primaryCurrency,
+          fxRate: useExistingRate ? line.fxRate : payload.fxRate,
+        });
+        data.amount = converted.amount;
+        data.currency = converted.currency;
+        data.fxRate = converted.fxRate;
+        data.amountConverted = converted.amountConverted;
+      } catch (error) {
+        if (error instanceof FxUnavailableError) {
+          return jsonError(
+            `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Probá pasando un fxRate manual.`,
+            502,
+          );
+        }
+        throw error;
+      }
     }
 
     if (Object.keys(data).length === 0) {
       return jsonError("Nothing to update.", 400);
     }
 
-    const updated = await db.monthExpenseLine.update({
-      where: { id },
-      data,
-    });
-
-    return NextResponse.json({ line: updated });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
-    }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
-    }
-    return jsonError("Unable to update line.", 500);
-  }
+    const updated = await db.monthExpenseLine.update({ where: { id }, data });
+    await expireYearTimeline(userId, line.monthRecord.month.getUTCFullYear());
+    return { line: updated };
+  });
 }

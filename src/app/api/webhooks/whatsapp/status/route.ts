@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 
+import { log } from "@/lib/log";
 import {
   candidateWebhookUrls,
   verifyTwilioWebhookRequest,
 } from "@/lib/whatsapp/twilio";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 /**
  * Twilio **status callback** for outbound (and optionally inbound) WhatsApp
@@ -38,7 +36,7 @@ export async function POST(request: Request) {
 
     if (!auth.ok) {
       const candidates = candidateWebhookUrls(request, "status");
-      console.error("[etracker.twilio] status_invalid_signature", {
+      log.error("twilio.status_invalid_signature", {
         hasSignature: Boolean(signature),
         candidateCount: candidates.length,
         sampleCandidates: candidates.slice(0, 5),
@@ -47,21 +45,20 @@ export async function POST(request: Request) {
       return new NextResponse("Invalid signature", { status: 401 });
     }
 
-    console.log(
-      "[etracker.twilio] status",
-      JSON.stringify({
-        messageSid: params.MessageSid,
-        messageStatus: params.MessageStatus,
-        errorCode: params.ErrorCode ?? null,
-        errorMessage: params.ErrorMessage ?? null,
-        to: params.To,
-        from: params.From,
-      }),
-    );
+    log.info("twilio.status", {
+      messageSid: params.MessageSid,
+      messageStatus: params.MessageStatus,
+      errorCode: params.ErrorCode ?? null,
+      errorMessage: params.ErrorMessage ?? null,
+      to: params.To,
+      from: params.From,
+    });
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("[etracker.twilio] status POST fatal", error);
+    log.error("twilio.status_post_fatal", {
+      error: error instanceof Error ? { name: error.name, message: error.message } : error,
+    });
     return new NextResponse(null, { status: 204 });
   }
 }

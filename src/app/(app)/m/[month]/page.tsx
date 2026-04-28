@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CreateMonthSection } from "@/components/create-month-section";
 import { MonthDashboard } from "@/components/month-dashboard";
 import { MonthPicker } from "@/components/month-picker";
+import { PageContainer } from "@/components/page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { YearNavigation } from "@/components/year-navigation";
 import { YearTimeline } from "@/components/year-timeline";
@@ -41,13 +42,18 @@ export default async function MonthPage({ params }: PageProps) {
   const suggestedCopyFrom = previousRecord ? formatMonthKey(previousRecord.month) : null;
 
   return (
-    <div className="space-y-6">
+    <PageContainer className="space-y-6">
       <div className="space-y-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <YearNavigation monthKey={month} />
           <p className="text-muted-foreground text-center text-sm sm:text-left">Año vinculado al mes</p>
         </div>
-        <YearTimeline year={year} activeMonth={month} months={yearTimeline.months} />
+        <YearTimeline
+          year={year}
+          activeMonth={month}
+          months={yearTimeline.months}
+          currency={data.primaryCurrency}
+        />
       </div>
 
       <Card>
@@ -60,13 +66,10 @@ export default async function MonthPage({ params }: PageProps) {
         </CardContent>
       </Card>
       {data.hasRecord ? (
-        <MonthDashboard
-          key={`${data.month}-${data.expenses.map((e) => e.id).join(".")}-${data.income}-${data.pendingFromTemplates.map((p) => p.templateId).join()}`}
-          data={data}
-        />
+        <MonthDashboard data={data} />
       ) : (
         <CreateMonthSection month={month} suggestedCopyFrom={suggestedCopyFrom} />
       )}
-    </div>
+    </PageContainer>
   );
 }

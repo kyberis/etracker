@@ -8,7 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <Link
         href="/login"
         className="focus-visible:ring-ring focus-visible:ring-offset-background mb-8 rounded-md focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-        aria-label="eTracker"
+        aria-label="Clara"
       >
         <Logo size="lg" />
       </Link>

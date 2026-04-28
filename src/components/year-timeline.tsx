@@ -13,6 +13,8 @@ type YearTimelineProps = {
   year: number;
   activeMonth: string;
   months: YearMonthSlot[];
+  /** ISO 4217 currency for displayed labels (income/expense/balance). */
+  currency: string;
 };
 
 function yearScaleMax(months: YearMonthSlot[]) {
@@ -24,7 +26,8 @@ function yearScaleMax(months: YearMonthSlot[]) {
   return Math.max(m, 1e-9);
 }
 
-export function YearTimeline({ year, activeMonth, months }: YearTimelineProps) {
+export function YearTimeline({ year, activeMonth, months, currency }: YearTimelineProps) {
+  const fmt = (value: number) => formatCurrencyCompact(value, currency);
   const scaleMax = yearScaleMax(months);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeId = `yt-${activeMonth}`;
@@ -77,8 +80,8 @@ export function YearTimeline({ year, activeMonth, months }: YearTimelineProps) {
                 className="text-muted-foreground flex w-12 shrink-0 flex-col items-end justify-between pr-3 pb-1 text-[11px] tabular-nums"
                 aria-hidden
               >
-                <span>{formatCurrencyCompact(scaleMax)}</span>
-                <span>{formatCurrencyCompact(scaleMax * 0.5)}</span>
+                <span>{fmt(scaleMax)}</span>
+                <span>{fmt(scaleMax * 0.5)}</span>
                 <span>0</span>
               </div>
 
@@ -158,11 +161,11 @@ export function YearTimeline({ year, activeMonth, months }: YearTimelineProps) {
                         )}
                         aria-label={
                           hasData
-                            ? `${monthLabel} ${year}, ingreso ${formatCurrencyCompact(
+                            ? `${monthLabel} ${year}, ingreso ${fmt(
                                 slot.income,
-                              )}, gasto ${formatCurrencyCompact(
+                              )}, gasto ${fmt(
                                 slot.totalExpense,
-                              )}, saldo ${formatCurrencyCompact(bal!)}. Ir al mes.`
+                              )}, saldo ${fmt(bal!)}. Ir al mes.`
                             : `${monthLabel} ${year}, sin planificación. Ir al mes.`
                         }
                       >
@@ -184,13 +187,11 @@ export function YearTimeline({ year, activeMonth, months }: YearTimelineProps) {
                           <p
                             className={cn(
                               "mt-1 text-[10px] font-medium tabular-nums",
-                              bal! >= 0
-                                ? "text-emerald-600 dark:text-emerald-400"
-                                : "text-rose-600 dark:text-rose-400",
+                              bal! >= 0 ? "text-good" : "text-bad",
                             )}
                           >
                             {bal! > 0 ? "+" : ""}
-                            {formatCurrencyCompact(bal!)}
+                            {fmt(bal!)}
                           </p>
                         ) : (
                           <p className="text-muted-foreground/40 mt-1 text-[10px]">—</p>

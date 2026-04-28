@@ -1,14 +1,13 @@
-import { NextResponse } from "next/server";
-import { ZodError } from "zod";
-
 import { createMonthFromCopy, createMonthFromTemplates } from "@/lib/month-bucket";
+import { jsonError, withApi } from "@/lib/http";
 import { loadMonthPageData } from "@/lib/month-page-data";
-import { jsonError } from "@/lib/http";
+import { parseMonthKey } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
 import { createMonthSchema } from "@/lib/validators";
+import { expireYearTimeline } from "@/lib/year-timeline-data";
 
 export async function POST(request: Request) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const body = await request.json();
     const payload = createMonthSchema.parse(body);
@@ -19,35 +18,23 @@ export async function POST(request: Request) {
         return jsonError("This month is already set up.", 409);
       }
     } else {
-      try {
-        const result = await createMonthFromCopy(
-          userId,
-          payload.month,
-          payload.copyFromMonth!,
-        );
-        if (result.type === "exists") {
-          return jsonError("This month is already set up.", 409);
-        }
-      } catch (e) {
-        if (e instanceof Error && e.message === "SOURCE_NOT_FOUND") {
-          return jsonError("The source month does not exist or is not set up yet.", 404);
-        }
-        throw e;
+      const result = await createMonthFromCopy(
+        userId,
+        payload.month,
+        payload.copyFromMonth!,
+      );
+      if (result.type === "exists") {
+        return jsonError("This month is already set up.", 409);
       }
     }
 
+    const year = parseMonthKey(payload.month).getUTCFullYear();
+    await expireYearTimeline(userId, year);
+
     const data = await loadMonthPageData(userId, payload.month);
-    return NextResponse.json(data, { status: 201 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
-    }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
-    }
-    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
-      return jsonError("User not found.", 404);
-    }
-    return jsonError("Unable to create month.", 500);
-  }
+    return new Response(JSON.stringify(data), {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
+    });
+  });
 }

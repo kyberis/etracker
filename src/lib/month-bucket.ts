@@ -9,6 +9,10 @@ type LineInput = {
   bankId: string;
   name: string;
   amount: Prisma.Decimal;
+  /** Templates are always in the user's primary currency (no FX). */
+  currency: string;
+  fxRate: Prisma.Decimal;
+  amountConverted: Prisma.Decimal;
   category: ExpenseCategory;
   paid: boolean;
 };
@@ -17,6 +21,7 @@ function linesFromExpenses(
   expenses: Expense[],
   month: Date,
   paidForTemplate: (templateId: string) => boolean,
+  primaryCurrency: string,
 ): LineInput[] {
   return expenses
     .filter((e) => expenseAppliesToMonth(e, month))
@@ -25,6 +30,9 @@ function linesFromExpenses(
       bankId: e.bankId,
       name: e.name,
       amount: e.amount,
+      currency: primaryCurrency,
+      fxRate: new Prisma.Decimal(1),
+      amountConverted: e.amount,
       category: e.category,
       paid: paidForTemplate(e.id),
     }));
@@ -35,8 +43,12 @@ function linesFromExpenses(
  * No rows are marked paid.
  */
 export async function templateLinesForMonth(userId: string, month: Date) {
-  const expenses = await db.expense.findMany({ where: { userId } });
-  return linesFromExpenses(expenses, month, () => false);
+  const [user, expenses] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { primaryCurrency: true } }),
+    db.expense.findMany({ where: { userId } }),
+  ]);
+  if (!user) throw new Error("USER_NOT_FOUND");
+  return linesFromExpenses(expenses, month, () => false, user.primaryCurrency);
 }
 
 export async function createMonthFromTemplates(userId: string, monthKey: string) {
@@ -54,7 +66,8 @@ export async function createMonthFromTemplates(userId: string, monthKey: string)
     throw new Error("USER_NOT_FOUND");
   }
 
-  const lineData = await templateLinesForMonth(userId, month);
+  const expenses = await db.expense.findMany({ where: { userId } });
+  const lineData = linesFromExpenses(expenses, month, () => false, user.primaryCurrency);
 
   return {
     type: "created" as const,
@@ -69,6 +82,9 @@ export async function createMonthFromTemplates(userId: string, monthKey: string)
             bankId: l.bankId,
             name: l.name,
             amount: l.amount,
+            currency: l.currency,
+            fxRate: l.fxRate,
+            amountConverted: l.amountConverted,
             category: l.category,
             paid: l.paid,
           })),
@@ -119,6 +135,9 @@ export async function createMonthFromCopy(
             bankId: l.bankId,
             name: l.name,
             amount: l.amount,
+            currency: l.currency,
+            fxRate: l.fxRate,
+            amountConverted: l.amountConverted,
             category: l.category,
             paid: l.paid,
           })),
@@ -140,6 +159,104 @@ export async function findPreviousMonthWithRecord(userId: string, beforeMonth: D
     },
     orderBy: { month: "desc" },
   });
+}
+
+/**
+ * Real cash leftover from the most recent previous month with a record.
+ * Defined as `(income + carryoverFromPrev) − sum(paid line.amountConverted)`,
+ * so it represents money that came in but was not actually spent. Returns
+ * `null` when there is no previous month or the leftover is ≤ 0.
+ */
+export async function getPrevMonthLeftover(
+  userId: string,
+  currentMonth: Date,
+): Promise<{ prevMonthKey: string; amount: number } | null> {
+  const prev = await db.monthRecord.findFirst({
+    where: { userId, month: { lt: toMonthStart(currentMonth) } },
+    orderBy: { month: "desc" },
+    select: {
+      month: true,
+      income: true,
+      carryoverFromPrev: true,
+      lines: { select: { amountConverted: true, paid: true } },
+    },
+  });
+  if (!prev) return null;
+
+  const available = Number(prev.income) + Number(prev.carryoverFromPrev);
+  const paid = prev.lines.reduce(
+    (sum, line) => (line.paid ? sum + Number(line.amountConverted) : sum),
+    0,
+  );
+  const amount = available - paid;
+  if (amount <= 0) return null;
+
+  return {
+    prevMonthKey: `${prev.month.getUTCFullYear()}-${String(prev.month.getUTCMonth() + 1).padStart(2, "0")}`,
+    amount,
+  };
+}
+
+/**
+ * Apply the user's decision about the previous month's leftover to the
+ * current month. `addToIncome` bumps `MonthRecord.carryoverFromPrev`; `setAside`
+ * accumulates into `User.savings`. Either way `carryoverDecidedAt` is set so
+ * the prompt never reappears for this month.
+ */
+export async function applyPrevMonthLeftoverDecision(
+  userId: string,
+  monthKey: string,
+  mode: "addToIncome" | "setAside",
+): Promise<
+  | { type: "applied"; amount: number; mode: "addToIncome" | "setAside" }
+  | { type: "alreadyDecided" }
+  | { type: "noLeftover" }
+  | { type: "noRecord" }
+> {
+  const month = parseMonthKey(monthKey);
+  const start = toMonthStart(month);
+
+  const record = await db.monthRecord.findFirst({
+    where: { userId, month: start },
+    select: { id: true, carryoverDecidedAt: true },
+  });
+  if (!record) return { type: "noRecord" };
+  if (record.carryoverDecidedAt) return { type: "alreadyDecided" };
+
+  const leftover = await getPrevMonthLeftover(userId, month);
+  if (!leftover) {
+    // Mark as decided anyway so we don't keep re-asking on every visit.
+    await db.monthRecord.update({
+      where: { id: record.id },
+      data: { carryoverDecidedAt: new Date() },
+    });
+    return { type: "noLeftover" };
+  }
+
+  const amountDecimal = new Prisma.Decimal(leftover.amount.toFixed(2));
+
+  if (mode === "addToIncome") {
+    await db.monthRecord.update({
+      where: { id: record.id },
+      data: {
+        carryoverFromPrev: amountDecimal,
+        carryoverDecidedAt: new Date(),
+      },
+    });
+  } else {
+    await db.$transaction([
+      db.user.update({
+        where: { id: userId },
+        data: { savings: { increment: amountDecimal } },
+      }),
+      db.monthRecord.update({
+        where: { id: record.id },
+        data: { carryoverDecidedAt: new Date() },
+      }),
+    ]);
+  }
+
+  return { type: "applied", amount: leftover.amount, mode };
 }
 
 /**
@@ -197,20 +314,29 @@ export async function mergePendingTemplateLinesIntoMonth(userId: string, monthKe
   if (pending.length === 0) {
     return { added: 0 };
   }
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { primaryCurrency: true },
+  });
+  const primaryCurrency = user?.primaryCurrency ?? "USD";
   await db.$transaction(
-    pending.map((p) =>
-      db.monthExpenseLine.create({
+    pending.map((p) => {
+      const amount = new Prisma.Decimal(p.amount);
+      return db.monthExpenseLine.create({
         data: {
           monthRecordId: monthRecord.id,
           templateId: p.templateId,
           bankId: p.bankId,
           name: p.name,
-          amount: new Prisma.Decimal(p.amount),
+          amount,
+          currency: primaryCurrency,
+          fxRate: new Prisma.Decimal(1),
+          amountConverted: amount,
           category: p.category as ExpenseCategory,
           paid: false,
         },
-      }),
-    ),
+      });
+    }),
   );
   return { added: pending.length };
 }

@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# workspace npm registry override (kept local; never commit)
+.npmrc
+
 # vercel
 .vercel
 

@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Clara · landing mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ['"Bricolage Grotesque"', "system-ui", "sans-serif"],
+              sans: ['"Schibsted Grotesk"', "system-ui", "sans-serif"],
+            },
+            colors: {
+              cream: {
+                50: "#FFF7E8",
+                100: "#FBEFD3",
+                200: "#F5E5C0",
+              },
+              ink: {
+                900: "#0E0833",
+                800: "#1B0F3A",
+                700: "#2A1A4A",
+                500: "#5A4982",
+              },
+              lime: {
+                300: "#C8FF7B",
+                400: "#A5FFD0",
+                500: "#5EF2B0",
+                600: "#22D67F",
+                700: "#0FA864",
+              },
+              hotpink: {
+                300: "#FFD4DF",
+                400: "#FFB1C8",
+                500: "#FF7AA2",
+                600: "#F23F7A",
+              },
+              peach: {
+                400: "#FFD1A4",
+                500: "#FFB07A",
+              },
+              violet: {
+                400: "#C8B6FF",
+                500: "#A38EFF",
+                600: "#7C5BFF",
+              },
+              sky: {
+                400: "#A8E1FF",
+                500: "#74C8FF",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root { color-scheme: light; }
+      html, body {
+        background: #FBEFD3;
+        background-image:
+          radial-gradient(720px 380px at 0% -8%, rgba(195, 168, 255, 0.45), transparent 60%),
+          radial-gradient(820px 400px at 102% -2%, rgba(255, 195, 161, 0.45), transparent 65%),
+          radial-gradient(900px 460px at 50% 102%, rgba(110, 230, 165, 0.18), transparent 65%);
+        background-attachment: fixed;
+        font-family: "Schibsted Grotesk", system-ui, sans-serif;
+        color: #1B0F3A;
+      }
+      .display { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+      .num { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-feature-settings: "tnum" 1; font-weight: 700; letter-spacing: -0.01em; }
+
+      /* Reusable system pieces (from globals.css of the app) */
+      .surface-card {
+        background: #ffffff;
+        border-radius: 1.5rem;
+        box-shadow: 0 12px 28px -16px rgba(27,15,58,0.18), inset 0 0 0 1px rgba(27,15,58,0.04);
+      }
+      .surface-soft {
+        background: rgba(251,239,211,0.65);
+        border-radius: 1.25rem;
+        box-shadow: inset 0 0 0 1px rgba(27,15,58,0.06);
+      }
+      .ink-card { background: #1B0F3A; color: #FBEFD3; border-radius: 1.5rem; }
+      .ink-glow { position: relative; overflow: hidden; }
+      .ink-glow::before {
+        content: ""; position: absolute; width: 240px; height: 240px;
+        top: -100px; right: -60px; border-radius: 9999px;
+        background: rgba(94, 242, 176, 0.35); filter: blur(40px); pointer-events: none;
+      }
+      .bubble-cleo {
+        background: #ffffff; color: #1B0F3A;
+        border-radius: 28px 28px 28px 8px;
+        box-shadow: 0 12px 24px -16px rgba(27,15,58,0.22);
+      }
+      .bubble-user {
+        background: #1B0F3A; color: #fff;
+        border-radius: 28px 28px 8px 28px;
+        box-shadow: 0 12px 24px -16px rgba(27,15,58,0.45);
+      }
+      .avatar-cleo {
+        border-radius: 9999px;
+        object-fit: cover;
+        box-shadow: 0 0 0 3px #FBEFD3, 0 12px 28px -10px rgba(34, 214, 127, 0.55);
+      }
+      .avatar-emoji {
+        background: linear-gradient(135deg, #5EF2B0 0%, #C8B6FF 100%);
+        border-radius: 9999px;
+        box-shadow: 0 0 0 3px #FBEFD3, 0 8px 18px -6px rgba(34, 214, 127, 0.55);
+      }
+      .sticker {
+        display: inline-flex; align-items: center; gap: 0.25rem;
+        padding: 0.35rem 0.75rem; border-radius: 9999px;
+        font-family: "Bricolage Grotesque", system-ui, sans-serif;
+        font-weight: 700; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+        background: #1B0F3A; color: #5EF2B0;
+      }
+      .sticker-lime { background: #5EF2B0; color: #0E0833; }
+      .sticker-pink { background: #F23F7A; color: #fff; }
+      .sticker-peach { background: #FFB07A; color: #0E0833; }
+      .sticker-violet { background: #C8B6FF; color: #0E0833; }
+      .sticker-soft { background: #FFF7E8; color: #1B0F3A; box-shadow: inset 0 0 0 1px rgba(27,15,58,0.08); }
+
+      /* The "rotulador" highlight: lime block behind a word */
+      .hl {
+        position: relative; display: inline-block; padding: 0 0.15em;
+        z-index: 0;
+      }
+      .hl::before {
+        content: ""; position: absolute; left: -0.05em; right: -0.05em;
+        bottom: 0.08em; height: 0.45em; z-index: -1;
+        background: #5EF2B0; transform: skew(-3deg);
+        border-radius: 6px;
+      }
+      .hl-pink::before { background: #FFB1C8; }
+      .hl-peach::before { background: #FFD1A4; }
+      .hl-violet::before { background: #C8B6FF; }
+
+      .squiggle {
+        height: 12px;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='12' viewBox='0 0 80 12'><path d='M0 6 Q 10 0 20 6 T 40 6 T 60 6 T 80 6' fill='none' stroke='%23F23F7A' stroke-width='3' stroke-linecap='round'/></svg>");
+        background-repeat: repeat-x;
+      }
+
+      .pulse-dot { animation: pulse 1.4s ease-in-out infinite; }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.3; transform: scale(0.85); }
+        50% { opacity: 1; transform: scale(1.05); }
+      }
+
+      .blob { position: absolute; border-radius: 9999px; filter: blur(50px); opacity: 0.5; pointer-events: none; }
+
+      /* Logo mark: Clara avatar in a circular ring */
+      .logo-mark {
+        width: 36px; height: 36px; border-radius: 9999px;
+        object-fit: cover;
+        box-shadow: 0 0 0 2px #FBEFD3, 0 6px 14px -6px rgba(124, 91, 255, 0.45);
+      }
+
+      /* Buttons */
+      .btn-ink {
+        background: #1B0F3A; color: #fff;
+        padding: 0.85rem 1.5rem; border-radius: 9999px;
+        font-weight: 700; font-size: 0.95rem;
+        box-shadow: 0 14px 30px -12px rgba(27,15,58,0.35);
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        transition: transform .15s ease;
+      }
+      .btn-ink:hover { transform: translateY(-1px); }
+      .btn-ghost {
+        background: #fff; color: #1B0F3A;
+        padding: 0.85rem 1.5rem; border-radius: 9999px;
+        font-weight: 600; font-size: 0.95rem;
+        box-shadow: inset 0 0 0 1px rgba(27,15,58,0.12), 0 6px 18px -10px rgba(27,15,58,0.18);
+        display: inline-flex; align-items: center; gap: 0.5rem;
+      }
+
+      .stat-tile {
+        background: #fff;
+        border-radius: 24px;
+        box-shadow: 0 8px 18px -10px rgba(27,15,58,0.12);
+      }
+
+      /* Subtle nav backdrop */
+      .nav-blur {
+        background: rgba(251, 239, 211, 0.65);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+    </style>
+  </head>
+
+  <body class="min-h-screen">
+    <!-- ============== NAV ============== -->
+    <header class="nav-blur sticky top-0 z-30 border-b border-ink-900/5">
+      <div class="mx-auto max-w-6xl flex items-center gap-6 px-6 py-3.5">
+        <a class="flex items-center gap-2.5 shrink-0" href="#">
+          <img src="clara-avatar.png" alt="Clara" class="logo-mark" />
+          <span class="display text-xl text-ink-800">Clara</span>
+        </a>
+        <nav class="hidden md:flex items-center gap-5 text-sm text-ink-700/80 font-medium">
+          <a href="#features" class="hover:text-ink-800">Features</a>
+          <a href="#about" class="hover:text-ink-800">Sobre Clara</a>
+          <a href="#faq" class="hover:text-ink-800">FAQ</a>
+          <a href="#changelog" class="hover:text-ink-800">Changelog</a>
+        </nav>
+        <div class="ml-auto flex items-center gap-2">
+          <a href="#" class="hidden sm:inline-flex text-sm text-ink-700/80 hover:text-ink-800 px-3 py-2">GitHub</a>
+          <a href="#" class="text-sm text-ink-800 font-medium px-3 py-2 hidden sm:inline-flex">Iniciar sesión</a>
+          <a href="#" class="btn-ink py-2 px-4 text-sm">Crear cuenta</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============== HERO ============== -->
+    <section class="relative overflow-hidden">
+      <div class="blob bg-violet-400" style="width:480px;height:480px;top:-120px;left:-120px"></div>
+      <div class="blob bg-peach-400" style="width:440px;height:440px;top:-80px;right:-100px"></div>
+
+      <div class="mx-auto max-w-6xl px-6 pt-16 pb-20 grid lg:grid-cols-[1.15fr_1fr] items-center gap-14 relative z-10">
+        <div class="space-y-7">
+          <span class="sticker sticker-lime">Money coach con IA · Open Source · MIT</span>
+
+          <h1 class="display text-5xl sm:text-6xl lg:text-7xl leading-[0.98] text-ink-800">
+            Tu plata,<br />
+            finalmente <span class="hl">Clara</span>.
+          </h1>
+
+          <p class="text-ink-700 text-lg leading-relaxed max-w-xl">
+            Hablale en castellano, mandale el PDF del banco, dictale una nota de voz por WhatsApp.
+            Clara entiende, categoriza y mantiene tu balance al día.
+            <strong class="text-ink-800">Less drama, more done.</strong>
+          </p>
+
+          <div class="flex flex-wrap gap-3 pt-1">
+            <a href="#" class="btn-ink">
+              Empezar gratis
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#" class="btn-ghost">Ver qué hace</a>
+          </div>
+
+          <div class="flex flex-wrap gap-2 pt-2">
+            <span class="sticker sticker-soft">Sin tarjeta</span>
+            <span class="sticker sticker-soft">Sin telemetría</span>
+            <span class="sticker sticker-soft">Self-hosteable</span>
+          </div>
+        </div>
+
+        <!-- Hero chat preview -->
+        <div class="relative">
+          <div class="absolute -top-6 -left-4 z-20">
+            <div class="ink-card px-4 py-3 flex items-center gap-3 rounded-full">
+              <div class="text-[9px] uppercase tracking-[0.22em] text-lime-500 font-bold leading-none">balance · abr '26</div>
+              <div class="num text-2xl text-white leading-none">USD 1.284<span class="text-white/50 text-base">.50</span></div>
+              <span class="sticker sticker-lime">+12%</span>
+            </div>
+          </div>
+
+          <div class="surface-card p-6 sm:p-7 space-y-4 relative">
+            <div class="flex items-center gap-3 pt-3">
+              <img src="clara-avatar-simple.png" alt="Clara" class="avatar-cleo size-14 shrink-0" />
+              <div>
+                <p class="display text-base text-ink-800">Clara</p>
+                <p class="text-xs text-ink-500">en línea · habla rioplatense</p>
+              </div>
+              <span class="ml-auto sticker sticker-violet">conciso</span>
+            </div>
+
+            <div class="space-y-3 pt-1">
+              <div class="flex justify-end">
+                <div class="bubble-user px-4 py-2.5 max-w-[85%] text-sm">
+                  Pagué el alquiler hoy, $850
+                </div>
+              </div>
+
+              <div class="flex items-end gap-2.5">
+                <img src="clara-avatar-simple.png" alt="Clara" class="avatar-cleo size-10 shrink-0" />
+                <div class="bubble-cleo px-4 py-3 max-w-[85%] space-y-2">
+                  <p class="text-sm leading-snug">
+                    Listo, marqué <strong>Alquiler</strong> como pagado en abril ✅. Te quedan
+                    <strong class="text-lime-700">USD 1.240</strong> para los pendientes del mes.
+                  </p>
+                  <div class="bg-cream-50 rounded-2xl px-3 py-2 text-xs flex items-center justify-between">
+                    <span class="font-medium text-ink-700">Alquiler · vivienda · Galicia</span>
+                    <span class="num font-bold text-ink-800">USD 850</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex justify-end">
+                <div class="bubble-user px-4 py-2.5 max-w-[85%] text-sm">
+                  Tirame un PDF del banco
+                </div>
+              </div>
+
+              <div class="flex items-end gap-2.5">
+                <img src="clara-avatar-simple.png" alt="Clara" class="avatar-cleo size-10 shrink-0" />
+                <div class="bubble-cleo px-4 py-3 max-w-[85%]">
+                  <p class="text-sm leading-snug text-ink-700">
+                    Dale, mandalo. Lo proceso, te muestro los movimientos y vos confirmás cuáles registrar.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-end gap-2">
+                <img src="clara-avatar-simple.png" alt="Clara" class="avatar-cleo size-10 shrink-0 opacity-60" />
+                <div class="bubble-cleo px-4 py-3 flex items-center gap-1.5">
+                  <span class="size-1.5 rounded-full bg-lime-600 pulse-dot"></span>
+                  <span class="size-1.5 rounded-full bg-lime-600 pulse-dot" style="animation-delay:.2s"></span>
+                  <span class="size-1.5 rounded-full bg-lime-600 pulse-dot" style="animation-delay:.4s"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="absolute -bottom-4 -right-2">
+            <span class="sticker sticker-pink">+ MCP-ready</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== STATS ROW ============== -->
+    <section class="mx-auto max-w-6xl px-6 pb-16">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="stat-tile p-5">
+          <div class="text-[10px] uppercase tracking-[0.2em] text-ink-500 font-bold">Ingreso</div>
+          <div class="num text-3xl text-ink-800 mt-1">3.200</div>
+          <div class="text-xs text-ink-500 mt-1">USD · abril</div>
+        </div>
+        <div class="stat-tile p-5">
+          <div class="text-[10px] uppercase tracking-[0.2em] text-ink-500 font-bold">Planificado</div>
+          <div class="num text-3xl text-hotpink-600 mt-1">1.915</div>
+          <div class="text-xs text-ink-500 mt-1">7 plantillas</div>
+        </div>
+        <div class="stat-tile p-5">
+          <div class="text-[10px] uppercase tracking-[0.2em] text-ink-500 font-bold">Pagado</div>
+          <div class="num text-3xl text-ink-800 mt-1">1.500</div>
+          <div class="text-xs text-lime-700 mt-1 font-bold">+200 hoy</div>
+        </div>
+        <div class="stat-tile p-5 relative">
+          <div class="text-[10px] uppercase tracking-[0.2em] text-ink-500 font-bold">Pendiente</div>
+          <div class="num text-3xl text-ink-800 mt-1">415</div>
+          <span class="sticker sticker-peach absolute top-3 right-3">2 ítems</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== EDITORIAL PITCH ============== -->
+    <section class="px-6 pb-16">
+      <div class="mx-auto max-w-4xl text-center space-y-5">
+        <div class="squiggle w-32 mx-auto"></div>
+        <h2 class="display text-3xl sm:text-5xl text-ink-800 leading-tight">
+          Una <span class="hl hl-pink">asistente</span>,<br />
+          no una planilla.
+        </h2>
+        <p class="text-ink-700 text-lg leading-relaxed max-w-2xl mx-auto">
+          Cada feature está pensada para que entiendas tu plata sin abrir Excel —
+          y para que tu propio AI te pueda ayudar sin pedirte permiso quince veces.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============== FEATURES GRID ============== -->
+    <section id="features" class="mx-auto max-w-6xl px-6 pb-20">
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- 1 -->
+        <div class="surface-card p-6 space-y-3">
+          <span class="sticker sticker-lime">📄 Lee tus extractos</span>
+          <h3 class="display text-xl text-ink-800">PDFs, capturas, CSVs</h3>
+          <p class="text-sm text-ink-700 leading-relaxed">
+            Tirá un PDF del banco o una captura. Clara extrae los movimientos, sugiere categorías y
+            siempre pregunta antes de tocar nada.
+          </p>
+        </div>
+        <!-- 2 -->
+        <div class="surface-card p-6 space-y-3">
+          <span class="sticker sticker-pink">🎙️ Notas de voz</span>
+          <h3 class="display text-xl text-ink-800">"Pagué el alquiler"</h3>
+          <p class="text-sm text-ink-700 leading-relaxed">
+            Mandale audio por WhatsApp. Clara transcribe, clasifica y actualiza el mes sin que abras
+            la app.
+          </p>
+        </div>
+        <!-- 3 -->
+        <div class="surface-card p-6 space-y-3">
+          <span class="sticker sticker-violet">🔄 Open Banking</span>
+          <h3 class="display text-xl text-ink-800">Sincronización segura</h3>
+          <p class="text-sm text-ink-700 leading-relaxed">
+            Conexión solo lectura con tu banco. Clara matchea movimientos contra plantillas y
+            <strong>nunca</strong> tiene acceso a tu dinero.
+          </p>
+        </div>
+        <!-- 4 -->
+        <div class="surface-card p-6 space-y-3">
+          <span class="sticker sticker-peach">📅 Mes a mes</span>
+          <h3 class="display text-xl text-ink-800">Plantillas + copia mensual</h3>
+          <p class="text-sm text-ink-700 leading-relaxed">
+            Una plantilla define un gasto recurrente. Cada mes tiene su copia que tildás cuando lo
+            pagás. Sin sorpresas.
+          </p>
+        </div>
+        <!-- 5 -->
+        <div class="surface-card p-6 space-y-3">
+          <span class="sticker sticker-lime">🏦 Multi-banco</span>
+          <h3 class="display text-xl text-ink-800">Cada gasto en su cuenta</h3>
+          <p class="text-sm text-ink-700 leading-relaxed">
+            Útil cuando repartís el alquiler entre tres cuentas y querés saber cuánto te queda en
+            cada una.
+          </p>
+        </div>
+        <!-- 6 -->
+        <div class="surface-card p-6 space-y-3">
+          <span class="sticker sticker-pink">📊 Charts cuando suman</span>
+          <h3 class="display text-xl text-ink-800">Sin gráficos por gráficos</h3>
+          <p class="text-sm text-ink-700 leading-relaxed">
+            Clara renderiza un gráfico inline solo cuando aporta para entender lo que está pasando.
+            El resto, charla.
+          </p>
+        </div>
+        <!-- 7 -->
+        <div class="surface-card p-6 space-y-3">
+          <span class="sticker sticker-violet">💬 Rioplatense</span>
+          <h3 class="display text-xl text-ink-800">Sin inglés corporativo</h3>
+          <p class="text-sm text-ink-700 leading-relaxed">
+            Sin tuteo, sin sermones. Clara habla como una amiga contadora que sabe lo que hace.
+          </p>
+        </div>
+        <!-- 8 -->
+        <div class="surface-card p-6 space-y-3">
+          <span class="sticker sticker-peach">🔓 Open Source MIT</span>
+          <h3 class="display text-xl text-ink-800">Tu data es tuya</h3>
+          <p class="text-sm text-ink-700 leading-relaxed">
+            Self-hosteable en cualquier Vercel/Postgres. Sin telemetría, sin tracking, sin upsell de
+            IA a USD 9.99/mes.
+          </p>
+        </div>
+        <!-- 9 -->
+        <div class="surface-card p-6 space-y-3">
+          <span class="sticker sticker-lime">🤝 MCP para tu AI</span>
+          <h3 class="display text-xl text-ink-800">Claude · Cursor · ChatGPT</h3>
+          <p class="text-sm text-ink-700 leading-relaxed">
+            Clara expone un servidor MCP. Tu propio asistente puede consultar y actualizar tus
+            finanzas con tu permiso.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== MCP CALLOUT ============== -->
+    <section class="mx-auto max-w-6xl px-6 pb-20">
+      <div class="ink-card ink-glow p-8 sm:p-10 grid lg:grid-cols-[1.4fr_1fr] gap-8 items-center">
+        <div class="space-y-4">
+          <span class="sticker sticker-lime">MCP-ready</span>
+          <h2 class="display text-3xl sm:text-4xl text-white leading-tight">
+            Tu propio AI puede<br />
+            <span class="hl hl-violet">hablar con Clara</span>.
+          </h2>
+          <p class="text-white/75 max-w-xl leading-relaxed">
+            Clara expone un servidor MCP (Model Context Protocol). Generás un token desde Settings y
+            lo pegás en Claude Desktop, Cursor o cualquier cliente compatible: tu asistente consulta
+            tus meses, mira el balance y registra gastos con tu permiso.
+          </p>
+          <div class="flex flex-wrap gap-3 pt-1">
+            <a href="#" class="btn-ink bg-lime-500 text-ink-800 hover:bg-lime-600">
+              Cómo conectarlo
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href="#" class="btn-ghost bg-white/10 text-white shadow-none border border-white/25 hover:bg-white/15">MCP público</a>
+          </div>
+        </div>
+        <pre class="bg-black/40 rounded-2xl p-5 text-xs text-white/80 overflow-x-auto leading-relaxed"><code>{
+  "mcpServers": {
+    "clara": {
+      "url": "https://clara.app/api/mcp/user",
+      "headers": {
+        "Authorization": "Bearer ada_pat_…"
+      }
+    }
+  }
+}</code></pre>
+      </div>
+    </section>
+
+    <!-- ============== EDITORIAL QUOTE ============== -->
+    <section class="px-6 pb-20">
+      <div class="mx-auto max-w-4xl surface-card p-10 sm:p-14 text-center relative overflow-hidden">
+        <div class="blob bg-lime-400" style="width:240px;height:240px;top:-80px;left:-40px;opacity:.3"></div>
+        <div class="blob bg-hotpink-400" style="width:220px;height:220px;bottom:-80px;right:-40px;opacity:.35"></div>
+
+        <span class="sticker sticker-pink mb-4 inline-block">menos drama</span>
+        <h2 class="display text-3xl sm:text-4xl text-ink-800 leading-tight">
+          La regla de Clara:<br />
+          <span class="hl hl-peach">menos planilla, más decisiones</span>.
+        </h2>
+        <p class="text-ink-700 mt-4 max-w-2xl mx-auto leading-relaxed">
+          Solo las plantillas recurrentes nacen pendientes. Lo que cargues en el mes — por chat,
+          voz o foto — se marca como pagado por defecto. Vos te enfocás en decidir, Clara se ocupa
+          del resto.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============== FINAL CTA ============== -->
+    <section class="px-6 pb-28">
+      <div class="mx-auto max-w-3xl text-center space-y-6">
+        <h2 class="display text-4xl sm:text-5xl text-ink-800 leading-tight">
+          Tu plata <span class="hl">clara</span>,<br />
+          en cinco minutos.
+        </h2>
+        <p class="text-ink-700 text-lg max-w-xl mx-auto">
+          Creás cuenta, conectás tu banco o WhatsApp (opcional) y Clara se hace cargo del resto.
+        </p>
+        <div class="flex flex-wrap justify-center gap-3 pt-2">
+          <a href="#" class="btn-ink">
+            Empezar gratis
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <a href="#" class="btn-ghost">Resolver dudas</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== FOOTER ============== -->
+    <footer class="border-t border-ink-900/10 mt-4">
+      <div class="mx-auto max-w-6xl px-6 py-10 grid md:grid-cols-4 gap-8 text-sm">
+        <div class="md:col-span-2 space-y-3">
+          <div class="flex items-center gap-2.5">
+            <img src="clara-avatar.png" alt="Clara" class="logo-mark" />
+            <span class="display text-lg text-ink-800">Clara</span>
+          </div>
+          <p class="text-ink-700/80 max-w-xs">
+            Asistente financiera con IA. Open source, MIT, self-hostable.
+          </p>
+        </div>
+        <div class="space-y-2">
+          <p class="font-bold text-ink-800">Producto</p>
+          <ul class="space-y-1.5 text-ink-700/80">
+            <li><a href="#" class="hover:text-ink-800">Features</a></li>
+            <li><a href="#" class="hover:text-ink-800">Sobre Clara</a></li>
+            <li><a href="#" class="hover:text-ink-800">FAQ</a></li>
+            <li><a href="#" class="hover:text-ink-800">Changelog</a></li>
+            <li><a href="#" class="hover:text-ink-800">Privacidad</a></li>
+          </ul>
+        </div>
+        <div class="space-y-2">
+          <p class="font-bold text-ink-800">Para AIs</p>
+          <ul class="space-y-1.5 text-ink-700/80">
+            <li><a href="#" class="hover:text-ink-800">/llms.txt</a></li>
+            <li><a href="#" class="hover:text-ink-800">/llms-full.txt</a></li>
+            <li><a href="#" class="hover:text-ink-800">/api/mcp (público)</a></li>
+            <li><a href="#" class="hover:text-ink-800">/.well-known/mcp.json</a></li>
+            <li><a href="#" class="hover:text-ink-800">/openapi.json</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-ink-900/10">
+        <div class="mx-auto max-w-6xl px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink-700/70">
+          <p>© 2026 Trefolio · MIT License</p>
+          <div class="flex gap-4">
+            <a href="#" class="hover:text-ink-800">GitHub</a>
+            <a href="#" class="hover:text-ink-800">trefolio.com</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

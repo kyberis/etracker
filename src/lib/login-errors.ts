@@ -22,6 +22,8 @@ export function loginErrorMessage(code: string | null): string | null {
       return "El inicio de sesión no está bien configurado. Revisá las variables de entorno del servidor.";
     case "AccessDenied":
       return "No se permitió el acceso. Google tiene que verificar tu correo.";
+    case "AccountDisabled":
+      return "Tu cuenta está desactivada. Contactá al administrador para reactivarla.";
     default:
       return "Algo salió mal al iniciar sesión. Probá de nuevo.";
   }

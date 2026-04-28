@@ -1,31 +1,25 @@
-import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { ZodError } from "zod";
 
 import { db } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { jsonError, withApi } from "@/lib/http";
 import { parseMonthKey } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
 import { expenseSchema } from "@/lib/validators";
 
 export async function GET() {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
-
     const expenses = await db.expense.findMany({
       where: { userId },
       include: { bank: true },
       orderBy: [{ name: "asc" }],
     });
-
-    return NextResponse.json({ expenses });
-  } catch {
-    return jsonError("Unauthorized.", 401);
-  }
+    return { expenses };
+  });
 }
 
 export async function POST(request: Request) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const body = await request.json();
     const payload = expenseSchema.parse(body);
@@ -49,14 +43,9 @@ export async function POST(request: Request) {
       include: { bank: true },
     });
 
-    return NextResponse.json({ expense }, { status: 201 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
-    }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
-    }
-    return jsonError("Unable to create expense.", 500);
-  }
+    return new Response(JSON.stringify({ expense }), {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
+    });
+  });
 }

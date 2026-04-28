@@ -35,9 +35,15 @@ const currentMonth = new Date().toISOString().slice(0, 7);
 type ExpensesManagerProps = {
   initialBanks: Bank[];
   initialExpenses: Expense[];
+  /** ISO 4217 primary currency. Templates always live in primary currency. */
+  primaryCurrency: string;
 };
 
-export function ExpensesManager({ initialBanks, initialExpenses }: ExpensesManagerProps) {
+export function ExpensesManager({
+  initialBanks,
+  initialExpenses,
+  primaryCurrency,
+}: ExpensesManagerProps) {
   const [banks, setBanks] = useState<Bank[]>(initialBanks);
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [error, setError] = useState<string | null>(null);
@@ -291,15 +297,15 @@ export function ExpensesManager({ initialBanks, initialExpenses }: ExpensesManag
                 <p className="font-medium">
                   {expense.name}
                   {isInvestmentCategory(expense.category) ? (
-                    <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 py-px text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400">
+                    <span className="bg-cleo-violet/30 text-foreground ml-2 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-bold">
                       inversión
                     </span>
                   ) : null}
                 </p>
                 <p className="text-muted-foreground text-sm">
                   {expense.bank.name} ·{" "}
-                  <span className={isInvestmentCategory(expense.category) ? "text-indigo-600 dark:text-indigo-400" : ""}>
-                    {formatCurrency(Number(expense.amount))}
+                  <span className={isInvestmentCategory(expense.category) ? "text-cleo-violet" : ""}>
+                    {formatCurrency(Number(expense.amount), primaryCurrency)}
                   </span>{" "}
                   · {expense.isRecurring ? "Recurring" : "One-off"} · {expense.category.toLowerCase()}
                 </p>

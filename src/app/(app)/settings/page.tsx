@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import { SettingsManager } from "@/components/settings-manager";
 import { isGoogleAuthConfigured } from "@/lib/auth-providers";
 import { db } from "@/lib/db";
@@ -6,13 +7,15 @@ import { requireUserId } from "@/lib/session";
 async function loadSettingsData() {
   const userId = await requireUserId();
   const now = new Date();
-  const [user, banks, revolutConnection] = await Promise.all([
+  const [user, banks, revolutConnection, apiTokens] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
       select: {
         email: true,
         expenseImportInstructions: true,
         passwordHash: true,
+        primaryCurrency: true,
+        primaryCurrencyConfirmedAt: true,
         whatsappPhone: true,
         whatsappVerifiedAt: true,
         whatsappLinkCode: true,
@@ -35,6 +38,19 @@ async function loadSettingsData() {
         defaultImportBankId: true,
       },
     }),
+    db.apiToken.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        prefix: true,
+        lastUsedAt: true,
+        expiresAt: true,
+        revokedAt: true,
+        createdAt: true,
+      },
+    }),
   ]);
 
   if (!user) {
@@ -53,6 +69,8 @@ async function loadSettingsData() {
       email: user.email,
       expenseImportInstructions: user.expenseImportInstructions,
       hasPassword: user.passwordHash != null,
+      primaryCurrency: user.primaryCurrency,
+      primaryCurrencyConfirmedAt: user.primaryCurrencyConfirmedAt?.toISOString() ?? null,
       linkedProviders: user.accounts.map((a) => a.provider),
     },
     initialWhatsapp: {
@@ -76,6 +94,15 @@ async function loadSettingsData() {
           defaultImportBankId: revolutConnection.defaultImportBankId,
         } as const)
       : ({ connected: false as const } as const),
+    initialApiTokens: apiTokens.map((t) => ({
+      id: t.id,
+      name: t.name,
+      prefix: t.prefix,
+      lastUsedAt: t.lastUsedAt?.toISOString() ?? null,
+      expiresAt: t.expiresAt?.toISOString() ?? null,
+      revokedAt: t.revokedAt?.toISOString() ?? null,
+      createdAt: t.createdAt.toISOString(),
+    })),
   } as const;
 }
 
@@ -83,15 +110,16 @@ export default async function SettingsPage() {
   const data = await loadSettingsData();
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Configuración</h1>
+    <PageContainer className="space-y-4">
+      <h1 className="font-display text-2xl font-semibold">Configuración</h1>
       <SettingsManager
         initialUser={data.initialUser}
         initialWhatsapp={data.initialWhatsapp}
         initialBanks={data.initialBanks}
         initialRevolut={data.initialRevolut}
+        initialApiTokens={data.initialApiTokens}
         googleAuthConfigured={isGoogleAuthConfigured()}
       />
-    </div>
+    </PageContainer>
   );
 }

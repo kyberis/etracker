@@ -62,7 +62,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
       return;
     }
 
-    router.push("/");
+    router.push("/app");
     router.refresh();
   }
 
@@ -77,7 +77,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
       <CardContent className="space-y-6">
         {googleEnabled ? (
           <div className="space-y-3">
-            <GoogleSignInButton callbackUrl="/" label="Registrarse con Google" />
+            <GoogleSignInButton callbackUrl="/app" label="Registrarse con Google" />
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="border-border w-full border-t" />

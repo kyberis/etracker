@@ -1,14 +1,22 @@
 import bcrypt from "bcrypt";
-import { Prisma } from "@prisma/client";
-import { NextResponse } from "next/server";
-import { ZodError } from "zod";
 
 import { db } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { jsonError, withApi } from "@/lib/http";
+import { limitByIp } from "@/lib/rate-limit";
 import { registerSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
-  try {
+  return withApi(async () => {
+    // 5 signups per 15 minutes per IP — defense against bot signup floods.
+    const limited = await limitByIp(
+      request,
+      "auth-register",
+      5,
+      "15 m",
+      "Demasiados intentos de registro. Probá de nuevo en unos minutos.",
+    );
+    if (!limited.ok) return limited.response;
+
     if (!process.env.DATABASE_URL) {
       return jsonError(
         "La base de datos no está configurada. Definí DATABASE_URL en tu .env y reiniciá la app.",
@@ -36,20 +44,9 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ ok: true }, { status: 201 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Datos no válidos.", 400);
-    }
-    if (
-      error instanceof Prisma.PrismaClientInitializationError ||
-      error instanceof Prisma.PrismaClientKnownRequestError
-    ) {
-      return jsonError(
-        "No se pudo conectar a la base de datos. Revisá DATABASE_URL y las migraciones de Prisma.",
-        500,
-      );
-    }
-    return jsonError("No se pudo crear la cuenta.", 500);
-  }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
+    });
+  });
 }

@@ -34,19 +34,40 @@ model User {
   emailVerified            DateTime?
   image                    String?
   accounts                 Account[]
-  sessions                 Session[]
+  /// Admin flag: gates access to /admin and the user-management API.
+  isAdmin                  Boolean             @default(false)
+  /// Soft-disable: when false, blocks login (web + Google) and the agent (chat + WhatsApp).
+  isActive                 Boolean             @default(true)
+  /// Per-user daily cap for agent messages (chat web + WhatsApp combined). Editable by admins.
+  dailyAgentMessageLimit   Int                 @default(30)
   monthlyIncome            Decimal             @default(0) @db.Decimal(12, 2)
+  /// Pila acumulada de ahorros del usuario (en `primaryCurrency`). Crece cuando
+  /// al cierre de un mes con sobrante el usuario elige "dejar aparte" en lugar
+  /// de sumar al ingreso del mes siguiente.
+  savings                  Decimal             @default(0) @db.Decimal(12, 2)
+  /// ISO 4217 código (3 letras, mayúsculas). Moneda en la que se hacen las
+  /// agregaciones (`MonthRecord.income`, totales por banco, balance, etc.).
+  /// Las líneas individuales pueden venir en otras monedas y se convierten a
+  /// esta vía `MonthExpenseLine.fxRate` + `amountConverted`.
+  primaryCurrency          String              @default("USD")
+  /// Marca cuándo el usuario (o el AI en su nombre) confirmó la moneda
+  /// principal. Null = todavía no se confirmó; el agente debe preguntarla.
+  primaryCurrencyConfirmedAt DateTime?
   whatsappPhone            String?             @unique
   whatsappVerifiedAt       DateTime?
   whatsappLinkCode         String?
   whatsappLinkCodeExpires  DateTime?
   /// Reglas del usuario para el asistente e importaciones (Revolut / fotos): qué no importar, categorías, etc.
   expenseImportInstructions String?
+  /// Marca cuándo se mostró por primera vez el mensaje de bienvenida del asistente. Null = todavía no se saludó.
+  welcomedAt               DateTime?
   banks                    Bank[]
   expenses                 Expense[]
   monthRecords             MonthRecord[]
   whatsappMessages         WhatsappMessage[]
+  agentUsage               AgentMessageUsage[]
   revolutConnection        RevolutConnection?
+  apiTokens                ApiToken[]
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 }
@@ -70,20 +91,25 @@ model Account {
   @@unique([provider, providerAccountId])
 }
 
-model Session {
+// `Session` and `VerificationToken` were removed in migration
+// `20260428220000_drop_unused_authjs_tables`: `session.strategy === "jwt"` in
+// `src/lib/auth.ts` means NextAuth never reads/writes them.
+
+/// Daily counter (UTC) of agent messages per user. `count` is the hard-limit
+/// against `User.dailyAgentMessageLimit`; tokens are informational only and
+/// surfaced in the admin panel so admins can tune limits per user.
+model AgentMessageUsage {
   id           String   @id @default(cuid())
-  sessionToken String   @unique
   userId       String
-  expires      DateTime
+  day          DateTime @db.Date
+  count        Int      @default(0)
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+  updatedAt    DateTime @updatedAt
 
-model VerificationToken {
-  identifier String
-  token      String
-  expires    DateTime
-
-  @@unique([identifier, token])
+  @@unique([userId, day])
+  @@index([userId])
 }
 
 // Conversation history for the WhatsApp channel of the expense assistant.
@@ -137,6 +163,15 @@ model MonthRecord {
   userId    String
   month     DateTime
   income    Decimal            @default(0) @db.Decimal(12, 2)
+  /// Sobrante del mes anterior incorporado a este mes cuando el usuario eligió
+  /// "sumar al ingreso". Se mantiene en columna aparte (en lugar de inflar
+  /// `income`) para que la UI pueda mostrarlo desglosado y para no perderlo si
+  /// el usuario edita el ingreso después. Está en `User.primaryCurrency`.
+  carryoverFromPrev   Decimal   @default(0) @db.Decimal(12, 2)
+  /// Marca cuándo el usuario decidió qué hacer con el sobrante del mes anterior
+  /// (sumarlo al ingreso o dejarlo aparte como ahorros). Null = todavía no se
+  /// preguntó/decidió, así que la UI/Ada deben mostrar el prompt.
+  carryoverDecidedAt  DateTime?
   user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   lines     MonthExpenseLine[]
 
@@ -153,7 +188,19 @@ model MonthExpenseLine {
   templateId    String?
   bankId        String
   name          String
+  /// Monto en la moneda original de la línea (`currency`).
   amount        Decimal         @db.Decimal(12, 2)
+  /// ISO 4217 (3 letras, mayúsculas). Moneda en la que el usuario carga el
+  /// gasto. Si difiere de `User.primaryCurrency`, guardamos `fxRate` y
+  /// `amountConverted` para que las matemáticas vivan en la moneda principal.
+  currency      String          @default("USD")
+  /// Multiplicador `amount * fxRate = amountConverted`. Vale 1 cuando la
+  /// línea ya está en la moneda principal del usuario. Se "congela" al crear
+  /// la línea para que las agregaciones sean determinísticas.
+  fxRate        Decimal         @default(1) @db.Decimal(20, 10)
+  /// Monto pre-calculado en la moneda principal (`User.primaryCurrency`).
+  /// Usalo para todos los `sum`/totales; nunca recalcules desde `amount`.
+  amountConverted Decimal       @db.Decimal(12, 2)
   category      ExpenseCategory @default(OTROS)
   paid          Boolean         @default(false)
   monthRecord   MonthRecord     @relation(fields: [monthRecordId], references: [id], onDelete: Cascade)
@@ -192,13 +239,31 @@ model IgnoredTransaction {
   @@unique([connectionId, transactionId])
 }
 
-/// Short-lived MP3 for WhatsApp voice replies (Twilio fetches URL once; row deleted after send).
-model TtsAudioCache {
-  id        String   @id @default(uuid())
-  data      Bytes
-  mimeType  String   @default("audio/mpeg")
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+/// Personal Access Token (bearer) used by the user-scoped MCP server at
+/// `/api/mcp/user`. We persist a sha-256 hash of the token (never the
+/// plaintext) plus a short prefix so the user can identify the token in the
+/// settings UI without ever seeing the secret again after creation.
+model ApiToken {
+  id          String    @id @default(cuid())
+  userId      String
+  /// Human-readable label set by the user ("Claude Desktop", "Cursor", etc.).
+  name        String
+  /// Hex sha-256 hash of the token. The plaintext is shown once, on creation.
+  tokenHash   String    @unique
+  /// First 12 chars of the token (e.g. `ada_pat_3f8a`) for UI display.
+  prefix      String
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  @@index([expiresAt])
+  @@index([userId])
 }
+
+/// Short-lived MP3 for WhatsApp voice replies (Twilio fetches URL once; row deleted after send).
+// Removed: `TtsAudioCache` was a workaround for serving OpenAI TTS MP3 to
+// Twilio. Migration `20260428220500_drop_tts_audio_cache` drops the table; we
+// now upload TTS to Vercel Blob (`src/lib/blob/tts.ts`) and pass the signed URL
+// straight to Twilio.

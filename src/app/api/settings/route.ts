@@ -1,14 +1,12 @@
 import bcrypt from "bcrypt";
-import { NextResponse } from "next/server";
-import { ZodError } from "zod";
 
 import { db } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { jsonError, withApi } from "@/lib/http";
 import { requireUserId } from "@/lib/session";
 import { settingsSchema } from "@/lib/validators";
 
 export async function GET() {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -16,6 +14,8 @@ export async function GET() {
         email: true,
         expenseImportInstructions: true,
         passwordHash: true,
+        primaryCurrency: true,
+        primaryCurrencyConfirmedAt: true,
         accounts: { select: { provider: true } },
       },
     });
@@ -23,24 +23,21 @@ export async function GET() {
       return jsonError("Usuario no encontrado.", 404);
     }
 
-    return NextResponse.json({
+    return {
       user: {
         email: user.email,
         expenseImportInstructions: user.expenseImportInstructions,
         hasPassword: user.passwordHash != null,
+        primaryCurrency: user.primaryCurrency,
+        primaryCurrencyConfirmedAt: user.primaryCurrencyConfirmedAt?.toISOString() ?? null,
         linkedProviders: user.accounts.map((a) => a.provider),
       },
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("No autorizado.", 401);
-    }
-    return jsonError("No se pudo cargar la configuración.", 500);
-  }
+    };
+  });
 }
 
 export async function PATCH(request: Request) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const body = await request.json();
     const payload = settingsSchema.parse(body);
@@ -55,7 +52,10 @@ export async function PATCH(request: Request) {
         if (!payload.currentPassword) {
           return jsonError("Tenés que ingresar la contraseña actual.", 400);
         }
-        const validCurrent = await bcrypt.compare(payload.currentPassword, user.passwordHash);
+        const validCurrent = await bcrypt.compare(
+          payload.currentPassword,
+          user.passwordHash,
+        );
         if (!validCurrent) {
           return jsonError("La contraseña actual no es correcta.", 401);
         }
@@ -71,17 +71,18 @@ export async function PATCH(request: Request) {
         ...(payload.expenseImportInstructions !== undefined
           ? { expenseImportInstructions: payload.expenseImportInstructions }
           : {}),
+        // Setting the primary currency also marks the onboarding flag so the
+        // agent stops prompting for it. It does NOT retroactively re-convert
+        // existing lines (rates stay locked at the time they were created).
+        ...(payload.primaryCurrency !== undefined
+          ? {
+              primaryCurrency: payload.primaryCurrency,
+              primaryCurrencyConfirmedAt: new Date(),
+            }
+          : {}),
       },
     });
 
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Datos no válidos.", 400);
-    }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("No autorizado.", 401);
-    }
-    return jsonError("No se pudo actualizar la configuración.", 500);
-  }
+    return { ok: true };
+  });
 }

@@ -30,6 +30,17 @@ export const expenseCategorySchema = z.enum(expenseCategoryValues);
 export const expenseCategoryOptions = expenseCategoryValues;
 const colorRegex = /^#?[0-9a-fA-F]{6}$/;
 
+/**
+ * ISO 4217 currency code (3 uppercase letters). Accepts lower-case input and
+ * normalises it to upper-case. We never enumerate every possible code so the
+ * AI can hand us anything the user mentions (USD, ARS, EUR, BRL, CLP, etc.).
+ */
+export const currencySchema = z
+  .string()
+  .trim()
+  .transform((value) => value.toUpperCase())
+  .pipe(z.string().regex(/^[A-Z]{3}$/, "Currency must be a 3-letter ISO code (e.g. USD)."));
+
 export const registerSchema = z.object({
   email: z
     .string()
@@ -122,6 +133,10 @@ export const monthExpenseLineUpdateSchema = z.object({
   paid: z.coerce.boolean().optional(),
   name: z.string().min(1).max(120).optional(),
   amount: z.coerce.number().positive().optional(),
+  /** Optional: change the original currency. Triggers an FX lookup server-side. */
+  currency: currencySchema.optional(),
+  /** Optional manual rate override (e.g. Argentine "blue dolar"). Skips the API. */
+  fxRate: z.coerce.number().positive().optional(),
 });
 
 export const monthExpenseLineCreateSchema = z.object({
@@ -129,6 +144,15 @@ export const monthExpenseLineCreateSchema = z.object({
   amount: z.coerce.number().positive("Amount must be greater than 0."),
   bankId: z.string().min(1, "Bank is required."),
   category: expenseCategorySchema.optional().default("OTROS"),
+  /**
+   * Original currency of the expense. Defaults to the user's primary currency
+   * server-side when omitted; supplying it triggers an FX lookup.
+   */
+  currency: currencySchema.optional(),
+  /** Optional manual rate override (e.g. Argentine "blue dolar"). Skips the API. */
+  fxRate: z.coerce.number().positive().optional(),
+  /** Optional override for `paid`; defaults to `false` server-side. */
+  paid: z.coerce.boolean().optional(),
 });
 
 export const yearParamSchema = z.object({
@@ -146,10 +170,16 @@ export const settingsSchema = z.object({
     .min(8, "La contraseña debe tener al menos 8 caracteres.")
     .optional(),
   expenseImportInstructions: z.union([z.string().max(12000), z.null()]).optional(),
+  /** Primary currency in which all aggregations are reported. ISO 4217. */
+  primaryCurrency: currencySchema.optional(),
 });
 
 export const monthlyIncomeSchema = z.object({
   amount: z.coerce.number().min(0, "Monthly income must be zero or positive."),
+});
+
+export const carryoverDecisionSchema = z.object({
+  mode: z.enum(["addToIncome", "setAside"]),
 });
 
 const phoneRegex = /^\+[1-9]\d{6,14}$/;
@@ -189,3 +219,19 @@ export const revolutIgnoreSchema = z.object({
 export const revolutDefaultBankSchema = z.object({
   bankId: z.string().min(1, "Bank is required."),
 });
+
+export const adminUpdateUserSchema = z
+  .object({
+    isActive: z.boolean().optional(),
+    dailyAgentMessageLimit: z
+      .number()
+      .int("El límite debe ser un entero.")
+      .min(1, "El límite mínimo es 1.")
+      .max(1000, "El límite máximo es 1000.")
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.isActive !== undefined || data.dailyAgentMessageLimit !== undefined,
+    { message: "Nada para actualizar." },
+  );

@@ -1,59 +1,72 @@
-import { NextResponse } from "next/server";
-
 import { synthesizeSpeechMp3 } from "@/lib/ai/text-to-speech";
-import { db } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { uploadTtsAudioToBlob } from "@/lib/blob/tts";
+import { jsonError, withApi } from "@/lib/http";
+import { limitByUser } from "@/lib/rate-limit";
 import { requireUserId } from "@/lib/session";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 const MAX_CHARS = 4096;
 
-/** Generate TTS for signed-in chat UI; MP3 served from GET /api/audio/tts/[id]. */
+/**
+ * Generate TTS for the in-app chat UI and return a short-lived signed Vercel
+ * Blob URL. Without a Blob token we return 503 (the chat UI degrades to
+ * text-only). The legacy Postgres `TtsAudioCache` model + `/api/audio/tts/[id]`
+ * route were dropped in this same migration.
+ */
 export async function POST(request: Request) {
-  try {
-    await requireUserId();
-  } catch {
-    return jsonError("Unauthorized.", 401);
-  }
+  return withApi(async () => {
+    const userId = await requireUserId();
 
-  if (!process.env.OPENAI_API_KEY?.trim()) {
-    return jsonError("OPENAI_API_KEY no configurada.", 500);
-  }
+    const limited = await limitByUser(
+      "audio-speech",
+      userId,
+      30,
+      "1 d",
+      "Llegaste al límite diario de audio del asistente.",
+    );
+    if (!limited.ok) return limited.response;
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return jsonError("JSON inválido.", 400);
-  }
+    if (!process.env.OPENAI_API_KEY?.trim()) {
+      return jsonError(
+        "OPENAI_API_KEY no configurada — el TTS del chat no está disponible.",
+        503,
+      );
+    }
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return jsonError(
+        "BLOB_READ_WRITE_TOKEN no configurado — el almacenamiento de audio no está disponible.",
+        503,
+      );
+    }
 
-  const text =
-    typeof body === "object" &&
-    body !== null &&
-    "text" in body &&
-    typeof (body as { text: unknown }).text === "string"
-      ? (body as { text: string }).text.trim().slice(0, MAX_CHARS)
-      : "";
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonError("JSON inválido.", 400);
+    }
 
-  if (!text) {
-    return jsonError('Enviá { "text": "…" } con contenido.', 400);
-  }
+    const text =
+      typeof body === "object" &&
+      body !== null &&
+      "text" in body &&
+      typeof (body as { text: unknown }).text === "string"
+        ? (body as { text: string }).text.trim().slice(0, MAX_CHARS)
+        : "";
 
-  const mp3 = await synthesizeSpeechMp3(text);
-  if (!mp3) {
-    return jsonError("No se pudo generar el audio.", 500);
-  }
+    if (!text) {
+      return jsonError('Enviá { "text": "…" } con contenido.', 400);
+    }
 
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-  const row = await db.ttsAudioCache.create({
-    data: {
-      data: new Uint8Array(mp3),
-      mimeType: "audio/mpeg",
-      expiresAt,
-    },
+    const mp3 = await synthesizeSpeechMp3(text);
+    if (!mp3) {
+      return jsonError("No se pudo generar el audio.", 500);
+    }
+
+    const uploaded = await uploadTtsAudioToBlob(Buffer.from(mp3));
+    if (!uploaded) {
+      return jsonError("No se pudo guardar el audio.", 500);
+    }
+
+    return { audioUrl: uploaded.url };
   });
-
-  return NextResponse.json({ audioUrl: `/api/audio/tts/${row.id}` });
 }

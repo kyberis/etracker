@@ -2,18 +2,21 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "eTracker — Gastos planificados",
-    short_name: "eTracker",
+    id: "/",
+    name: "Clara — Asistente financiera",
+    short_name: "Clara",
     description:
-      "Tracker de gastos planificados y mensuales por banco con asistente de chat.",
-    start_url: "/",
+      "Asistente financiera con IA. Planificá gastos, seguí tu balance mes a mes y chateá con tu plata.",
+    start_url: "/app",
     scope: "/",
     display: "standalone",
+    display_override: ["window-controls-overlay", "standalone"],
     orientation: "portrait",
-    background_color: "#ffffff",
-    theme_color: "#0f766e",
-    lang: "es",
-    categories: ["finance", "productivity"],
+    background_color: "#FBEFD3",
+    theme_color: "#1B0F3A",
+    lang: "es-AR",
+    dir: "ltr",
+    categories: ["finance", "productivity", "lifestyle"],
     icons: [
       {
         src: "/icon.svg",
@@ -38,6 +41,26 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
+      },
+    ],
+    shortcuts: [
+      {
+        name: "Abrir el chat",
+        short_name: "Chat",
+        url: "/app",
+        description: "Hablá con Clara para registrar un gasto.",
+      },
+      {
+        name: "Mis bancos",
+        short_name: "Bancos",
+        url: "/banks",
+        description: "Gestioná tus cuentas y bancos conectados.",
+      },
+      {
+        name: "Plantillas",
+        short_name: "Plantillas",
+        url: "/expenses",
+        description: "Editá tus gastos recurrentes.",
       },
     ],
   };

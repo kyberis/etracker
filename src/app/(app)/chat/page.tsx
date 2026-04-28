@@ -1,27 +1,19 @@
-import { ChatExperience } from "@/components/chat-experience";
+import { redirect } from "next/navigation";
 
 type PageProps = {
   searchParams: Promise<{ month?: string }>;
 };
 
-export default async function ChatPage({ searchParams }: PageProps) {
+/**
+ * `/chat` is kept as an alias for backwards compatibility (existing PWA links
+ * and bookmarks). Redirect to the new home, preserving `?month=` so deep
+ * links still scope the assistant to a specific month.
+ */
+export default async function ChatAliasPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const month =
+  const monthQs =
     typeof sp.month === "string" && /^\d{4}-\d{2}$/.test(sp.month)
-      ? sp.month
-      : undefined;
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">eTracker Assistant</h1>
-        <p className="text-muted-foreground text-sm">
-          Hablá con tu asistente de gastos. Podés consultar el mes, agregar
-          gastos, adjuntar una captura del banco o un <strong>CSV</strong> de
-          movimientos (export Revolut u otro banco) para que los procese.
-        </p>
-      </div>
-      <ChatExperience activeMonth={month} />
-    </div>
-  );
+      ? `?month=${encodeURIComponent(sp.month)}`
+      : "";
+  redirect(`/${monthQs}`);
 }

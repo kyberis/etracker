@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "etracker_pwa_install_dismissed_at";
+const STORAGE_KEY = "ada_pwa_install_dismissed_at";
 const DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 
 type BeforeInstallPromptEvent = Event & {
@@ -120,12 +120,12 @@ export function PwaInstallPrompt() {
           <p className="min-w-0">
             {deferred ? (
               <>
-                <span className="text-foreground font-medium">Instalá eTracker</span> — acceso rápido
+                <span className="text-foreground font-medium">Instalá Clara</span> — acceso rápido
                 desde la pantalla de inicio, como una app.
               </>
             ) : iosHint ? (
               <>
-                <span className="text-foreground font-medium">Añadí eTracker a Inicio</span>: tocá{" "}
+                <span className="text-foreground font-medium">Añadí Clara a Inicio</span>: tocá{" "}
                 <span className="text-foreground">Compartir</span> y elegí &quot;Añadir a inicio&quot;.
               </>
             ) : null}

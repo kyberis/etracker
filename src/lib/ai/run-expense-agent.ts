@@ -1,12 +1,10 @@
-import { createOpenAI } from "@ai-sdk/openai";
 import {
   type ModelMessage,
+  gateway,
   generateText,
   stepCountIs,
   streamText,
 } from "ai";
-
-import { resilientOpenAiFetch } from "@/lib/ai/resilient-openai-fetch";
 
 import { buildExpenseTools } from "@/lib/ai/expense-tools";
 import {
@@ -21,14 +19,20 @@ import { db } from "@/lib/db";
 import { getCurrentMonthKey } from "@/lib/months";
 import { expenseCategoryOptions } from "@/lib/validators";
 
-const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
+/**
+ * Model id routed through Vercel AI Gateway. Use `provider/model` strings; the
+ * AI SDK detects them and proxies via the gateway (auth comes from
+ * `VERCEL_OIDC_TOKEN` after `vercel env pull`, or `AI_GATEWAY_API_KEY` for CI).
+ *
+ * Override via `AI_MODEL` if you need to A/B a different model. The legacy
+ * `OPENAI_MODEL` is kept as a fallback so old env files keep working.
+ */
+const DEFAULT_MODEL =
+  process.env.AI_MODEL ?? process.env.OPENAI_MODEL ?? "openai/gpt-5.4";
 
-/** OpenAI SDK instance with resilient HTTP retries (429/rate bursts). */
-const expenseAgentOpenAi = createOpenAI({ fetch: resilientOpenAiFetch });
-
-const OPENAI_CHAT_MAX_RETRIES = Math.min(
+const CHAT_MAX_RETRIES = Math.min(
   12,
-  Math.max(4, Number.parseInt(process.env.OPENAI_CHAT_MAX_RETRIES ?? "10", 10) || 10),
+  Math.max(4, Number.parseInt(process.env.AI_CHAT_MAX_RETRIES ?? "6", 10) || 6),
 );
 
 type AgentSource = "web" | "whatsapp";
@@ -71,6 +75,8 @@ function buildSystemPrompt(
   options?: {
     responseStyle?: ExpenseAgentResponseStyle;
     activeMonth?: string | null;
+    primaryCurrency?: string;
+    primaryCurrencyConfirmedAt?: Date | null;
   },
 ) {
   const responseStyle = options?.responseStyle ?? "concise";
@@ -78,6 +84,8 @@ function buildSystemPrompt(
     options?.activeMonth && /^\d{4}-\d{2}$/.test(options.activeMonth.trim()) ?
       options.activeMonth.trim()
     : null;
+  const primaryCurrency = options?.primaryCurrency ?? "USD";
+  const currencyConfirmed = Boolean(options?.primaryCurrencyConfirmedAt);
 
   const personal =
     userImportInstructions?.trim() ?
@@ -90,7 +98,22 @@ ${userImportInstructions.trim()}
 Aplicá estas reglas al sugerir categorías, al decidir qué registrar como gasto del mes y al conciliar. Si una regla choca con un dato concreto del movimiento, explicá brevemente la decisión.`
     : "";
 
-  return `Sos el asistente de gastos de eTracker. Hablás en español rioplatense.
+  const currencyBlock = currencyConfirmed
+    ? `
+
+Moneda principal del usuario: ${primaryCurrency}.
+- Las matemáticas (totales, balance, ingresos, sobrante) viven SIEMPRE en ${primaryCurrency}. setMonthIncome y los montos de plantillas también.
+- Los gastos individuales pueden estar en otras monedas: addMonthLine y updateMonthLine aceptan \`currency\` (ISO 4217) y, opcionalmente, \`fxRate\` (override manual). Si la moneda difiere de ${primaryCurrency} y no pasás \`fxRate\`, el sistema busca el rate del momento y lo congela en la línea para que las cuentas no cambien después.
+- Si el usuario menciona explícitamente otra moneda en un gasto ("compré 50 USD", "pagué 1500 ARS"), pasá \`currency\` al tool. Para Argentina con dólar blue/MEP/oficial, pasá \`fxRate\` cuando aclare cuál usar.
+- En tus respuestas mostrá el monto original y la conversión solo cuando difieren (p. ej. "USD 50 ≈ ${primaryCurrency} 47.30"). Para totales/balance/ingreso usá ${primaryCurrency} directamente, sin conversión.`
+    : `
+
+Moneda principal: TODAVÍA NO CONFIRMADA.
+- Antes de usar tools que involucren montos (setMonthIncome, addMonthLine, updateMonthLine, applyPrevMonthLeftover, etc.), preguntale al usuario su moneda principal con UNA pregunta corta: "¿En qué moneda querés ver tus totales y balance? (p. ej. USD, ARS, EUR)".
+- Cuando responda, llamá \`setPrimaryCurrency\` con el código ISO 4217 y después seguí con la consulta original.
+- Si por contexto está clarísimo (p. ej. el usuario habla solo en pesos argentinos y registra ingresos en ARS), podés sugerirla y pedir confirmación rápida en la misma frase.`;
+
+  return `Sos Clara, la asistente financiera con IA. Hablás en español rioplatense.
 
 ${toneAndFollowUpBlock(responseStyle)}
 
@@ -106,9 +129,16 @@ Reglas de uso de tools:
 - Si el usuario nombra un banco, resolvé el id con listBanks.
 - Si quiere que una preferencia quede guardada para futuras sesiones (reglas de Revolut/importaciones, categorías por defecto, marcar importaciones como pagadas, etc.), llamá updateExpenseImportInstructions; también puede editarlo en Configuración de la app.
 - "Cuánto me queda / cómo voy" → getMonthState con el mes pedido o el actual.
+- Sobrante del mes anterior: si \`getMonthState\` devuelve un \`carryoverPrompt\` (con \`prevMonth\` y \`amount\`), felicitá brevemente al usuario por haber gastado menos del ingreso, decile cuánto le sobró y ofrecele dos opciones: sumarlo al ingreso de este mes o dejarlo aparte como ahorros. Cuando el usuario elija, llamá \`applyPrevMonthLeftover\` con el \`mode\` correspondiente (\`addToIncome\` o \`setAside\`) y confirmá en una frase. No inicies este flujo por tu cuenta si no hay \`carryoverPrompt\`.
+- Ingreso del mes: si el usuario dice "mi ingreso es X", "cobré X", "ganaste/cobramos X" → setMonthIncome (NO uses updateMonthLine, que es para líneas de gasto). Si el mes no existe, primero createMonthIfNeeded y después setMonthIncome.
 - Imagen (Revolut, captura del banco, ticket): extraé las transacciones, mostralas en una lista compacta agrupadas por banco y pedí confirmación antes de aplicar nada. Para cada movimiento elegí updateMonthLine (si ya existe una línea similar) o addMonthLine (movimiento nuevo).
 - CSV / extracto en texto: a veces el usuario pega o adjunta un CSV ya convertido a lista en el mensaje (fechas, descripciones, importes). Tratalo como movimientos del banco: misma regla que una imagen — lista compacta, respetá las instrucciones personales del usuario sobre qué ignorar o cómo categorizar, y pedí confirmación antes de usar tools.
 - PDF: el mensaje puede traer texto extraído y/o imágenes de página (PDF escaneado). Si hay imágenes, leé los movimientos como con una captura del banco: lista compacta, pedí confirmación antes de aplicar cambios.
+
+Default de "pagado":
+- En este producto las únicas líneas que nacen pendientes son las que se materializan al inicializar un mes desde plantillas recurrentes. Cualquier otra línea que cargues vos (addMonthLine) representa un gasto que el usuario ya hizo, así que pasá \`paid=true\` (que también es el default).
+- Pasá \`paid=false\` SOLO si el usuario aclara explícitamente que aún no lo pagó (p. ej. "esta cuota la voy a pagar en unos días", "sumalo pero todavía no lo pagué").
+- Cuando el usuario diga "sumá X / agregá X / anotá X" sin más contexto, asumí que ya está pagado.
 
 Gráficos (renderChart):
 - Cuando un visual aporta más que una lista, llamá renderChart DESPUÉS de obtener los datos (nunca con números inventados).
@@ -117,11 +147,17 @@ Gráficos (renderChart):
   · "distribución por categoría" o "por banco" → pie con slices=[{name, value}, ...].
   · "evolución por mes" → line o area con xValues = meses (yyyy-MM) y una serie por métrica.
   · "comparar bancos en planificado vs pagado" → bar con dos series.
-- Pasá 'currency' (USD/ARS) cuando los valores son montos del usuario.
-- Tras emitir el gráfico, agregá UNA frase corta con la conclusión (p. ej. "Restante a pagar: USD 320") y, si corresponde, una sugerencia de siguiente paso.${activeMonth ? activeMonthUiBlock(activeMonth) : ""}${personal}`;
+- Pasá 'currency' (USD/ARS/${primaryCurrency}…) cuando los valores son montos del usuario; default = ${primaryCurrency}.
+- Tras emitir el gráfico, agregá UNA frase corta con la conclusión (p. ej. "Restante a pagar: ${primaryCurrency} 320") y, si corresponde, una sugerencia de siguiente paso.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth) : ""}${personal}`;
 }
 
 export type ExpenseAgentMessages = Array<ModelMessage>;
+
+/** Token usage surfaced to callers (subset of AI SDK's `LanguageModelUsage`). */
+export type ExpenseAgentUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+};
 
 /**
  * Stream the agent for the in-app chat (used by /api/chat with useChat).
@@ -132,16 +168,27 @@ export async function streamExpenseAgent({
   source = "web",
   responseStyle = "concise",
   activeMonth,
+  onFinish,
 }: {
   userId: string;
   messages: ExpenseAgentMessages;
   source?: AgentSource;
   responseStyle?: ExpenseAgentResponseStyle;
   activeMonth?: string | null;
+  /**
+   * Optional hook for callers (e.g. `/api/chat`) that need to record token
+   * usage after the stream finishes. Errors are swallowed by AI SDK; we
+   * still wrap our own usage of this in best-effort code paths.
+   */
+  onFinish?: (event: { usage: ExpenseAgentUsage; text: string }) => void | Promise<void>;
 }) {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { expenseImportInstructions: true },
+    select: {
+      expenseImportInstructions: true,
+      primaryCurrency: true,
+      primaryCurrencyConfirmedAt: true,
+    },
   });
 
   const traceId = newTraceId();
@@ -149,11 +196,19 @@ export async function streamExpenseAgent({
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   return streamText({
-    maxRetries: OPENAI_CHAT_MAX_RETRIES,
-    model: expenseAgentOpenAi(DEFAULT_MODEL),
+    maxRetries: CHAT_MAX_RETRIES,
+    model: gateway(DEFAULT_MODEL),
+    providerOptions: {
+      gateway: {
+        user: userId,
+        tags: [`feature:chat-${source}`],
+      },
+    },
     system: buildSystemPrompt(user?.expenseImportInstructions ?? null, {
       responseStyle,
       activeMonth,
+      primaryCurrency: user?.primaryCurrency,
+      primaryCurrencyConfirmedAt: user?.primaryCurrencyConfirmedAt ?? null,
     }),
     messages,
     tools: buildExpenseTools(userId),
@@ -172,7 +227,7 @@ export async function streamExpenseAgent({
         usage: step.usage,
       });
     },
-    onFinish: (event) => {
+    onFinish: async (event) => {
       logAIFinish({
         traceId,
         source,
@@ -184,6 +239,19 @@ export async function streamExpenseAgent({
         steps: event.steps.length,
         latencyMs: Date.now() - startedAt,
       });
+      if (onFinish) {
+        try {
+          await onFinish({
+            usage: {
+              inputTokens: event.totalUsage?.inputTokens,
+              outputTokens: event.totalUsage?.outputTokens,
+            },
+            text: event.text,
+          });
+        } catch {
+          // Caller errors must not break the stream — log only.
+        }
+      }
     },
   });
 }
@@ -202,10 +270,14 @@ export async function generateExpenseAgentReply({
   messages: ExpenseAgentMessages;
   source?: AgentSource;
   responseStyle?: ExpenseAgentResponseStyle;
-}): Promise<string> {
+}): Promise<{ text: string; usage: ExpenseAgentUsage }> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { expenseImportInstructions: true },
+    select: {
+      expenseImportInstructions: true,
+      primaryCurrency: true,
+      primaryCurrencyConfirmedAt: true,
+    },
   });
 
   const traceId = newTraceId();
@@ -213,10 +285,18 @@ export async function generateExpenseAgentReply({
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   const result = await generateText({
-    maxRetries: OPENAI_CHAT_MAX_RETRIES,
-    model: expenseAgentOpenAi(DEFAULT_MODEL),
+    maxRetries: CHAT_MAX_RETRIES,
+    model: gateway(DEFAULT_MODEL),
+    providerOptions: {
+      gateway: {
+        user: userId,
+        tags: [`feature:chat-${source}`],
+      },
+    },
     system: buildSystemPrompt(user?.expenseImportInstructions ?? null, {
       responseStyle,
+      primaryCurrency: user?.primaryCurrency,
+      primaryCurrencyConfirmedAt: user?.primaryCurrencyConfirmedAt ?? null,
     }),
     messages,
     tools: buildExpenseTools(userId),
@@ -249,5 +329,11 @@ export async function generateExpenseAgentReply({
     latencyMs: Date.now() - startedAt,
   });
 
-  return result.text.trim();
+  return {
+    text: result.text.trim(),
+    usage: {
+      inputTokens: result.totalUsage?.inputTokens,
+      outputTokens: result.totalUsage?.outputTokens,
+    },
+  };
 }

@@ -1,86 +1,115 @@
 "use client";
 
 import { format, parse } from "date-fns";
+import { Plus, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
-import type { MonthPageDataWithRecord, MonthLinePayload } from "@/lib/month-page-types";
-import { formatCurrency } from "@/lib/format";
-import type { ImportableTransaction } from "@/lib/revolut/types";
-import { expenseCategoryOptions, expenseCategorySchema, isInvestmentCategory } from "@/lib/validators";
-
+import { useBalance } from "@/components/balance-provider";
+import { MonthAddLineDialog } from "@/components/month/month-add-line-dialog";
+import { MonthLinesByBank } from "@/components/month/month-lines-by-bank";
+import { MonthSummary } from "@/components/month/month-summary";
+import { RevolutImportDialog } from "@/components/month/revolut-import-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { ChatExperience } from "@/components/chat-experience";
-import { ChevronDown, PlusIcon, RefreshCw, Sparkles, TrendingUp } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
+import type { MonthLinePayload, MonthPageDataWithRecord } from "@/lib/month-page-types";
+import type { ImportableTransaction } from "@/lib/revolut/types";
+import { expenseCategorySchema, isInvestmentCategory } from "@/lib/validators";
 
 type MonthDashboardProps = {
   data: MonthPageDataWithRecord;
 };
 
+/**
+ * Orchestrator for the month detail page. Heavy UI is split into the focused
+ * subcomponents under `src/components/month/`; this file owns the local state
+ * and the API calls so the children stay presentational.
+ */
 export function MonthDashboard({ data }: MonthDashboardProps) {
   const router = useRouter();
+  const balanceCtx = useBalance();
+  // Keep the sticky balance header in sync with the month being shown here.
+  // We use a ref-like state guard so we only call setMonth on changes.
+  const [lastSyncedMonth, setLastSyncedMonth] = useState<string | null>(null);
+  if (lastSyncedMonth !== data.month) {
+    setLastSyncedMonth(data.month);
+    balanceCtx.setMonth(data.month);
+  }
+  const refreshBalance = () => {
+    void balanceCtx.refresh();
+  };
+
+  // When the parent server component re-renders with a different `data.month`,
+  // reset the local optimistic state. This is the documented React 19 idiom
+  // (set state during render, gated on a ref) and replaces the heavy `key=…`
+  // prop the page used to pass to remount us on every change.
   const [expenses, setExpenses] = useState(data.expenses);
   const [income, setIncome] = useState(data.income);
+  const [carryoverFromPrev, setCarryoverFromPrev] = useState(data.carryoverFromPrev);
+  const [carryoverPrompt, setCarryoverPrompt] = useState(data.carryoverPrompt);
+  const [carryoverBusy, setCarryoverBusy] = useState<null | "addToIncome" | "setAside">(null);
+  const [carryoverError, setCarryoverError] = useState<string | null>(null);
   const [incomeDraft, setIncomeDraft] = useState(String(data.income));
+  const [dismissedPending, setDismissedPending] = useState(false);
+  const [lastMonth, setLastMonth] = useState(data.month);
+  if (lastMonth !== data.month) {
+    setLastMonth(data.month);
+    setExpenses(data.expenses);
+    setIncome(data.income);
+    setCarryoverFromPrev(data.carryoverFromPrev);
+    setIncomeDraft(String(data.income));
+    setDismissedPending(false);
+    setCarryoverPrompt(data.carryoverPrompt);
+    setCarryoverError(null);
+  }
+
   const [savingIncome, setSavingIncome] = useState(false);
   const [incomeError, setIncomeError] = useState<string | null>(null);
+
+  // Add line dialog
   const [addName, setAddName] = useState("");
   const [addAmount, setAddAmount] = useState("");
   const [addBankId, setAddBankId] = useState(data.banks[0]?.id ?? "");
   const [addCategory, setAddCategory] = useState("OTROS");
+  // Foreign-currency support: default to the primary so most flows stay
+  // single-input. Switching to another ISO 4217 code triggers an FX preview
+  // in the dialog (and an FX lookup server-side on submit).
+  const [addCurrency, setAddCurrency] = useState(data.primaryCurrency);
+  const [addFxRateDraft, setAddFxRateDraft] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
-  const [dismissedPending, setDismissedPending] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+
   const [mergingPending, setMergingPending] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
+
   /** `true` = colapsada (líneas ocultas). Sin clave = expandida. */
   const [bankCollapsed, setBankCollapsed] = useState<Record<string, boolean>>({});
+
+  // Revolut import dialog
   const [revolutSyncing, setRevolutSyncing] = useState(false);
   const [revolutError, setRevolutError] = useState<string | null>(null);
   const [revolutFeedback, setRevolutFeedback] = useState<string | null>(null);
   const [revolutDialogOpen, setRevolutDialogOpen] = useState(false);
   const [revolutImportable, setRevolutImportable] = useState<ImportableTransaction[]>([]);
   const [revolutRowBusy, setRevolutRowBusy] = useState<string | null>(null);
-  /** Asistente en pantalla: cerrado por defecto en el dashboard del mes. */
-  const [assistantDialogOpen, setAssistantDialogOpen] = useState(false);
 
   const totals = useMemo(() => {
-    const planned = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
+    // Totals are always reported in primary currency, so we sum the
+    // pre-computed `amountConverted` (NEVER the original `amount`).
+    const planned = expenses.reduce((sum, item) => sum + Number(item.amountConverted), 0);
     const paid = expenses
       .filter((item) => item.paid)
-      .reduce((sum, item) => sum + Number(item.amount), 0);
+      .reduce((sum, item) => sum + Number(item.amountConverted), 0);
     const investment = expenses
       .filter((item) => isInvestmentCategory(item.category))
-      .reduce((sum, item) => sum + Number(item.amount), 0);
-    return {
-      planned,
-      paid,
-      remaining: planned - paid,
-      investment,
-    };
+      .reduce((sum, item) => sum + Number(item.amountConverted), 0);
+    return { planned, paid, remaining: planned - paid, investment };
   }, [expenses]);
 
-  const balance = income - totals.planned;
+  const effectiveIncome = income + carryoverFromPrev;
+  const balance = effectiveIncome - totals.planned;
 
   const expensesByBank = useMemo(() => {
     const grouped = new Map<string, MonthLinePayload[]>();
@@ -98,8 +127,9 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       const lines = expensesByBank.get(bank.bankId) ?? [];
       const pending = lines
         .filter((l) => !l.paid)
-        .reduce((s, l) => s + Number(l.amount), 0);
-      if (pending > 0) result.push({ bankId: bank.bankId, bankName: bank.bankName, pending });
+        .reduce((s, l) => s + Number(l.amountConverted), 0);
+      if (pending > 0)
+        result.push({ bankId: bank.bankId, bankName: bank.bankName, pending });
     }
     return result;
   }, [data.bankTotals, expensesByBank]);
@@ -108,18 +138,18 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     setExpenses((current) =>
       current.map((item) => (item.id === lineId ? { ...item, paid: nextPaid } : item)),
     );
-
     const response = await fetch(`/api/month-expense-lines/${lineId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paid: nextPaid }),
     });
-
     if (!response.ok) {
       setExpenses((current) =>
         current.map((item) => (item.id === lineId ? { ...item, paid: !nextPaid } : item)),
       );
+      return;
     }
+    refreshBalance();
   }
 
   async function saveIncomeWithAmount(amount: number) {
@@ -128,7 +158,6 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       setIncomeError("Ingreso debe ser 0 o positivo.");
       return;
     }
-
     setSavingIncome(true);
     setIncomeError(null);
     const response = await fetch(`/api/months/${data.month}`, {
@@ -136,17 +165,15 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ amount: parsedIncome }),
     });
-
     setSavingIncome(false);
-
     if (!response.ok) {
       const payload = (await response.json()) as { error?: string };
       setIncomeError(payload.error ?? "No se pudo guardar.");
       return;
     }
-
     setIncome(parsedIncome);
     setIncomeDraft(String(parsedIncome));
+    refreshBalance();
   }
 
   async function saveIncome() {
@@ -161,6 +188,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     }
     setAddError(null);
     setAdding(true);
+    const trimmedFxRate = addFxRateDraft.trim();
     const res = await fetch(`/api/months/${data.month}/lines`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -169,6 +197,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         amount: Number(addAmount),
         bankId: addBankId,
         category: addCategory,
+        currency: addCurrency || data.primaryCurrency,
+        ...(trimmedFxRate ? { fxRate: Number(trimmedFxRate) } : {}),
       }),
     });
     setAdding(false);
@@ -180,7 +210,10 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     setAddName("");
     setAddAmount("");
     setAddCategory("OTROS");
+    setAddCurrency(data.primaryCurrency);
+    setAddFxRateDraft("");
     setAddDialogOpen(false);
+    refreshBalance();
     router.refresh();
   }
 
@@ -222,6 +255,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       } else {
         setRevolutFeedback("Sincronizado: no hay movimientos nuevos para importar.");
       }
+      refreshBalance();
       router.refresh();
     } finally {
       setRevolutSyncing(false);
@@ -260,6 +294,9 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       }
       const categoryParsed = expenseCategorySchema.safeParse(tx.suggestedCategory);
       const category = categoryParsed.success ? categoryParsed.data : "OTROS";
+      // Pass through the transaction currency so the server applies an FX
+      // lookup when it differs from the user's primary; if the bank reports
+      // the line in primary currency we just skip the conversion.
       const res = await fetch(`/api/months/${data.month}/lines`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -268,6 +305,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
           amount,
           bankId,
           category,
+          ...(tx.currency ? { currency: tx.currency } : {}),
         }),
       });
       if (!res.ok) {
@@ -275,11 +313,37 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         setRevolutError(p.error ?? "No se pudo importar.");
         return;
       }
-      setRevolutImportable((cur) => cur.filter((t) => t.transactionId !== tx.transactionId));
+      setRevolutImportable((cur) =>
+        cur.filter((t) => t.transactionId !== tx.transactionId),
+      );
+      refreshBalance();
       router.refresh();
     } finally {
       setRevolutRowBusy(null);
     }
+  }
+
+  async function onCarryoverDecision(mode: "addToIncome" | "setAside") {
+    setCarryoverError(null);
+    setCarryoverBusy(mode);
+    const promptAmount = carryoverPrompt?.amount ?? 0;
+    const res = await fetch(`/api/months/${data.month}/carryover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+    setCarryoverBusy(null);
+    if (!res.ok) {
+      const p = (await res.json()) as { error?: string };
+      setCarryoverError(p.error ?? "No se pudo guardar la decisión.");
+      return;
+    }
+    setCarryoverPrompt(null);
+    if (mode === "addToIncome") {
+      setCarryoverFromPrev((prev) => prev + promptAmount);
+    }
+    refreshBalance();
+    router.refresh();
   }
 
   async function onMergePendingTemplates() {
@@ -292,20 +356,62 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       setMergeError(p.error ?? "No se pudo agregar.");
       return;
     }
+    refreshBalance();
     router.refresh();
+  }
+
+  function toggleBankCollapsed(bankId: string) {
+    setBankCollapsed((c) => ({ ...c, [bankId]: c[bankId] !== true }));
   }
 
   const showPendingBanner =
     data.pendingFromTemplates.length > 0 && !dismissedPending;
 
-  function isBankExpanded(bankId: string) {
-    return bankCollapsed[bankId] !== true;
-  }
-
   return (
     <div className="space-y-6 pb-20 sm:pb-6">
+      {carryoverPrompt ? (
+        <Card className="border-good/40 bg-lime/15">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              ¡Bien ahí! Te sobró plata del mes pasado
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              Cerraste{" "}
+              <strong className="text-good tabular-nums">
+                {formatCurrency(carryoverPrompt.amount, data.primaryCurrency)}
+              </strong>{" "}
+              sin gastar en{" "}
+              {format(parse(carryoverPrompt.prevMonth, "yyyy-MM", new Date()), "MMMM yyyy")}.
+              ¿Qué querés hacer con eso?
+            </p>
+            {carryoverError ? (
+              <p className="text-destructive text-sm">{carryoverError}</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => void onCarryoverDecision("addToIncome")}
+                disabled={carryoverBusy !== null}
+              >
+                {carryoverBusy === "addToIncome" ? "Sumando…" : "Sumar al ingreso"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void onCarryoverDecision("setAside")}
+                disabled={carryoverBusy !== null}
+              >
+                {carryoverBusy === "setAside" ? "Guardando…" : "Dejar aparte (ahorros)"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {showPendingBanner ? (
-        <Card className="border-amber-500/40 bg-amber-500/[0.07]">
+        <Card className="border-warn/40 bg-peach/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Gastos nuevos en definiciones</CardTitle>
           </CardHeader>
@@ -325,8 +431,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
               {data.pendingFromTemplates.map((p) => (
                 <li key={p.templateId}>
                   {p.name}{" "}
-                  <span className="text-red-600 tabular-nums dark:text-red-500">
-                    {formatCurrency(Number(p.amount))}
+                  <span className="text-bad tabular-nums">
+                    {formatCurrency(Number(p.amount), data.primaryCurrency)}
                   </span>{" "}
                   · {p.bankName}
                 </li>
@@ -334,7 +440,11 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
             </ul>
             {mergeError ? <p className="text-destructive text-sm">{mergeError}</p> : null}
             <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={() => void onMergePendingTemplates()} disabled={mergingPending}>
+              <Button
+                type="button"
+                onClick={() => void onMergePendingTemplates()}
+                disabled={mergingPending}
+              >
                 {mergingPending ? "Agregando…" : "Agregar al mes"}
               </Button>
               <Button
@@ -351,18 +461,18 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       ) : null}
 
       {data.isCurrentMonth && data.revolut.linked ? (
-        <Card className="border-violet-500/30 bg-violet-500/[0.06]">
+        <Card className="border-cleo-violet/40 bg-cleo-violet/15">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Revolut</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p className="text-muted-foreground">
-              Sincronizá movimientos del mes para marcar gastos como pagados e importar lo que falte.
-              Con instrucciones en Ajustes, se filtran y categorizan movimientos con el asistente
-              (requiere OpenAI).
+              Sincronizá movimientos del mes para marcar gastos como pagados e importar lo que
+              falte. Con instrucciones en Ajustes, se filtran y categorizan movimientos con el
+              asistente (requiere OpenAI).
             </p>
             {!data.revolut.defaultImportBankId ? (
-              <p className="text-amber-700 dark:text-amber-400">
+              <p className="text-warn">
                 Elegí un banco local para importar en{" "}
                 <a href="/settings" className="underline">
                   Ajustes → Revolut
@@ -390,94 +500,15 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </Card>
       ) : null}
 
-      <Dialog open={revolutDialogOpen} onOpenChange={setRevolutDialogOpen}>
-        <DialogContent
-          className="max-h-[min(90vh,640px)] overflow-y-auto sm:max-w-lg"
-          showCloseButton
-        >
-          <DialogHeader>
-            <DialogTitle>Importar desde Revolut</DialogTitle>
-            <DialogDescription>
-              Movimientos del mes sin coincidencia con tus gastos planificados. Si definiste
-              instrucciones en Ajustes, el asistente puede haber filtrado transferencias u otros
-              movimientos y sugerir categoría. Importá como gasto del mes o ignorá para no volver a
-              verlos al sincronizar.
-            </DialogDescription>
-          </DialogHeader>
-          {revolutImportable.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No quedan movimientos pendientes.</p>
-          ) : (
-            <ul className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
-              {revolutImportable.map((tx) => (
-                <li
-                  key={tx.transactionId}
-                  className="space-y-2 rounded-md border p-3 text-sm"
-                >
-                  <p className="font-medium leading-snug">{tx.description}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {tx.bookingDate ? `${tx.bookingDate} · ` : null}
-                    <span className="font-mono tabular-nums text-red-600 dark:text-red-400">
-                      {formatCurrency(Math.abs(Number(tx.amount)))}
-                    </span>
-                    {tx.currency ? ` ${tx.currency}` : null}
-                  </p>
-                  {tx.suggestedCategory ? (
-                    <p className="text-muted-foreground text-xs">
-                      Categoría sugerida:{" "}
-                      <span className="text-foreground font-medium">{tx.suggestedCategory}</span>
-                      {tx.assistantNote ? ` — ${tx.assistantNote}` : null}
-                    </p>
-                  ) : null}
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={
-                        !data.revolut.defaultImportBankId || revolutRowBusy === tx.transactionId
-                      }
-                      onClick={() => void onRevolutImport(tx)}
-                    >
-                      {revolutRowBusy === tx.transactionId ? "Importando…" : "Importar"}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={revolutRowBusy === tx.transactionId}
-                      onClick={() => void onRevolutIgnore([tx.transactionId])}
-                    >
-                      Ignorar
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          {revolutImportable.length > 0 ? (
-            <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-              <Button
-                type="button"
-                variant="ghost"
-                className="text-muted-foreground"
-                onClick={() =>
-                  void onRevolutIgnore(revolutImportable.map((t) => t.transactionId))
-                }
-              >
-                Ignorar todas las restantes
-              </Button>
-              <Button type="button" variant="outline" onClick={() => setRevolutDialogOpen(false)}>
-                Cerrar
-              </Button>
-            </DialogFooter>
-          ) : (
-            <DialogFooter>
-              <Button type="button" onClick={() => setRevolutDialogOpen(false)}>
-                Cerrar
-              </Button>
-            </DialogFooter>
-          )}
-        </DialogContent>
-      </Dialog>
+      <RevolutImportDialog
+        open={revolutDialogOpen}
+        onOpenChange={setRevolutDialogOpen}
+        importable={revolutImportable}
+        defaultImportBankId={data.revolut.defaultImportBankId}
+        rowBusyId={revolutRowBusy}
+        onImport={onRevolutImport}
+        onIgnore={onRevolutIgnore}
+      />
 
       {data.isCurrentMonth && data.banks.length === 0 ? (
         <p className="text-muted-foreground text-sm">
@@ -487,236 +518,56 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
 
       {data.isCurrentMonth && data.banks.length > 0 ? (
         <>
-          <Dialog open={assistantDialogOpen} onOpenChange={setAssistantDialogOpen}>
-            <DialogContent
-              className="flex h-[min(92vh,880px)] max-h-[92vh] w-[min(100%-2rem,42rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
-              showCloseButton
-            >
-              <DialogHeader className="border-border shrink-0 border-b px-4 py-3 pr-10">
-                <DialogTitle>Asistente</DialogTitle>
-                <DialogDescription>
-                  Mes en pantalla:{" "}
-                  {format(parse(data.month, "yyyy-MM", new Date()), "MMMM yyyy")}.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="bg-background min-h-0 flex-1 overflow-hidden px-2 pb-3 pt-1">
-                <ChatExperience activeMonth={data.month} layout="fullscreen" />
-              </div>
-            </DialogContent>
-          </Dialog>
-          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-            <DialogContent
-              className="max-h-[min(90vh,640px)] overflow-y-auto sm:max-w-md"
-              showCloseButton
-            >
-              <DialogHeader>
-                <DialogTitle>Nuevo gasto (este mes)</DialogTitle>
-                <DialogDescription>
-                  Solo aplica al mes en curso. No modifica las definiciones.
-                </DialogDescription>
-              </DialogHeader>
-              <form className="space-y-3" onSubmit={onAddExpense}>
-                <div className="space-y-1">
-                  <label className="text-muted-foreground text-xs" htmlFor="add-name">
-                    Nombre
-                  </label>
-                  <Input
-                    id="add-name"
-                    value={addName}
-                    onChange={(ev) => setAddName(ev.target.value)}
-                    required
-                    placeholder="Ej. Regalo, extra…"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-muted-foreground text-xs" htmlFor="add-amount">
-                    Monto
-                  </label>
-                  <Input
-                    id="add-amount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={addAmount}
-                    onChange={(ev) => setAddAmount(ev.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground text-xs">Banco</span>
-                  <Select value={addBankId} onValueChange={(v) => setAddBankId(v ?? "")} required>
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {addBankId
-                          ? (data.banks.find((b) => b.id === addBankId)?.name ?? "Banco")
-                          : "Elegir banco"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.banks.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>
-                          {b.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground text-xs">Categoría</span>
-                  <Select value={addCategory} onValueChange={(v) => setAddCategory(v ?? "OTROS")}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {addCategory ? addCategory.toLowerCase() : "Categoría"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {expenseCategoryOptions.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c.toLowerCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {addError ? <p className="text-destructive text-sm">{addError}</p> : null}
-                <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setAddDialogOpen(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={adding}>
-                    {adding ? "Agregando…" : "Agregar"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-          <div className="fixed right-4 bottom-4 z-50 flex items-center gap-3 sm:right-6 sm:bottom-6">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => setAssistantDialogOpen(true)}
-              className="border-border bg-background text-violet-600 shadow-lg dark:text-violet-400 size-14 rounded-full border-2"
-              aria-label="Abrir asistente de gastos"
-              title="Asistente"
-            >
-              <Sparkles className="size-7" />
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                setAddError(null);
-                setAddDialogOpen(true);
-              }}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 size-14 rounded-full shadow-lg"
-              size="icon"
-              aria-label="Nuevo gasto en este mes"
-            >
-              <PlusIcon className="size-7" />
-            </Button>
-          </div>
+          <MonthAddLineDialog
+            open={addDialogOpen}
+            onOpenChange={setAddDialogOpen}
+            banks={data.banks}
+            name={addName}
+            amount={addAmount}
+            bankId={addBankId}
+            category={addCategory}
+            currency={addCurrency}
+            fxRateDraft={addFxRateDraft}
+            primaryCurrency={data.primaryCurrency}
+            adding={adding}
+            error={addError}
+            onChangeName={setAddName}
+            onChangeAmount={setAddAmount}
+            onChangeBankId={setAddBankId}
+            onChangeCategory={setAddCategory}
+            onChangeCurrency={setAddCurrency}
+            onChangeFxRateDraft={setAddFxRateDraft}
+            onSubmit={onAddExpense}
+          />
+          <Button
+            type="button"
+            onClick={() => {
+              setAddError(null);
+              setAddDialogOpen(true);
+            }}
+            className="gradient-lime text-ink fixed right-4 bottom-4 z-30 size-14 rounded-full shadow-[0_18px_40px_-16px_oklch(0.74_0.18_156/0.55)] sm:right-6 sm:bottom-6"
+            size="icon"
+            aria-label="Nuevo gasto en este mes"
+          >
+            <Plus className="size-7" />
+          </Button>
         </>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm">Ingreso</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="text-emerald-600 text-xl font-semibold dark:text-emerald-500">
-              {formatCurrency(income)}
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={incomeDraft}
-                onChange={(event) => setIncomeDraft(event.target.value)}
-                className="h-8"
-              />
-              <button
-                type="button"
-                onClick={saveIncome}
-                disabled={savingIncome}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 h-8 rounded-md px-3 text-sm disabled:opacity-50"
-              >
-                {savingIncome ? "…" : "Guardar"}
-              </button>
-            </div>
-            {incomeError ? <p className="text-destructive text-sm">{incomeError}</p> : null}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm">Gastos (plan.)</CardTitle>
-          </CardHeader>
-          <CardContent
-            title="Total de gastos planificados (pagados y no pagados)"
-          >
-            <p className={cn("text-xl font-semibold", "text-red-600 dark:text-red-500")}>
-              {formatCurrency(totals.planned)}
-            </p>
-            {totals.investment > 0 ? (
-              <p className="mt-1 flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400">
-                <TrendingUp className="size-3" />
-                {formatCurrency(totals.investment)} inversión
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm">Pagado</CardTitle>
-          </CardHeader>
-          <CardContent className="text-foreground text-xl font-semibold">
-            {formatCurrency(totals.paid)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm">Pendiente</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-foreground text-xl font-semibold">{formatCurrency(totals.remaining)}</p>
-            {pendingByBank.length > 0 ? (
-              <div className="mt-2 space-y-0.5">
-                {pendingByBank.map((b) => (
-                  <p key={b.bankId} className="text-muted-foreground flex items-center justify-between text-xs">
-                    <span className="truncate">{b.bankName}</span>
-                    <span className="text-amber-600 dark:text-amber-400 ml-2 shrink-0 tabular-nums font-medium">
-                      {formatCurrency(b.pending)}
-                    </span>
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <p className="text-emerald-600 dark:text-emerald-400 mt-1 text-xs">✓ Todo pagado</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm">Saldo</CardTitle>
-          </CardHeader>
-          <CardContent
-            className={cn(
-              "text-xl font-semibold",
-              balance >= 0
-                ? "text-emerald-600 dark:text-emerald-500"
-                : "text-red-600 dark:text-red-500",
-            )}
-            title="Ingreso − gastos planificados"
-          >
-            {formatCurrency(balance)}
-          </CardContent>
-        </Card>
-      </div>
+      <MonthSummary
+        income={income}
+        incomeDraft={incomeDraft}
+        onIncomeDraftChange={setIncomeDraft}
+        onSaveIncome={saveIncome}
+        savingIncome={savingIncome}
+        incomeError={incomeError}
+        carryoverFromPrev={carryoverFromPrev}
+        savings={data.savings}
+        totals={totals}
+        balance={balance}
+        pendingByBank={pendingByBank}
+        currency={data.primaryCurrency}
+      />
 
       <Card>
         <CardHeader>
@@ -725,8 +576,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         <CardContent className="space-y-3">
           <div className="text-muted-foreground text-sm">
             Ingreso por defecto (meses nuevos):{" "}
-            <span className="text-emerald-600 font-medium dark:text-emerald-500">
-              {formatCurrency(data.defaultIncome)}
+            <span className="text-good font-bold">
+              {formatCurrency(data.defaultIncome, data.primaryCurrency)}
             </span>
           </div>
           {data.incomeHistory.length === 0 ? (
@@ -742,8 +593,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                     {format(parse(entry.month, "yyyy-MM", new Date()), "MMMM yyyy")}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-emerald-600 font-medium dark:text-emerald-500">
-                      {formatCurrency(entry.amount)}
+                    <span className="text-good font-bold">
+                      {formatCurrency(entry.amount, data.primaryCurrency)}
                     </span>
                     <button
                       type="button"
@@ -763,104 +614,14 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {data.bankTotals.map((bank) => {
-          const bankExpenses = expensesByBank.get(bank.bankId) ?? [];
-          const bankPlanned = bankExpenses.reduce((sum, item) => sum + Number(item.amount), 0);
-          const bankPaid = bankExpenses
-            .filter((item) => item.paid)
-            .reduce((sum, item) => sum + Number(item.amount), 0);
-          const bankPending = bankPlanned - bankPaid;
-          if (bankExpenses.length === 0) return null;
-
-          const expanded = isBankExpanded(bank.bankId);
-
-          return (
-            <Card
-              key={bank.bankId}
-              className="flex min-h-0 min-w-0 flex-col overflow-hidden py-0"
-            >
-              <div className="border-b">
-                <button
-                  type="button"
-                  className="hover:bg-muted/50 flex w-full min-w-0 items-start justify-between gap-2 py-2 pr-2 pl-1.5 text-left"
-                  onClick={() =>
-                    setBankCollapsed((c) => ({ ...c, [bank.bankId]: c[bank.bankId] !== true }))
-                  }
-                  aria-expanded={expanded}
-                >
-                  <div className="flex min-w-0 flex-1 items-start gap-1">
-                    <ChevronDown
-                      className={cn(
-                        "text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform duration-200",
-                        expanded ? "rotate-0" : "-rotate-90",
-                      )}
-                      aria-hidden
-                    />
-                    <span className="font-heading line-clamp-2 pr-0.5 text-sm leading-tight font-medium">
-                      {bank.bankName}
-                    </span>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-semibold tabular-nums text-red-600 dark:text-red-500">
-                      {formatCurrency(bankPlanned)}
-                    </p>
-                    {bankPending > 0 ? (
-                      <p className="text-[11px] tabular-nums text-amber-600 dark:text-amber-400">
-                        {formatCurrency(bankPending)} pendiente
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
-                        ✓ Todo pagado
-                      </p>
-                    )}
-                  </div>
-                </button>
-              </div>
-              {expanded ? (
-                <CardContent className="flex min-h-0 flex-1 flex-col gap-1 p-2">
-                  {bankExpenses.map((expense) => (
-                    <label
-                      key={expense.id}
-                      className="hover:bg-muted/50 flex min-h-[2.5rem] cursor-pointer items-center gap-2 rounded-md border border-transparent px-1.5 py-1"
-                    >
-                      <Checkbox
-                        className="shrink-0"
-                        checked={expense.paid}
-                        onCheckedChange={(checked) =>
-                          toggleLinePaid(expense.id, checked === true)
-                        }
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium leading-tight">
-                          {expense.name}
-                          {isInvestmentCategory(expense.category) ? (
-                            <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 py-px text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400">
-                              <TrendingUp className="size-2.5" />
-                              inversión
-                            </span>
-                          ) : null}
-                        </p>
-                        <p className="text-muted-foreground truncate text-xs">
-                          {expense.category ? `${expense.category.toLowerCase()} · ` : null}
-                          <span className={cn(
-                            "tabular-nums",
-                            isInvestmentCategory(expense.category)
-                              ? "text-indigo-600 dark:text-indigo-400"
-                              : "text-red-600 dark:text-red-500",
-                          )}>
-                            {formatCurrency(Number(expense.amount))}
-                          </span>
-                        </p>
-                      </div>
-                    </label>
-                  ))}
-                </CardContent>
-              ) : null}
-            </Card>
-          );
-        })}
-      </div>
+      <MonthLinesByBank
+        bankTotals={data.bankTotals}
+        expensesByBank={expensesByBank}
+        bankCollapsed={bankCollapsed}
+        onToggleCollapsed={toggleBankCollapsed}
+        onTogglePaid={toggleLinePaid}
+        primaryCurrency={data.primaryCurrency}
+      />
     </div>
   );
 }

@@ -80,7 +80,7 @@ export function RevolutConnectionCard({ initialBanks, initialStatus }: RevolutCo
       };
       const revolut = instData.institutions[0];
       if (!revolut) {
-        setError("No hay Revolut disponible para ese país en GoCardless.");
+        setError("No hay Revolut disponible para ese país.");
         return;
       }
 
@@ -155,10 +155,9 @@ export function RevolutConnectionCard({ initialBanks, initialStatus }: RevolutCo
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-muted-foreground text-sm">
-          Conectá tu cuenta Revolut vía GoCardless para sincronizar movimientos con el mes en curso:
-          marcar gastos como pagados e importar gastos nuevos. Necesitás credenciales{" "}
-          <span className="font-medium">GOCARDLESS_SECRET_ID</span> y{" "}
-          <span className="font-medium">GOCARDLESS_SECRET_KEY</span> en el servidor.
+          Conectá tu cuenta Revolut vía Open Banking para sincronizar movimientos con el mes en
+          curso: marcar gastos como pagados e importar gastos nuevos. La conexión es de{" "}
+          <span className="font-medium">solo lectura</span> — Clara nunca tiene acceso a tu dinero.
         </p>
 
         {status && !status.connected ? (
@@ -190,13 +189,13 @@ export function RevolutConnectionCard({ initialBanks, initialStatus }: RevolutCo
         {status && status.connected ? (
           <div className="space-y-3 text-sm">
             {status.pending ? (
-              <p className="text-amber-700 dark:text-amber-400">
+              <p className="text-warn">
                 Vinculación pendiente: abrí el enlace del banco y autorizá el acceso. Luego volvé
                 acá o abrí el mes en curso para sincronizar.
               </p>
             ) : (
               <p>
-                Estado: <span className="font-medium text-emerald-700 dark:text-emerald-400">Conectado</span>
+                Estado: <span className="text-good font-bold">Conectado</span>
               </p>
             )}
             <p className="text-muted-foreground">
@@ -208,7 +207,7 @@ export function RevolutConnectionCard({ initialBanks, initialStatus }: RevolutCo
                 <span className="text-sm font-medium">Banco local para importar gastos</span>
                 <p className="text-muted-foreground text-xs">
                   Los movimientos importados se asignan a este banco (ej. la “cuenta” Revolut que
-                  creaste en eTracker).
+                  creaste en Clara).
                 </p>
                 <Select
                   value={status.defaultImportBankId ?? ""}
@@ -229,7 +228,7 @@ export function RevolutConnectionCard({ initialBanks, initialStatus }: RevolutCo
                 </Select>
                 {banks.length === 0 ? (
                   <p className="text-muted-foreground text-xs">
-                    Creá primero un banco en eTracker para poder importar.
+                    Creá primero un banco en Clara para poder importar.
                   </p>
                 ) : null}
               </div>

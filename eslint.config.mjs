@@ -12,7 +12,26 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Service worker is hand-authored vanilla JS shipped as-is.
+    "public/sw.js",
   ]),
+  // Discourage stray console calls. Files that legitimately log
+  // (the AI logger, the WhatsApp/Twilio layer, the centralized log helper,
+  // and webhook routes) opt out below.
+  {
+    rules: {
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+    },
+  },
+  {
+    files: [
+      "src/lib/log.ts",
+      "src/lib/ai/logger.ts",
+      "src/lib/whatsapp/twilio.ts",
+      "src/app/api/webhooks/**/*.ts",
+    ],
+    rules: { "no-console": "off" },
+  },
 ]);
 
 export default eslintConfig;

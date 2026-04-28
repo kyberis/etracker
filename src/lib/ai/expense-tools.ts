@@ -3,8 +3,13 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
+import { getBanksCached } from "@/lib/cache/banks";
 import { db } from "@/lib/db";
-import { mergePendingTemplateLinesIntoMonth } from "@/lib/month-bucket";
+import { FxUnavailableError, convertToPrimary } from "@/lib/fx/rates";
+import {
+  applyPrevMonthLeftoverDecision,
+  mergePendingTemplateLinesIntoMonth,
+} from "@/lib/month-bucket";
 import { loadMonthPageData } from "@/lib/month-page-data";
 import {
   formatMonthKey,
@@ -15,6 +20,7 @@ import {
 } from "@/lib/months";
 import {
   createMonthSchema,
+  currencySchema,
   expenseCategoryOptions,
   expenseSchema,
 } from "@/lib/validators";
@@ -44,7 +50,7 @@ export function buildExpenseTools(userId: string) {
   return {
     getMonthState: tool({
       description:
-        "Lee el estado del usuario para un mes (yyyy-MM). Si no se pasa mes, usa el mes actual. Devuelve ingreso, líneas, totales planificado/pagado/restante y balance (ingreso - planificado).",
+        "Lee el estado del usuario para un mes (yyyy-MM). Si no se pasa mes, usa el mes actual. Devuelve `primaryCurrency`, ingreso, carryover del mes anterior, líneas (cada una con su moneda original + monto convertido), totales planificado/pagado/restante (en moneda principal), balance (ingreso + carryover − planificado), pila de ahorros del usuario y, si aplica, `carryoverPrompt` con el sobrante del mes anterior pendiente de decisión.",
       inputSchema: z.object({ month: optionalMonthKey }),
       execute: async ({ month }) => {
         const target = month ?? getCurrentMonthKey();
@@ -54,21 +60,35 @@ export function buildExpenseTools(userId: string) {
             month: target,
             hasRecord: false as const,
             defaultIncome: data.defaultIncome,
+            primaryCurrency: data.primaryCurrency,
             note:
               "El mes no está configurado todavía. Podés crearlo con createMonthIfNeeded.",
           };
         }
+        const carryoverNote =
+          data.carryoverPrompt &&
+          `El usuario cerró ${data.carryoverPrompt.prevMonth} con ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.amount)} sin gastar y todavía no decidió qué hacer con ese sobrante. Felicitalo y ofrecele dos opciones: sumarlo al ingreso de ${target} o dejarlo aparte como ahorros. Cuando elija, llamá applyPrevMonthLeftover.`;
         return {
           month: target,
           hasRecord: true as const,
+          primaryCurrency: data.primaryCurrency,
           isCurrentMonth: data.isCurrentMonth,
           income: data.income,
+          carryoverFromPrev: data.carryoverFromPrev,
+          effectiveIncome: data.effectiveIncome,
+          savings: data.savings,
+          carryoverPrompt: data.carryoverPrompt,
+          carryoverNote: carryoverNote ?? null,
           totals: data.totals,
           balance: data.balance,
           summaryText:
-            `Ingreso ${formatMoney(data.income)}, planificado ${formatMoney(data.totals.planned)}, ` +
-            `pagado ${formatMoney(data.totals.paid)}, restante por pagar ${formatMoney(data.totals.remaining)}, ` +
-            `balance ${formatMoney(data.balance)}.`,
+            `Ingreso ${data.primaryCurrency} ${formatMoney(data.income)}` +
+            (data.carryoverFromPrev > 0
+              ? ` (+ ${data.primaryCurrency} ${formatMoney(data.carryoverFromPrev)} carryover)`
+              : "") +
+            `, planificado ${data.primaryCurrency} ${formatMoney(data.totals.planned)}, ` +
+            `pagado ${data.primaryCurrency} ${formatMoney(data.totals.paid)}, restante ${data.primaryCurrency} ${formatMoney(data.totals.remaining)}, ` +
+            `balance ${data.primaryCurrency} ${formatMoney(data.balance)}.`,
           banks: data.banks,
           bankTotals: data.bankTotals,
           expenses: data.expenses,
@@ -82,12 +102,10 @@ export function buildExpenseTools(userId: string) {
         "Lista los bancos del usuario con id y nombre. Útil cuando el usuario menciona un banco por nombre.",
       inputSchema: z.object({}),
       execute: async () => {
-        const banks = await db.bank.findMany({
-          where: { userId },
-          orderBy: { name: "asc" },
-          select: { id: true, name: true, color: true },
-        });
-        return { banks };
+        const banks = await getBanksCached(userId);
+        return {
+          banks: banks.map((b) => ({ id: b.id, name: b.name, color: b.color })),
+        };
       },
     }),
 
@@ -169,19 +187,49 @@ export function buildExpenseTools(userId: string) {
 
     addMonthLine: tool({
       description:
-        "Agrega un gasto puntual al mes actual (no crea plantilla). Solo se permite el mes en curso. Útil cuando el usuario reporta un gasto suelto, p. ej. desde una foto.",
+        "Agrega un gasto puntual al mes actual (no crea plantilla). Solo se permite el mes en curso. " +
+        "Útil cuando el usuario reporta un gasto suelto (foto del banco, mensaje, ticket). " +
+        "Por defecto la línea se crea como **pagada** (`paid=true`) porque el usuario está reportando " +
+        "algo que ya gastó. Pasá `paid=false` SOLO si el usuario aclara explícitamente que aún no lo pagó. " +
+        "Si el gasto está en otra moneda que la principal del usuario, pasá `currency` (ISO 4217). " +
+        "Podés overridear el tipo de cambio con `fxRate` (p. ej. dólar blue en Argentina); si lo omitís, " +
+        "buscamos un rate automático y lo dejamos congelado en la línea.",
       inputSchema: z.object({
         name: z.string().min(1).max(120),
         amount: z.number().positive(),
         bankId: z.string().min(1),
         category: categoryEnum.optional().default("OTROS"),
+        paid: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Si el gasto ya está pagado. Default true porque el usuario suele reportar gastos hechos.",
+          ),
+        currency: currencySchema
+          .optional()
+          .describe(
+            "ISO 4217 (3 letras). Default = moneda principal del usuario. Pasala cuando el usuario diga 'compré en USD/ARS/EUR'.",
+          ),
+        fxRate: z
+          .number()
+          .positive()
+          .optional()
+          .describe(
+            "Override manual del tipo de cambio. Útil para casos como dólar blue/MEP. Si la omitís, usamos el rate del momento.",
+          ),
       }),
       execute: async (input) => {
         const month = getCurrentMonthKey();
         const monthStart = toMonthStart(parseMonthKey(month));
-        const record = await db.monthRecord.findFirst({
-          where: { userId, month: monthStart },
-        });
+        const [user, record] = await Promise.all([
+          db.user.findUnique({
+            where: { id: userId },
+            select: { primaryCurrency: true },
+          }),
+          db.monthRecord.findFirst({ where: { userId, month: monthStart } }),
+        ]);
+        if (!user) return { error: "Usuario no encontrado." };
         if (!record) {
           return {
             error:
@@ -194,15 +242,35 @@ export function buildExpenseTools(userId: string) {
         });
         if (!bank) return { error: "El banco indicado no existe." };
 
+        let converted;
+        try {
+          converted = await convertToPrimary({
+            amount: input.amount,
+            currency: input.currency ?? user.primaryCurrency,
+            primary: user.primaryCurrency,
+            fxRate: input.fxRate,
+          });
+        } catch (error) {
+          if (error instanceof FxUnavailableError) {
+            return {
+              error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate y volvé a intentar pasando "fxRate".`,
+            };
+          }
+          throw error;
+        }
+
         const line = await db.monthExpenseLine.create({
           data: {
             monthRecordId: record.id,
             templateId: null,
             bankId: input.bankId,
             name: input.name.trim(),
-            amount: new Prisma.Decimal(input.amount.toFixed(2)),
+            amount: converted.amount,
+            currency: converted.currency,
+            fxRate: converted.fxRate,
+            amountConverted: converted.amountConverted,
             category: input.category as ExpenseCategory,
-            paid: false,
+            paid: input.paid,
           },
         });
         return {
@@ -212,6 +280,10 @@ export function buildExpenseTools(userId: string) {
             month,
             name: line.name,
             amount: line.amount.toString(),
+            currency: line.currency,
+            fxRate: line.fxRate.toString(),
+            amountConverted: line.amountConverted.toString(),
+            primaryCurrency: user.primaryCurrency,
             bankName: bank.name,
             category: line.category,
             paid: line.paid,
@@ -222,14 +294,18 @@ export function buildExpenseTools(userId: string) {
 
     updateMonthLine: tool({
       description:
-        "Actualiza una línea del mes (pagado, importe o nombre). Útil para conciliar con una foto del banco o marcar pagos.",
+        "Actualiza una línea del mes (pagado, importe, nombre, moneda o tipo de cambio). " +
+        "Útil para conciliar con una foto del banco o marcar pagos. " +
+        "Si pasás `currency` o `fxRate`, recalculamos `amountConverted` con el rate correspondiente.",
       inputSchema: z.object({
         id: z.string().min(1),
         paid: z.boolean().optional(),
         amount: z.number().positive().optional(),
         name: z.string().min(1).max(120).optional(),
+        currency: currencySchema.optional(),
+        fxRate: z.number().positive().optional(),
       }),
-      execute: async ({ id, paid, amount, name }) => {
+      execute: async ({ id, paid, amount, name, currency, fxRate }) => {
         const existing = await db.monthExpenseLine.findFirst({
           where: { id, monthRecord: { userId } },
         });
@@ -239,10 +315,51 @@ export function buildExpenseTools(userId: string) {
           paid?: boolean;
           amount?: Prisma.Decimal;
           name?: string;
+          currency?: string;
+          fxRate?: Prisma.Decimal;
+          amountConverted?: Prisma.Decimal;
         } = {};
         if (paid !== undefined) data.paid = paid;
-        if (amount !== undefined) data.amount = new Prisma.Decimal(amount.toFixed(2));
         if (name !== undefined) data.name = name.trim();
+
+        const amountChanged = amount !== undefined;
+        const currencyChanged = currency !== undefined;
+        const rateChanged = fxRate !== undefined;
+        if (amountChanged || currencyChanged || rateChanged) {
+          const user = await db.user.findUnique({
+            where: { id: userId },
+            select: { primaryCurrency: true },
+          });
+          if (!user) return { error: "Usuario no encontrado." };
+          const nextCurrency = currency ?? existing.currency;
+          const nextAmount = amount ?? Number(existing.amount);
+          // Just amount edit + same currency: keep the locked rate.
+          const useExistingRate =
+            !currencyChanged &&
+            !rateChanged &&
+            amountChanged &&
+            nextCurrency.toUpperCase() === existing.currency.toUpperCase();
+          try {
+            const converted = await convertToPrimary({
+              amount: nextAmount,
+              currency: nextCurrency,
+              primary: user.primaryCurrency,
+              fxRate: useExistingRate ? existing.fxRate : fxRate,
+            });
+            data.amount = converted.amount;
+            data.currency = converted.currency;
+            data.fxRate = converted.fxRate;
+            data.amountConverted = converted.amountConverted;
+          } catch (error) {
+            if (error instanceof FxUnavailableError) {
+              return {
+                error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate y volvé a intentar pasando "fxRate".`,
+              };
+            }
+            throw error;
+          }
+        }
+
         if (Object.keys(data).length === 0) {
           return { error: "Nada para actualizar." };
         }
@@ -257,8 +374,48 @@ export function buildExpenseTools(userId: string) {
             id: updated.id,
             name: updated.name,
             amount: updated.amount.toString(),
+            currency: updated.currency,
+            fxRate: updated.fxRate.toString(),
+            amountConverted: updated.amountConverted.toString(),
             paid: updated.paid,
           },
+        };
+      },
+    }),
+
+    setMonthIncome: tool({
+      description:
+        "Setea el ingreso (income) de un mes específico (yyyy-MM). Reemplaza el valor existente por el monto pasado. " +
+        "Requiere que el mes ya exista (si no, llamá createMonthIfNeeded primero). " +
+        "Usalo cuando el usuario diga 'mi ingreso este mes es X', 'cobré X', 'ganaste X de sueldo', etc. " +
+        "Para gastos individuales NO uses esto: usá addMonthLine. Para cambiar una línea de gasto usá updateMonthLine.",
+      inputSchema: z.object({
+        month: optionalMonthKey,
+        amount: z
+          .number()
+          .min(0)
+          .describe("Monto del ingreso del mes (en la moneda del usuario, sin signo)."),
+      }),
+      execute: async ({ month, amount }) => {
+        const target = month ?? getCurrentMonthKey();
+        const monthStart = toMonthStart(parseMonthKey(target));
+        const existing = await db.monthRecord.findFirst({
+          where: { userId, month: monthStart },
+        });
+        if (!existing) {
+          return {
+            error:
+              "El mes no está configurado todavía. Llamá createMonthIfNeeded antes de setear el ingreso.",
+          };
+        }
+        const updated = await db.monthRecord.update({
+          where: { id: existing.id },
+          data: { income: new Prisma.Decimal(amount.toFixed(2)) },
+        });
+        return {
+          ok: true as const,
+          month: target,
+          income: Number(updated.income),
         };
       },
     }),
@@ -317,6 +474,80 @@ export function buildExpenseTools(userId: string) {
           }
           throw e;
         }
+      },
+    }),
+
+    applyPrevMonthLeftover: tool({
+      description:
+        "Aplica la decisión del usuario sobre el sobrante del mes anterior al mes elegido (default = mes actual). " +
+        "`mode=addToIncome`: lo suma al ingreso del mes (en `MonthRecord.carryoverFromPrev`). " +
+        "`mode=setAside`: lo acumula en la pila de ahorros del usuario. " +
+        "Idempotente: si ya se decidió, devuelve `alreadyDecided=true`. Llamalo SOLO cuando getMonthState haya devuelto un `carryoverPrompt` y el usuario haya elegido una de las dos opciones.",
+      inputSchema: z.object({
+        month: optionalMonthKey,
+        mode: z.enum(["addToIncome", "setAside"]),
+      }),
+      execute: async ({ month, mode }) => {
+        const target = month ?? getCurrentMonthKey();
+        const result = await applyPrevMonthLeftoverDecision(userId, target, mode);
+        if (result.type === "noRecord") {
+          return {
+            error:
+              "El mes no está configurado todavía. Llamá createMonthIfNeeded antes de aplicar el sobrante.",
+          };
+        }
+        if (result.type === "alreadyDecided") {
+          return { ok: true as const, alreadyDecided: true as const, month: target };
+        }
+        if (result.type === "noLeftover") {
+          return {
+            ok: true as const,
+            alreadyDecided: false as const,
+            applied: false as const,
+            month: target,
+            note:
+              "No había sobrante en el mes anterior. Marcamos la decisión como tomada para no volver a preguntar.",
+          };
+        }
+        return {
+          ok: true as const,
+          alreadyDecided: false as const,
+          applied: true as const,
+          month: target,
+          mode: result.mode,
+          amount: result.amount,
+        };
+      },
+    }),
+
+    setPrimaryCurrency: tool({
+      description:
+        "Define la moneda principal del usuario (ISO 4217, p. ej. USD/ARS/EUR). " +
+        "TODA la matemática (totales, balance, ingreso) se reporta en esta moneda; " +
+        "los gastos individuales pueden estar en otra y se convierten automáticamente. " +
+        "Llamala SOLO cuando el usuario confirma su moneda principal (texto explícito o respuesta a tu pregunta de onboarding). " +
+        "También marca `primaryCurrencyConfirmedAt` para que no volvamos a preguntarle.",
+      inputSchema: z.object({
+        currency: currencySchema.describe(
+          "Código ISO 4217 de 3 letras, en mayúsculas (USD, ARS, EUR, BRL, …).",
+        ),
+      }),
+      execute: async ({ currency }) => {
+        const updated = await db.user.update({
+          where: { id: userId },
+          data: {
+            primaryCurrency: currency,
+            primaryCurrencyConfirmedAt: new Date(),
+          },
+          select: { primaryCurrency: true, primaryCurrencyConfirmedAt: true },
+        });
+        return {
+          ok: true as const,
+          primaryCurrency: updated.primaryCurrency,
+          confirmedAt: updated.primaryCurrencyConfirmedAt?.toISOString() ?? null,
+          note:
+            "Las líneas existentes mantienen su tipo de cambio original; sólo cambian los totales nuevos.",
+        };
       },
     }),
 

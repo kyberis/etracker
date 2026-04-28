@@ -1,20 +1,25 @@
 import { ExpensesManager } from "@/components/expenses-manager";
+import { PageContainer } from "@/components/page-container";
 import { db } from "@/lib/db";
 import { formatMonthKey } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
 
 export default async function ExpensesPage() {
   const userId = await requireUserId();
-  const banks = await db.bank.findMany({
-    where: { userId },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  });
-  const expenses = await db.expense.findMany({
-    where: { userId },
-    include: { bank: { select: { id: true, name: true } } },
-    orderBy: { name: "asc" },
-  });
+  const [user, banks, expenses] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { primaryCurrency: true } }),
+    db.bank.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    db.expense.findMany({
+      where: { userId },
+      include: { bank: { select: { id: true, name: true } } },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  const primaryCurrency = user?.primaryCurrency ?? "USD";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const initialExpenses = (expenses as any[]).map((expense) => ({
@@ -30,9 +35,13 @@ export default async function ExpensesPage() {
   }));
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Expenses</h1>
-      <ExpensesManager initialBanks={banks} initialExpenses={initialExpenses} />
-    </div>
+    <PageContainer className="space-y-4">
+      <h1 className="font-display text-2xl font-semibold">Plantillas</h1>
+      <ExpensesManager
+        initialBanks={banks}
+        initialExpenses={initialExpenses}
+        primaryCurrency={primaryCurrency}
+      />
+    </PageContainer>
   );
 }

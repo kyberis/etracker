@@ -3,8 +3,17 @@
 import { Chat, useChat, type UIMessage } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import {
+  ChevronDown,
+  Paperclip,
+  Send,
+  Sparkles,
+  Square,
+  Volume2,
+} from "lucide-react";
+import {
   type ChangeEvent,
   type FormEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -13,10 +22,16 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import Image from "next/image";
+
+import { useBalance } from "@/components/balance-provider";
 import { ChatChart } from "@/components/chat-chart";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,9 +42,53 @@ import { cn } from "@/lib/utils";
 export type ChatExperienceProps = {
   /** When set (yyyy-MM), the agent prefers this month for ambiguous queries. */
   activeMonth?: string;
-  /** `fullscreen`: fills parent (e.g. fullscreen dialog). Default: fixed 70vh card. */
+  /** `fullscreen`: fills parent (chat home, drawer). Default: card with fixed height. */
   layout?: "default" | "fullscreen";
 };
+
+/** Tools whose results should trigger a balance refresh in the sticky header. */
+const BALANCE_MUTATING_TOOLS = new Set([
+  "addMonthLine",
+  "updateMonthLine",
+  "createMonthIfNeeded",
+  "mergePendingTemplates",
+  "setMonthIncome",
+  "applyPrevMonthLeftover",
+]);
+
+type Suggestion = {
+  label: string;
+  prompt: string;
+  emoji: string;
+  tone: "lime" | "pink" | "peach" | "violet";
+};
+
+const SUGGESTIONS: Suggestion[] = [
+  {
+    label: "¿Cómo voy este mes?",
+    prompt: "¿Cuánto me queda este mes?",
+    emoji: "📊",
+    tone: "lime",
+  },
+  {
+    label: "Roastéame",
+    prompt: "Roastéame mis gastos de este mes sin piedad.",
+    emoji: "🔥",
+    tone: "pink",
+  },
+  {
+    label: "Anotá un gasto",
+    prompt: "Anotá un gasto de USD 12 en café, lo pagué con Visa.",
+    emoji: "🧾",
+    tone: "peach",
+  },
+  {
+    label: "Distribución por categoría",
+    prompt: "Mostrame la distribución de gastos del mes por categoría.",
+    emoji: "🍰",
+    tone: "violet",
+  },
+];
 
 function assistantPlainText(message: UIMessage): string {
   let s = "";
@@ -49,7 +108,11 @@ async function dataUrlToPngFile(dataUrl: string, filename: string): Promise<File
   return new File([blob], filename, { type: "image/png" });
 }
 
-export function ChatExperience({ activeMonth, layout = "default" }: ChatExperienceProps = {}) {
+export function ChatExperience({
+  activeMonth,
+  layout = "default",
+}: ChatExperienceProps = {}) {
+  const balance = useBalance();
   const [conversationMode, setConversationMode] = useState(false);
   const [voiceResponses, setVoiceResponses] = useState(false);
   const [voiceUrlByMessageId, setVoiceUrlByMessageId] = useState<Record<string, string>>(
@@ -68,10 +131,7 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
     requestOptsRef.current.activeMonth = activeMonth;
   }, [conversationMode, activeMonth]);
 
-  // Centralizing the chat instance so transport configuration sits next to the
-  // hook and we can wire image attachments through `sendMessage({ files })`.
-  // Ref keeps flags current without recreating Chat (which would drop history).
-  /* eslint-disable react-hooks/refs -- prepareSendMessagesRequest runs when the transport POSTs, not during render */
+  /* eslint-disable react-hooks/refs -- prepareSendMessagesRequest runs when the transport POSTs */
   const chat = useMemo(
     () =>
       new Chat({
@@ -81,10 +141,11 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
             body: {
               ...(body ?? {}),
               messages,
-              responseStyle: requestOptsRef.current.conversationMode ? "conversational" : "concise",
-              ...(requestOptsRef.current.activeMonth ?
-                { activeMonth: requestOptsRef.current.activeMonth }
-              : {}),
+              responseStyle:
+                requestOptsRef.current.conversationMode ? "conversational" : "concise",
+              ...(requestOptsRef.current.activeMonth
+                ? { activeMonth: requestOptsRef.current.activeMonth }
+                : {}),
             },
           }),
         }),
@@ -95,6 +156,73 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
   const { messages, sendMessage, status, error, stop } = useChat({ chat });
 
   const isStreaming = status === "submitted" || status === "streaming";
+
+  // Daily agent quota — per-user counter shared with WhatsApp. Loaded on
+  // mount and refreshed every time the assistant finishes a turn so the
+  // badge stays accurate without a roundtrip per response.
+  const [quota, setQuota] = useState<
+    { used: number; limit: number; remaining: number; resetAtUtc: string } | null
+  >(null);
+
+  const refreshQuota = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agent/usage", { credentials: "same-origin" });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        used: number;
+        limit: number;
+        remaining: number;
+        resetAtUtc: string;
+      };
+      setQuota(data);
+    } catch {
+      // Best-effort: a missing badge is preferable to a noisy error.
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch updates after await
+    void refreshQuota();
+  }, [refreshQuota]);
+
+  const wasStreamingForQuotaRef = useRef(false);
+  useEffect(() => {
+    if (wasStreamingForQuotaRef.current && !isStreaming) {
+      void refreshQuota();
+    }
+    wasStreamingForQuotaRef.current = isStreaming;
+  }, [isStreaming, refreshQuota]);
+
+  // After each assistant turn, peek the last assistant message for tool parts
+  // that mutate state and refresh the balance pill if any.
+  const lastRefreshedAssistantRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (isStreaming) return;
+    const lastAssistant = [...messages]
+      .reverse()
+      .find((m) => m.role === "assistant");
+    if (!lastAssistant || lastAssistant.id === lastRefreshedAssistantRef.current) return;
+
+    const usedMutatingTool = lastAssistant.parts.some((part) => {
+      if (part.type === "dynamic-tool") {
+        return (
+          "toolName" in part &&
+          typeof part.toolName === "string" &&
+          BALANCE_MUTATING_TOOLS.has(part.toolName)
+        );
+      }
+      if (typeof part.type === "string" && part.type.startsWith("tool-")) {
+        const tool = part.type.replace(/^tool-/, "");
+        return BALANCE_MUTATING_TOOLS.has(tool);
+      }
+      return false;
+    });
+
+    lastRefreshedAssistantRef.current = lastAssistant.id;
+    if (usedMutatingTool) {
+      void balance.refresh();
+    }
+  }, [messages, isStreaming, balance]);
 
   useEffect(() => {
     if (!voiceResponses || isStreaming) return;
@@ -147,9 +275,9 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wasStreamingRef = useRef(false);
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
   // Bring focus back to the textarea once the assistant finishes streaming
-  // so the user can keep typing without clicking the input again.
   useEffect(() => {
     if (wasStreamingRef.current && !isStreaming) {
       textareaRef.current?.focus();
@@ -157,13 +285,24 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
     wasStreamingRef.current = isStreaming;
   }, [isStreaming]);
 
+  // Auto-scroll to bottom on new messages / streaming.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [messages, isStreaming]);
+
   function clearFiles() {
     setFiles(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function submitText(messageText: string) {
+    await sendMessage({ text: messageText });
+  }
+
+  async function handleSubmit(event?: FormEvent) {
+    event?.preventDefault();
     const text = input.trim();
     const fileArray = files ? Array.from(files) : [];
     const imageFiles = fileArray.filter((f) => f.type.startsWith("image/"));
@@ -280,76 +419,40 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
     setFiles(event.target.files);
   }
 
+  const fullscreen = layout === "fullscreen";
+
   return (
-    <Card
-      className={
-        layout === "fullscreen" ? "flex h-full min-h-0 flex-1 flex-col border-0 shadow-none" : ""
-      }
+    <div
+      className={cn(
+        "flex w-full flex-col",
+        fullscreen
+          ? "min-h-0 flex-1"
+          : "surface-card min-h-0 max-h-[78vh] overflow-hidden p-5",
+      )}
     >
-      <CardContent
-        className={
-          layout === "fullscreen"
-            ? "flex h-full min-h-0 flex-1 flex-col gap-4 px-3 py-3 sm:px-4"
-            : "flex h-[70vh] flex-col gap-4"
-        }
+      {/* messages */}
+      <div
+        ref={scrollerRef}
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto",
+          fullscreen
+            ? "px-3 pb-44 pt-4 sm:px-6"
+            : "space-y-3 pr-1",
+        )}
       >
-        <div className="space-y-2 border-border border-b pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <Label
-                htmlFor="etracker-conversation-mode"
-                className="text-muted-foreground cursor-pointer font-normal"
-              >
-                Modo conversación
-              </Label>
-              <Badge
-                variant={conversationMode ? "default" : "secondary"}
-                className="shrink-0"
-              >
-                {conversationMode ? "Conversación" : "Conciso"}
-              </Badge>
-            </div>
-            <Switch
-              id="etracker-conversation-mode"
-              checked={conversationMode}
-              onCheckedChange={setConversationMode}
-            />
-          </div>
-          <p className="text-muted-foreground text-xs leading-snug">
-            No inicia un chat ni cambia lo ya enviado: solo afecta al{" "}
-            <strong>próximo</strong> mensaje que mandes. En <em>Conversación</em> el
-            asistente puede saludar o explicar un poco más; en <em>Conciso</em> prioriza
-            datos y un solo “siguiente paso”.
-          </p>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Label
-              htmlFor="etracker-voice-reply"
-              className="text-muted-foreground cursor-pointer font-normal"
-            >
-              Respuesta en audio
-            </Label>
-            <Switch
-              id="etracker-voice-reply"
-              checked={voiceResponses}
-              onCheckedChange={(v) => {
-                setVoiceResponses(v);
-                if (!v) {
-                  ttsRequestedRef.current = new Set();
-                  setVoiceUrlByMessageId({});
-                  setTtsLoadingMessageId(null);
-                }
-              }}
-            />
-          </div>
-        </div>
         <div
           className={cn(
-            "flex-1 space-y-3 overflow-y-auto pr-2",
-            layout === "fullscreen" && "min-h-0",
+            "mx-auto flex w-full max-w-3xl flex-col gap-3",
+            fullscreen ? "" : "",
           )}
         >
           {messages.length === 0 ? (
-            <EmptyState />
+            <EmptyState
+              onPick={(prompt) => {
+                setInput(prompt);
+                void submitText(prompt);
+              }}
+            />
           ) : (
             messages.map((m) => (
               <MessageBubble
@@ -362,93 +465,300 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
               />
             ))
           )}
+          {isStreaming && messages.length > 0 ? <TypingIndicator /> : null}
+          {error ? (
+            <p className="text-sm text-bad px-2">
+              {error.message ?? "Algo salió mal con el asistente."}
+            </p>
+          ) : null}
         </div>
+      </div>
 
-        {error ? (
-          <p className="text-sm text-red-600">
-            {error.message ?? "Algo salió mal con el asistente."}
-          </p>
-        ) : null}
+      {quota ? <QuotaBadge quota={quota} /> : null}
 
-        <form onSubmit={handleSubmit} className="space-y-2">
-          <Textarea
-            ref={textareaRef}
-            autoFocus
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Preguntá por tu mes, agregá un gasto, adjuntá captura, CSV (Revolut / extracto) o PDF."
-            rows={2}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                handleSubmit(event as unknown as FormEvent);
-              }
-            }}
-            disabled={isStreaming}
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,.csv,text/csv,application/csv,.pdf,application/pdf"
-                multiple
-                onChange={handleFiles}
-                className="text-muted-foreground text-xs file:mr-2 file:cursor-pointer file:rounded-md file:border file:border-input file:bg-background file:px-2 file:py-1 file:text-foreground"
-              />
-              {files && files.length > 0 ? (
-                <span className="text-muted-foreground text-xs">
-                  {files.length} archivo{files.length === 1 ? "" : "s"}
-                  {(() => {
-                    const list = Array.from(files);
-                    const bits: string[] = [];
-                    if (list.some((f) => f.type.startsWith("image/"))) bits.push("imagen");
-                    if (list.some((f) => f.name.toLowerCase().endsWith(".csv") || f.type.includes("csv")))
-                      bits.push("CSV");
-                    if (
-                      list.some(
-                        (f) =>
-                          f.name.toLowerCase().endsWith(".pdf") || f.type.includes("pdf"),
-                      )
-                    )
-                      bits.push("PDF");
-                    return bits.length > 0 ? ` (${bits.join(", ")})` : "";
-                  })()}
-                </span>
-              ) : null}
+      {/* composer */}
+      <form
+        onSubmit={handleSubmit}
+        className={cn(
+          fullscreen
+            ? "from-background via-background/95 sticky bottom-0 left-0 right-0 mt-auto bg-gradient-to-t to-transparent px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 sm:px-6"
+            : "mt-3",
+        )}
+      >
+        <div className="mx-auto w-full max-w-3xl">
+          {/* suggestions when empty */}
+          {messages.length === 0 ? (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {SUGGESTIONS.slice(0, 2).map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => {
+                    setInput(s.prompt);
+                    void submitText(s.prompt);
+                  }}
+                  disabled={isStreaming}
+                  className="bg-card text-foreground rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-foreground/5 transition-all hover:-translate-y-0.5 hover:shadow disabled:opacity-50"
+                >
+                  <span className="mr-1.5" aria-hidden>
+                    {s.emoji}
+                  </span>
+                  {s.label}
+                </button>
+              ))}
             </div>
-            <div className="flex items-center gap-2">
-              {isStreaming ? (
-                <Button type="button" variant="outline" onClick={() => stop()}>
-                  Detener
-                </Button>
-              ) : null}
-              <Button type="submit" disabled={isStreaming}>
-                Enviar
+          ) : null}
+
+          <div className="bg-card flex items-end gap-2 rounded-full px-2 py-2 shadow-[0_18px_50px_-28px_oklch(0.18_0.08_285/0.4)] ring-1 ring-foreground/5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              className="rounded-full"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Adjuntar archivo"
+              disabled={isStreaming}
+            >
+              <Paperclip className="size-4" />
+            </Button>
+            <Textarea
+              ref={textareaRef}
+              autoFocus={fullscreen}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="Decime algo… o adjuntá un PDF del banco 📎"
+              rows={1}
+              className="min-h-10 max-h-40 flex-1 resize-none border-0 bg-transparent px-1.5 py-2 text-sm shadow-none focus-visible:ring-0"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void handleSubmit();
+                }
+              }}
+              disabled={isStreaming}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.csv,text/csv,application/csv,.pdf,application/pdf"
+              multiple
+              onChange={handleFiles}
+              className="hidden"
+            />
+            <ChatModeMenu
+              conversationMode={conversationMode}
+              onConversationChange={setConversationMode}
+              voiceResponses={voiceResponses}
+              onVoiceChange={(v) => {
+                setVoiceResponses(v);
+                if (!v) {
+                  ttsRequestedRef.current = new Set();
+                  setVoiceUrlByMessageId({});
+                  setTtsLoadingMessageId(null);
+                }
+              }}
+            />
+            {isStreaming ? (
+              <Button
+                type="button"
+                size="icon-lg"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => stop()}
+                aria-label="Detener"
+              >
+                <Square className="size-4" />
               </Button>
-            </div>
+            ) : (
+              <Button
+                type="submit"
+                size="icon-lg"
+                className="gradient-lime text-ink size-10 rounded-full shadow-[0_12px_24px_-10px_oklch(0.74_0.18_156/0.55)] hover:opacity-95"
+                disabled={!input.trim() && (!files || files.length === 0)}
+                aria-label="Enviar"
+              >
+                <Send className="size-4" />
+              </Button>
+            )}
           </div>
-        </form>
-      </CardContent>
-    </Card>
+
+          {files && files.length > 0 ? (
+            <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-2 px-3 text-xs">
+              <span className="bg-card rounded-full px-2.5 py-0.5 ring-1 ring-foreground/5">
+                {files.length} archivo{files.length === 1 ? "" : "s"} adjuntos
+              </span>
+              <button
+                type="button"
+                onClick={clearFiles}
+                className="hover:text-foreground underline-offset-2 hover:underline"
+              >
+                limpiar
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </form>
+    </div>
   );
 }
 
-function EmptyState() {
+function ChatModeMenu({
+  conversationMode,
+  onConversationChange,
+  voiceResponses,
+  onVoiceChange,
+}: {
+  conversationMode: boolean;
+  onConversationChange: (v: boolean) => void;
+  voiceResponses: boolean;
+  onVoiceChange: (v: boolean) => void;
+}) {
   return (
-    <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm">
-      <p className="text-foreground text-base font-medium">
-        ¿Qué querés saber sobre tu mes?
-      </p>
-      <ul className="space-y-1">
-        <li>· “¿Cuánto me queda este mes?”</li>
-        <li>· “Agregá Netflix 8.99 USD al banco Visa.”</li>
-        <li>· “Marcá el alquiler como pagado.”</li>
-        <li>
-          · Adjuntá captura del banco, CSV de movimientos (p. ej. Revolut) o PDF con texto
-          seleccionable.
-        </li>
-      </ul>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="hidden h-10 rounded-full px-3 sm:inline-flex"
+            aria-label="Opciones del asistente"
+          />
+        }
+      >
+        <span className="sticker sticker-soft">
+          {conversationMode ? "convo" : "conciso"}
+        </span>
+        <ChevronDown className="size-3.5 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={6}
+        className="w-72 rounded-2xl p-3"
+      >
+        <p className="text-muted-foreground text-[10px] uppercase tracking-[0.18em] mb-2">
+          Asistente
+        </p>
+        <div className="space-y-3 px-1">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <Label
+                htmlFor="etracker-conversation-mode"
+                className="cursor-pointer text-sm font-medium"
+              >
+                <Sparkles className="mr-1.5 inline size-3.5 text-primary" />
+                Modo conversación
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                Saludos y explicaciones cortas. Conciso por defecto.
+              </p>
+            </div>
+            <Switch
+              id="etracker-conversation-mode"
+              checked={conversationMode}
+              onCheckedChange={onConversationChange}
+            />
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <Label
+                htmlFor="etracker-voice-reply"
+                className="cursor-pointer text-sm font-medium"
+              >
+                <Volume2 className="mr-1.5 inline size-3.5 text-primary" />
+                Respuesta en audio
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                Genera un MP3 con la respuesta del asistente.
+              </p>
+            </div>
+            <Switch
+              id="etracker-voice-reply"
+              checked={voiceResponses}
+              onCheckedChange={onVoiceChange}
+            />
+          </div>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
+  return (
+    <div className="flex flex-col items-center gap-7 py-10 text-center">
+      <span className="sticker sticker-lime">hola, soy tu coach</span>
+      <Image
+        src="/clara-avatar-simple.png"
+        alt="Clara"
+        width={80}
+        height={80}
+        className="avatar-cleo size-20 rounded-full object-cover"
+      />
+      <div className="space-y-3">
+        <h2 className="display text-3xl tracking-tight sm:text-4xl">
+          ¿qué hacemos<br />
+          con tu plata hoy?
+        </h2>
+        <p className="text-muted-foreground mx-auto max-w-md text-sm">
+          Anotá un gasto, marcá un pago, adjuntá una captura del banco. Si querés
+          que sea cruel, pedí un{" "}
+          <span className="font-bold text-foreground">roast</span>.
+        </p>
+      </div>
+      <div className="grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2">
+        {SUGGESTIONS.map((s) => (
+          <button
+            key={s.label}
+            type="button"
+            onClick={() => onPick(s.prompt)}
+            className="bg-card group flex items-start gap-3 rounded-3xl px-4 py-3.5 text-left ring-1 ring-foreground/5 transition-all hover:-translate-y-0.5 hover:ring-foreground/10 hover:shadow-md"
+          >
+            <span
+              className={cn(
+                "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl text-lg",
+                s.tone === "lime" && "bg-lime/30",
+                s.tone === "pink" && "bg-hotpink/15",
+                s.tone === "peach" && "bg-peach/30",
+                s.tone === "violet" && "bg-cleo-violet/30",
+              )}
+              aria-hidden
+            >
+              {s.emoji}
+            </span>
+            <span className="flex flex-col">
+              <span className="text-sm font-bold">{s.label}</span>
+              <span className="text-muted-foreground text-xs">{s.prompt}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div className="flex items-end justify-start gap-2">
+      <Image
+        src="/clara-avatar-simple.png"
+        alt=""
+        width={36}
+        height={36}
+        className="avatar-cleo size-9 shrink-0 rounded-full object-cover"
+        aria-hidden
+      />
+      <div className="bubble-cleo flex items-center gap-1.5 px-4 py-3">
+        <span className="bg-lime-deep size-1.5 animate-pulse rounded-full" />
+        <span
+          className="bg-lime-deep size-1.5 animate-pulse rounded-full"
+          style={{ animationDelay: "0.15s" }}
+        />
+        <span
+          className="bg-lime-deep size-1.5 animate-pulse rounded-full"
+          style={{ animationDelay: "0.3s" }}
+        />
+      </div>
     </div>
   );
 }
@@ -560,13 +870,27 @@ function MessageBubble({
 }) {
   const isUser = message.role === "user";
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div
+      className={cn(
+        "flex items-end gap-2",
+        isUser ? "justify-end" : "justify-start",
+      )}
+    >
+      {!isUser ? (
+        <Image
+          src="/clara-avatar-simple.png"
+          alt=""
+          width={36}
+          height={36}
+          className="avatar-cleo size-9 shrink-0 rounded-full object-cover"
+          aria-hidden
+        />
+      ) : null}
       <div
-        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-foreground"
-        }`}
+        className={cn(
+          "max-w-[82%] px-4 py-3 text-sm",
+          isUser ? "bubble-user" : "bubble-cleo",
+        )}
       >
         <div className="space-y-2">
           {message.parts.map((part, i) => {
@@ -580,15 +904,13 @@ function MessageBubble({
               );
             }
             if (part.type === "file" && part.mediaType?.startsWith("image/")) {
-              // Inline preview of attached images; the model already received
-              // them as part of the user turn.
               return (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={i}
                   src={part.url}
                   alt={part.filename ?? "Adjunto"}
-                  className="max-h-64 rounded-lg"
+                  className="max-h-64 rounded-2xl"
                 />
               );
             }
@@ -627,18 +949,52 @@ function MessageBubble({
             }
             return null;
           })}
-          {!isUser && audioLoading ?
+          {!isUser && audioLoading ? (
             <p className="text-muted-foreground text-xs italic">Generando audio…</p>
-          : null}
-          {!isUser && audioSrc ?
+          ) : null}
+          {!isUser && audioSrc ? (
             <audio
               controls
               className="mt-1 h-9 w-full max-w-[min(100%,20rem)]"
               src={audioSrc}
               preload="metadata"
             />
-          : null}
+          ) : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function QuotaBadge({
+  quota,
+}: {
+  quota: { used: number; limit: number; remaining: number; resetAtUtc: string };
+}) {
+  const low = quota.remaining > 0 && quota.remaining <= 3;
+  const empty = quota.remaining === 0;
+  const resetLocal = new Date(quota.resetAtUtc).toLocaleString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return (
+    <div className="pointer-events-none mx-auto w-full max-w-3xl px-3 sm:px-6">
+      <div
+        className={cn(
+          "pointer-events-auto mx-auto -mb-1 flex w-fit items-center gap-1.5 rounded-full bg-card/80 px-3 py-1 text-[11px] ring-1 ring-foreground/5 backdrop-blur",
+          empty
+            ? "text-bad"
+            : low
+              ? "text-peach"
+              : "text-muted-foreground",
+        )}
+        title={`Se reinicia ~${resetLocal} (00:00 UTC).`}
+      >
+        <span className="font-semibold">Asistente</span>
+        <span className="font-mono">
+          {quota.used}/{quota.limit}
+        </span>
+        <span className="text-muted-foreground/80">hoy</span>
       </div>
     </div>
   );

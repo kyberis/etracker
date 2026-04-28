@@ -2,10 +2,12 @@
 
 import { FormEvent, useState } from "react";
 
+import { ApiTokensCard } from "@/components/api-tokens-card";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { RevolutConnectionCard } from "@/components/revolut-connection-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CurrencyPicker } from "@/components/ui/currency-picker";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -13,6 +15,8 @@ type UserSettings = {
   email: string;
   expenseImportInstructions: string | null;
   hasPassword: boolean;
+  primaryCurrency: string;
+  primaryCurrencyConfirmedAt: string | null;
   linkedProviders: string[];
 };
 
@@ -36,11 +40,22 @@ type RevolutInitial =
       defaultImportBankId: string | null;
     };
 
+type ApiTokenItem = {
+  id: string;
+  name: string;
+  prefix: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+};
+
 type SettingsManagerProps = {
   initialUser: UserSettings;
   initialWhatsapp: WhatsappStatus;
   initialBanks: BankOption[];
   initialRevolut: RevolutInitial;
+  initialApiTokens: ApiTokenItem[];
   googleAuthConfigured: boolean;
 };
 
@@ -49,6 +64,7 @@ export function SettingsManager({
   initialWhatsapp,
   initialBanks,
   initialRevolut,
+  initialApiTokens,
   googleAuthConfigured,
 }: SettingsManagerProps) {
   const [settings, setSettings] = useState<UserSettings | null>(initialUser);
@@ -62,12 +78,47 @@ export function SettingsManager({
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currencyDraft, setCurrencyDraft] = useState(initialUser.primaryCurrency);
+  const [currencySaving, setCurrencySaving] = useState(false);
+  const [currencyMessage, setCurrencyMessage] = useState<string | null>(null);
+  const [currencyError, setCurrencyError] = useState<string | null>(null);
 
   async function loadSettings() {
     const response = await fetch("/api/settings");
     const data = (await response.json()) as { user: UserSettings };
     setSettings(data.user);
     setImportInstructions(data.user.expenseImportInstructions ?? "");
+    setCurrencyDraft(data.user.primaryCurrency);
+  }
+
+  async function onSaveCurrency(event: FormEvent) {
+    event.preventDefault();
+    setCurrencyError(null);
+    setCurrencyMessage(null);
+    const next = currencyDraft.trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(next)) {
+      setCurrencyError("Ingresá un código ISO 4217 de 3 letras (USD, ARS, EUR, …).");
+      return;
+    }
+    setCurrencySaving(true);
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ primaryCurrency: next }),
+      });
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        setCurrencyError(data.error ?? "No se pudo guardar la moneda.");
+        return;
+      }
+      setCurrencyMessage(
+        "Moneda principal actualizada. Las líneas existentes mantienen su tipo de cambio original.",
+      );
+      await loadSettings();
+    } finally {
+      setCurrencySaving(false);
+    }
   }
 
   async function onSaveInstructions(event: FormEvent) {
@@ -212,6 +263,55 @@ export function SettingsManager({
 
       <Card>
         <CardHeader>
+          <CardTitle>Moneda principal</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-3" onSubmit={onSaveCurrency}>
+            <p className="text-muted-foreground text-sm">
+              Definí la moneda en la que querés ver totales, saldo, ingresos y balance. Podés
+              registrar gastos en cualquier moneda: los convertimos a esta usando el tipo de
+              cambio del momento (queda guardado por gasto, no se mueve después).
+            </p>
+            <div className="flex items-end gap-2">
+              <div className="space-y-1">
+                <label
+                  className="text-muted-foreground text-xs"
+                  htmlFor="primary-currency"
+                >
+                  Código ISO 4217
+                </label>
+                <CurrencyPicker
+                  id="primary-currency"
+                  value={currencyDraft}
+                  onChange={setCurrencyDraft}
+                  className="w-24"
+                />
+              </div>
+              <Button type="submit" disabled={currencySaving}>
+                {currencySaving ? "Guardando…" : "Guardar moneda"}
+              </Button>
+            </div>
+            {settings?.primaryCurrencyConfirmedAt ? (
+              <p className="text-muted-foreground text-xs">
+                Confirmada el{" "}
+                {new Date(settings.primaryCurrencyConfirmedAt).toLocaleDateString("es-AR")}.
+              </p>
+            ) : (
+              <p className="text-warn text-xs">
+                Todavía no confirmaste la moneda. El asistente puede preguntarte la próxima vez
+                que charlen.
+              </p>
+            )}
+            {currencyError ? <p className="text-destructive text-sm">{currencyError}</p> : null}
+            {currencyMessage ? (
+              <p className="text-green-600 text-sm dark:text-green-400">{currencyMessage}</p>
+            ) : null}
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Instrucciones para el asistente e importaciones</CardTitle>
         </CardHeader>
         <CardContent>
@@ -252,6 +352,8 @@ export function SettingsManager({
       <WhatsappLinkCard initial={initialWhatsapp} />
 
       <RevolutConnectionCard initialBanks={initialBanks} initialStatus={initialRevolut} />
+
+      <ApiTokensCard initialTokens={initialApiTokens} />
     </div>
   );
 }
@@ -318,7 +420,7 @@ function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-muted-foreground text-sm">
-          Vinculá tu número para usar el asistente de eTracker en WhatsApp:
+          Vinculá tu número para usar el asistente de Clara en WhatsApp:
           consultá tu mes, agregá gastos y mandá fotos de movimientos para que
           los registremos automáticamente.
         </p>

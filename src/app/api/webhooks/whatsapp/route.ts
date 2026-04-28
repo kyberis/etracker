@@ -5,8 +5,10 @@ import { waitUntil } from "@vercel/functions";
 import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
 import { synthesizeSpeechMp3 } from "@/lib/ai/text-to-speech";
 import { transcribeAudioOpenAI } from "@/lib/ai/transcribe-audio";
+import { consumeAgentQuota, recordAgentTokens } from "@/lib/agent-quota";
+import { uploadTtsAudioToBlob } from "@/lib/blob/tts";
 import { db } from "@/lib/db";
-import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import { log } from "@/lib/log";
 import { findUserByLinkCode, normalizePhone } from "@/lib/whatsapp/link";
 import {
   candidateWebhookUrls,
@@ -16,8 +18,6 @@ import {
   verifyTwilioWebhookRequest,
 } from "@/lib/whatsapp/twilio";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 // OpenAI tool loops + Twilio REST can exceed the default 10s on Hobby/Pro.
 export const maxDuration = 60;
 
@@ -30,7 +30,7 @@ function isWhatsappVoiceReplyEnabled(): boolean {
   return v === "1" || v === "true" || v === "yes";
 }
 const UNLINKED_HINT =
-  "No tengo este número vinculado a una cuenta de eTracker todavía. Iniciá la vinculación en Ajustes → eTracker Assistant y mandame el código (LINK 123456) por acá.";
+  "No tengo este número vinculado a una cuenta de Clara todavía. Iniciá la vinculación en Ajustes → Clara Assistant y mandame el código (LINK 123456) por acá.";
 
 const TWIML_OK = '<?xml version="1.0" encoding="UTF-8"?><Response/>';
 
@@ -54,16 +54,13 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const rawBody = await request.text();
-    console.log(
-      "[etracker.twilio] post_raw",
-      JSON.stringify({
-        bodyBytes: rawBody.length,
-        host: request.headers.get("host"),
-        xfHost: request.headers.get("x-forwarded-host"),
-        xfProto: request.headers.get("x-forwarded-proto"),
-        url: request.url,
-      }),
-    );
+    log.info("twilio.post_raw", {
+      bodyBytes: rawBody.length,
+      host: request.headers.get("host"),
+      xfHost: request.headers.get("x-forwarded-host"),
+      xfProto: request.headers.get("x-forwarded-proto"),
+      url: request.url,
+    });
 
     const params = Object.fromEntries(new URLSearchParams(rawBody));
     const signature = request.headers.get("x-twilio-signature");
@@ -71,7 +68,7 @@ export async function POST(request: Request) {
 
     if (!auth.ok) {
       const candidates = candidateWebhookUrls(request);
-      console.error("[etracker.twilio] invalid_signature", {
+      log.error("twilio.invalid_signature", {
         hasSignature: Boolean(signature),
         candidateCount: candidates.length,
         sampleCandidates: candidates.slice(0, 5),
@@ -80,22 +77,19 @@ export async function POST(request: Request) {
       return new NextResponse("Invalid signature", { status: 401 });
     }
 
-    console.log("[etracker.twilio] signature_ok", JSON.stringify({ url: auth.matchedUrl }));
+    log.info("twilio.signature_ok", { url: auth.matchedUrl });
 
-    console.log(
-      "[etracker.twilio] inbound",
-      JSON.stringify({
-        from: params.From,
-        bodyLen: (params.Body ?? "").length,
-        numMedia: params.NumMedia ?? "0",
-        messageSid: params.MessageSid,
-      }),
-    );
+    log.info("twilio.inbound", {
+      from: params.From,
+      bodyLen: (params.Body ?? "").length,
+      numMedia: params.NumMedia ?? "0",
+      messageSid: params.MessageSid,
+    });
 
     const fromRaw = params.From ?? "";
     const phone = normalizePhone(fromRaw.replace(/^whatsapp:/i, ""));
     if (!phone) {
-      console.log("[etracker.twilio] skip_no_phone", JSON.stringify({ fromRaw }));
+      log.info("twilio.skip_no_phone", { fromRaw });
       return twimlResponse();
     }
 
@@ -121,32 +115,39 @@ export async function POST(request: Request) {
      */
     if (!linkedUser) {
       if (text) {
-        console.log("[etracker.twilio] path=unlinked has_text (link code resolution)");
+        log.info("twilio.path_unlinked_has_text");
         await tryCompleteLink(phone, text);
       } else {
-        console.log("[etracker.twilio] path=unlinked_no_text await hint");
+        log.info("twilio.path_unlinked_no_text");
         await sendTwilioWhatsapp(phone, UNLINKED_HINT);
       }
       return twimlResponse();
     }
 
-    console.log("[etracker.twilio] path=linked schedule agent");
+    log.info("twilio.path_linked_schedule");
     waitUntil(
       (async () => {
         try {
           await handleLinkedUser(linkedUser.id, phone, text, numMedia, params);
         } catch (error) {
-          console.error("[etracker.twilio] linked handler error", error);
+          log.error("twilio.linked_handler_error", { error: serializeError(error) });
         }
       })(),
     );
 
     return twimlResponse();
   } catch (error) {
-    console.error("[etracker.twilio] POST fatal", error);
+    log.error("twilio.post_fatal", { error: serializeError(error) });
     // Still 200 so Twilio doesn't hammer retries for our bug; check logs.
     return twimlResponse();
   }
+}
+
+function serializeError(error: unknown): unknown {
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message, stack: error.stack };
+  }
+  return error;
 }
 
 async function handleLinkedUser(
@@ -224,10 +225,7 @@ async function handleLinkedUser(
 async function tryCompleteLink(phone: string, text: string) {
   const match = await findUserByLinkCode(text);
   if (!match) {
-    console.log(
-      "[etracker.twilio] link_no_match",
-      JSON.stringify({ phone, bodyLen: text.length }),
-    );
+    log.info("twilio.link_no_match", { phone, bodyLen: text.length });
     await sendTwilioWhatsapp(phone, UNLINKED_HINT);
     return;
   }
@@ -240,13 +238,10 @@ async function tryCompleteLink(phone: string, text: string) {
       whatsappLinkCodeExpires: null,
     },
   });
-  console.log(
-    "[etracker.twilio] link_ok",
-    JSON.stringify({ userId: match.user.id, phone }),
-  );
+  log.info("twilio.link_ok", { userId: match.user.id, phone });
   await sendTwilioWhatsapp(
     phone,
-    "Listo, vinculé este número a tu cuenta de eTracker. Decime qué querés saber del mes, mandame una captura del banco o un mensaje de voz.",
+    "Listo, vinculé este número a tu cuenta de Clara. Decime qué querés saber del mes, mandame una captura del banco o un mensaje de voz.",
   );
 }
 
@@ -256,6 +251,24 @@ async function respondToUser(
   text: string,
   image?: { mediaType: string; buffer: Buffer },
 ) {
+  // Per-user daily cap shared with the web chat. Increment before invoking
+  // the model so a crash mid-flight doesn't grant a free retry.
+  const quota = await consumeAgentQuota(userId);
+  if (!quota.ok) {
+    if (quota.reason === "disabled") {
+      await sendTwilioWhatsapp(
+        phone,
+        "Tu cuenta de Clara está desactivada. Contactá al administrador para reactivarla.",
+      );
+      return;
+    }
+    await sendTwilioWhatsapp(
+      phone,
+      `Llegaste al límite diario de ${quota.limit} mensajes con el asistente. Se reinicia a las 00:00 UTC.`,
+    );
+    return;
+  }
+
   const history = await loadHistory(userId);
   const userMessage: ModelMessage = image
     ? {
@@ -275,39 +288,41 @@ async function respondToUser(
 
   let reply = "";
   try {
-    reply = await generateExpenseAgentReply({
+    const result = await generateExpenseAgentReply({
       userId,
       messages: [...history, userMessage],
     });
+    reply = result.text;
+    await recordAgentTokens(userId, result.usage);
   } catch (error) {
-    console.error("[etracker.twilio] agent error", error);
+    log.error("twilio.agent_error", { error: serializeError(error) });
     reply = "Tuve un problema procesando tu mensaje. Probá de nuevo en un momento.";
+  }
+
+  // Discreet "low quota" hint when the user is close to running out.
+  if (quota.remaining > 0 && quota.remaining <= 3 && reply) {
+    reply = `${reply}\n\n_(Te quedan ${quota.remaining} ${quota.remaining === 1 ? "mensaje" : "mensajes"} con el asistente hoy.)_`;
   }
 
   await persistMessage(userId, "assistant", reply);
 
   let voiceOpts: SendTwilioWhatsappOptions | undefined;
-  const baseUrl = getPublicAppBaseUrl();
+  // Voice replies need an HTTPS URL Twilio can fetch. We use Vercel Blob
+  // (signed-ish, randomized pathname) and skip silently if either OpenAI or
+  // the Blob token aren't configured — the user still gets the text reply.
   if (
     isWhatsappVoiceReplyEnabled() &&
-    baseUrl?.startsWith("https://") &&
     process.env.OPENAI_API_KEY &&
+    process.env.BLOB_READ_WRITE_TOKEN &&
     reply.length > 0 &&
     reply.length <= WHATSAPP_TTS_MAX_CHARS
   ) {
     const mp3 = await synthesizeSpeechMp3(reply);
     if (mp3) {
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-      const row = await db.ttsAudioCache.create({
-        data: {
-          data: new Uint8Array(mp3),
-          mimeType: "audio/mpeg",
-          expiresAt,
-        },
-      });
-      voiceOpts = {
-        voiceMediaUrls: [`${baseUrl}/api/audio/tts/${row.id}`],
-      };
+      const uploaded = await uploadTtsAudioToBlob(Buffer.from(mp3));
+      if (uploaded) {
+        voiceOpts = { voiceMediaUrls: [uploaded.url] };
+      }
     }
   }
 

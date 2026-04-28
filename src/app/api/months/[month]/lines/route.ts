@@ -1,15 +1,13 @@
-import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
-import { ZodError } from "zod";
-
 import { db } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { FxUnavailableError, convertToPrimary } from "@/lib/fx/rates";
+import { jsonError, withApi } from "@/lib/http";
 import { isCurrentMonthKey, parseMonthKey, toMonthStart } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
 import { monthExpenseLineCreateSchema, monthParamSchema } from "@/lib/validators";
+import { expireYearTimeline } from "@/lib/year-timeline-data";
 
 export async function POST(request: Request, context: { params: Promise<{ month: string }> }) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const { month: monthParam } = await context.params;
     const { month: monthKey } = monthParamSchema.parse({ month: monthParam });
@@ -22,16 +20,37 @@ export async function POST(request: Request, context: { params: Promise<{ month:
     const body = await request.json();
     const payload = monthExpenseLineCreateSchema.parse(body);
 
-    const monthRecord = await db.monthRecord.findFirst({
-      where: { userId, month },
-    });
-    if (!monthRecord) {
-      return jsonError("Configurá el mes primero.", 404);
-    }
+    const [user, monthRecord] = await Promise.all([
+      db.user.findUnique({
+        where: { id: userId },
+        select: { primaryCurrency: true },
+      }),
+      db.monthRecord.findFirst({ where: { userId, month } }),
+    ]);
+    if (!user) return jsonError("Usuario no encontrado.", 404);
+    if (!monthRecord) return jsonError("Configurá el mes primero.", 404);
 
     const bank = await db.bank.findFirst({ where: { id: payload.bankId, userId } });
     if (!bank) {
       return jsonError("El banco no existe.", 404);
+    }
+
+    let converted;
+    try {
+      converted = await convertToPrimary({
+        amount: payload.amount,
+        currency: payload.currency ?? user.primaryCurrency,
+        primary: user.primaryCurrency,
+        fxRate: payload.fxRate,
+      });
+    } catch (error) {
+      if (error instanceof FxUnavailableError) {
+        return jsonError(
+          `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Probá pasando un fxRate manual.`,
+          502,
+        );
+      }
+      throw error;
     }
 
     const line = await db.monthExpenseLine.create({
@@ -40,37 +59,35 @@ export async function POST(request: Request, context: { params: Promise<{ month:
         templateId: null,
         bankId: payload.bankId,
         name: payload.name.trim(),
-        amount: new Prisma.Decimal(payload.amount.toFixed(2)),
+        amount: converted.amount,
+        currency: converted.currency,
+        fxRate: converted.fxRate,
+        amountConverted: converted.amountConverted,
         category: payload.category,
-        paid: false,
+        paid: payload.paid ?? false,
       },
       include: { bank: { select: { name: true } } },
     });
 
-    return NextResponse.json(
-      {
+    await expireYearTimeline(userId, month.getUTCFullYear());
+
+    return new Response(
+      JSON.stringify({
         line: {
           id: line.id,
           name: line.name,
           amount: line.amount.toString(),
+          currency: line.currency,
+          fxRate: line.fxRate.toString(),
+          amountConverted: line.amountConverted.toString(),
           bankId: line.bankId,
           bankName: line.bank.name,
           paid: line.paid,
           category: line.category,
         },
-      },
-      { status: 201 },
+        primaryCurrency: user.primaryCurrency,
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
     );
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
-    }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
-    }
-    if (error instanceof Error && error.message.includes("Invalid month format")) {
-      return jsonError("Month must be in yyyy-MM format.", 400);
-    }
-    return jsonError("No se pudo agregar el gasto.", 500);
-  }
+  });
 }

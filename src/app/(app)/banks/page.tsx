@@ -1,4 +1,5 @@
 import { BanksManager } from "@/components/banks-manager";
+import { PageContainer } from "@/components/page-container";
 import { db } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 
@@ -11,9 +12,9 @@ export default async function BanksPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Banks</h1>
+    <PageContainer className="space-y-4">
+      <h1 className="font-display text-2xl font-semibold">Bancos</h1>
       <BanksManager initialBanks={banks} />
-    </div>
+    </PageContainer>
   );
 }

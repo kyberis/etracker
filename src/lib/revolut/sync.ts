@@ -233,13 +233,25 @@ export async function importRevolutLine(params: {
     throw new Error("BANK_NOT_FOUND");
   }
 
+  const user = await db.user.findUnique({
+    where: { id: params.userId },
+    select: { primaryCurrency: true },
+  });
+  const primaryCurrency = user?.primaryCurrency ?? "USD";
+  // Revolut imports come in already in the user's preferred currency for the
+  // legacy helper. The new flow goes through `/api/months/[month]/lines` which
+  // applies the FX lookup; this code path is kept for tests/back-compat only.
+  const amount = new Prisma.Decimal(params.amount.toFixed(2));
   const line = await db.monthExpenseLine.create({
     data: {
       monthRecordId: monthRecord.id,
       templateId: null,
       bankId: params.bankId,
       name: params.name.trim(),
-      amount: new Prisma.Decimal(params.amount.toFixed(2)),
+      amount,
+      currency: primaryCurrency,
+      fxRate: new Prisma.Decimal(1),
+      amountConverted: amount,
       category: "OTROS",
       paid: false,
     },

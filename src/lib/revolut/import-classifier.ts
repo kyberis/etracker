@@ -1,4 +1,3 @@
-import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
 
@@ -20,11 +19,27 @@ const classificationSchema = z.object({
   ),
 });
 
-const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
+/**
+ * Classifier model (cheap is fine — it's a structured-extraction job).
+ * Routes through Vercel AI Gateway via the `provider/model` string.
+ */
+const DEFAULT_MODEL =
+  process.env.AI_CLASSIFIER_MODEL ??
+  process.env.AI_MODEL ??
+  process.env.OPENAI_MODEL ??
+  "openai/gpt-4.1-mini";
+
+function aiAuthAvailable(): boolean {
+  return Boolean(
+    process.env.VERCEL_OIDC_TOKEN ||
+      process.env.AI_GATEWAY_API_KEY ||
+      process.env.OPENAI_API_KEY,
+  );
+}
 
 /**
  * Aplica las instrucciones del usuario para filtrar movimientos importables y sugerir categoría.
- * Si no hay API key o falla el modelo, devuelve la lista sin cambios.
+ * Si no hay credenciales para IA o falla el modelo, devuelve la lista sin cambios.
  */
 export async function classifyImportableTransactions(
   userInstructions: string,
@@ -34,13 +49,13 @@ export async function classifyImportableTransactions(
   if (!trimmed.length || transactions.length === 0) {
     return transactions;
   }
-  if (!process.env.OPENAI_API_KEY) {
+  if (!aiAuthAvailable()) {
     return transactions;
   }
 
   try {
     const { object } = await generateObject({
-      model: openai(DEFAULT_MODEL),
+      model: DEFAULT_MODEL,
       schema: classificationSchema,
       prompt: `Sos un clasificador de movimientos bancarios (débitos) para una app de gastos personales.
 

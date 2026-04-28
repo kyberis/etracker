@@ -1,9 +1,11 @@
+import Image from "next/image";
+
 import { cn } from "@/lib/utils";
 
 const sizes = {
-  sm: "h-7 w-7",
-  md: "h-9 w-9",
-  lg: "h-11 w-11",
+  sm: { box: "size-7", px: 28 },
+  md: { box: "size-9", px: 36 },
+  lg: { box: "size-11", px: 44 },
 } as const;
 
 type LogoSize = keyof typeof sizes;
@@ -15,20 +17,31 @@ type LogoMarkProps = {
   "aria-hidden"?: boolean;
 };
 
-/** Square mark: bar chart in a rounded tile (meses / flujo de gastos). */
-export function LogoMark({ className, size = "md", "aria-hidden": ariaHidden = true }: LogoMarkProps) {
+/** Brand mark: Clara avatar in a circular ring with a soft violet/lime glow. */
+export function LogoMark({
+  className,
+  size = "md",
+  "aria-hidden": ariaHidden = true,
+}: LogoMarkProps) {
+  const { box, px } = sizes[size];
   return (
-    <svg
-      viewBox="0 0 40 40"
-      fill="none"
-      className={cn(sizes[size], "shrink-0", className)}
+    <span
+      className={cn("relative inline-block shrink-0 rounded-full", box, className)}
       aria-hidden={ariaHidden}
+      style={{
+        boxShadow:
+          "0 0 0 2px var(--background), 0 6px 14px -6px rgb(124 91 255 / 0.45)",
+      }}
     >
-      <rect width="40" height="40" rx="10" className="fill-primary" />
-      <rect x="8" y="22" width="6" height="10" rx="2" className="fill-primary-foreground/95" />
-      <rect x="17" y="16" width="6" height="16" rx="2" className="fill-primary-foreground" />
-      <rect x="26" y="10" width="6" height="22" rx="2" className="fill-primary-foreground" />
-    </svg>
+      <Image
+        src="/ada-avatar.png"
+        alt=""
+        width={px}
+        height={px}
+        priority
+        className="h-full w-full rounded-full object-cover"
+      />
+    </span>
   );
 }
 
@@ -42,21 +55,26 @@ type LogoProps = {
   textClassName?: string;
 };
 
-export function Logo({ className, size = "md", withWordmark = true, textClassName }: LogoProps) {
+export function Logo({
+  className,
+  size = "md",
+  withWordmark = true,
+  textClassName,
+}: LogoProps) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <LogoMark size={size} aria-hidden={withWordmark} />
       {withWordmark ? (
         <span
           className={cn(
-            "font-heading font-bold tracking-[-0.02em] text-foreground",
+            "font-display font-bold tracking-[-0.02em] text-foreground",
             size === "sm" && "text-base",
             size === "md" && "text-lg",
             size === "lg" && "text-xl",
             textClassName,
           )}
         >
-          <span className="text-primary">e</span>Tracker
+          Clara
         </span>
       ) : null}
     </span>

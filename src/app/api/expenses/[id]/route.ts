@@ -1,15 +1,13 @@
-import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { ZodError } from "zod";
 
 import { db } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { jsonError, withApi } from "@/lib/http";
 import { parseMonthKey } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
 import { expenseSchema } from "@/lib/validators";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const { id } = await context.params;
     const body = await request.json();
@@ -39,20 +37,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       include: { bank: true },
     });
 
-    return NextResponse.json({ expense });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
-    }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
-    }
-    return jsonError("Unable to update expense.", 500);
-  }
+    return { expense };
+  });
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const { id } = await context.params;
 
@@ -61,18 +51,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
       return jsonError("Expense not found.", 404);
     }
 
-    await db.expense.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-      return jsonError("Expense not found.", 404);
-    }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
-    }
-    return jsonError("Unable to delete expense.", 500);
-  }
+    await db.expense.delete({ where: { id } });
+    return { ok: true };
+  });
 }

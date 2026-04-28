@@ -1,28 +1,21 @@
-import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { ZodError } from "zod";
 
+import { getBanksCached, invalidateBanksCache } from "@/lib/cache/banks";
 import { db } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { jsonError, withApi } from "@/lib/http";
 import { requireUserId } from "@/lib/session";
 import { bankSchema } from "@/lib/validators";
 
 export async function GET() {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
-    const banks = await db.bank.findMany({
-      where: { userId },
-      orderBy: { name: "asc" },
-    });
-
-    return NextResponse.json({ banks });
-  } catch {
-    return jsonError("Unauthorized.", 401);
-  }
+    const banks = await getBanksCached(userId);
+    return { banks };
+  });
 }
 
 export async function POST(request: Request) {
-  try {
+  return withApi(async () => {
     const userId = await requireUserId();
     const body = await request.json();
     const payload = bankSchema.parse(body);
@@ -32,25 +25,27 @@ export async function POST(request: Request) {
         ? `#${payload.color}`
         : null;
 
-    const bank = await db.bank.create({
-      data: {
-        userId,
-        name: payload.name.trim(),
-        color,
-      },
-    });
-
-    return NextResponse.json({ bank }, { status: 201 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return jsonError(error.issues[0]?.message ?? "Invalid data.", 400);
+    try {
+      const bank = await db.bank.create({
+        data: {
+          userId,
+          name: payload.name.trim(),
+          color,
+        },
+      });
+      await invalidateBanksCache(userId);
+      return new Response(JSON.stringify({ bank }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        return jsonError("Bank name already exists.", 409);
+      }
+      throw error;
     }
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return jsonError("Bank name already exists.", 409);
-    }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return jsonError("Unauthorized.", 401);
-    }
-    return jsonError("Unable to create bank.", 500);
-  }
+  });
 }

@@ -1,5 +1,5 @@
 {
-  "name": "etracker",
+  "name": "ada",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "format": "prettier --write .",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
@@ -14,12 +16,15 @@
     "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.53",
     "@ai-sdk/react": "^3.0.170",
     "@auth/prisma-adapter": "^2.11.2",
     "@base-ui/react": "^1.4.1",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
+    "@vercel/blob": "^2.3.3",
     "@vercel/functions": "^3.4.4",
     "ai": "^6.0.168",
     "bcrypt": "^6.0.0",
@@ -27,6 +32,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^1.11.0",
+    "mcp-handler": "^1.1.0",
     "next": "16.2.4",
     "next-auth": "^4.24.14",
     "pdf-parse": "^2.4.5",
@@ -49,12 +55,14 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.5",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.7.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.5"
   }
 }
