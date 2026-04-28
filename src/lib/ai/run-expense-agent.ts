@@ -1,10 +1,12 @@
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import {
   type ModelMessage,
   generateText,
   stepCountIs,
   streamText,
 } from "ai";
+
+import { resilientOpenAiFetch } from "@/lib/ai/resilient-openai-fetch";
 
 import { buildExpenseTools } from "@/lib/ai/expense-tools";
 import {
@@ -20,6 +22,14 @@ import { getCurrentMonthKey } from "@/lib/months";
 import { expenseCategoryOptions } from "@/lib/validators";
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
+
+/** OpenAI SDK instance with resilient HTTP retries (429/rate bursts). */
+const expenseAgentOpenAi = createOpenAI({ fetch: resilientOpenAiFetch });
+
+const OPENAI_CHAT_MAX_RETRIES = Math.min(
+  12,
+  Math.max(4, Number.parseInt(process.env.OPENAI_CHAT_MAX_RETRIES ?? "10", 10) || 10),
+);
 
 type AgentSource = "web" | "whatsapp";
 
@@ -139,7 +149,8 @@ export async function streamExpenseAgent({
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   return streamText({
-    model: openai(DEFAULT_MODEL),
+    maxRetries: OPENAI_CHAT_MAX_RETRIES,
+    model: expenseAgentOpenAi(DEFAULT_MODEL),
     system: buildSystemPrompt(user?.expenseImportInstructions ?? null, {
       responseStyle,
       activeMonth,
@@ -202,7 +213,8 @@ export async function generateExpenseAgentReply({
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   const result = await generateText({
-    model: openai(DEFAULT_MODEL),
+    maxRetries: OPENAI_CHAT_MAX_RETRIES,
+    model: expenseAgentOpenAi(DEFAULT_MODEL),
     system: buildSystemPrompt(user?.expenseImportInstructions ?? null, {
       responseStyle,
     }),
