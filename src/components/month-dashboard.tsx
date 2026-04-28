@@ -21,7 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, PlusIcon, RefreshCw, TrendingUp } from "lucide-react";
+import { ChatExperience } from "@/components/chat-experience";
+import { ChevronDown, PlusIcon, RefreshCw, Sparkles, TrendingUp } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -60,6 +61,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   const [revolutDialogOpen, setRevolutDialogOpen] = useState(false);
   const [revolutImportable, setRevolutImportable] = useState<ImportableTransaction[]>([]);
   const [revolutRowBusy, setRevolutRowBusy] = useState<string | null>(null);
+  /** Asistente en pantalla: cerrado por defecto en el dashboard del mes. */
+  const [assistantDialogOpen, setAssistantDialogOpen] = useState(false);
 
   const totals = useMemo(() => {
     const planned = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -484,6 +487,23 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
 
       {data.isCurrentMonth && data.banks.length > 0 ? (
         <>
+          <Dialog open={assistantDialogOpen} onOpenChange={setAssistantDialogOpen}>
+            <DialogContent
+              className="flex h-[min(92vh,880px)] max-h-[92vh] w-[min(100%-2rem,42rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+              showCloseButton
+            >
+              <DialogHeader className="border-border shrink-0 border-b px-4 py-3 pr-10">
+                <DialogTitle>Asistente</DialogTitle>
+                <DialogDescription>
+                  Mes en pantalla:{" "}
+                  {format(parse(data.month, "yyyy-MM", new Date()), "MMMM yyyy")}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="bg-background min-h-0 flex-1 overflow-hidden px-2 pb-3 pt-1">
+                <ChatExperience activeMonth={data.month} layout="fullscreen" />
+              </div>
+            </DialogContent>
+          </Dialog>
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogContent
               className="max-h-[min(90vh,640px)] overflow-y-auto sm:max-w-md"
@@ -574,18 +594,31 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
               </form>
             </DialogContent>
           </Dialog>
-          <Button
-            type="button"
-            onClick={() => {
-              setAddError(null);
-              setAddDialogOpen(true);
-            }}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 fixed right-4 bottom-4 z-50 size-14 rounded-full shadow-lg sm:right-6 sm:bottom-6"
-            size="icon"
-            aria-label="Nuevo gasto en este mes"
-          >
-            <PlusIcon className="size-7" />
-          </Button>
+          <div className="fixed right-4 bottom-4 z-50 flex items-center gap-3 sm:right-6 sm:bottom-6">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setAssistantDialogOpen(true)}
+              className="border-border bg-background text-violet-600 shadow-lg dark:text-violet-400 size-14 rounded-full border-2"
+              aria-label="Abrir asistente de gastos"
+              title="Asistente"
+            >
+              <Sparkles className="size-7" />
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setAddError(null);
+                setAddDialogOpen(true);
+              }}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 size-14 rounded-full shadow-lg"
+              size="icon"
+              aria-label="Nuevo gasto en este mes"
+            >
+              <PlusIcon className="size-7" />
+            </Button>
+          </div>
         </>
       ) : null}
 

@@ -39,6 +39,16 @@ function assistantPlainText(message: UIMessage): string {
   return s;
 }
 
+function pdfBaseName(filename: string): string {
+  const i = filename.lastIndexOf(".");
+  return i > 0 ? filename.slice(0, i) : filename;
+}
+
+async function dataUrlToPngFile(dataUrl: string, filename: string): Promise<File> {
+  const blob = await (await fetch(dataUrl)).blob();
+  return new File([blob], filename, { type: "image/png" });
+}
+
 export function ChatExperience({ activeMonth, layout = "default" }: ChatExperienceProps = {}) {
   const [conversationMode, setConversationMode] = useState(false);
   const [voiceResponses, setVoiceResponses] = useState(false);
@@ -163,8 +173,15 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
         f.type === "application/csv" ||
         f.name.toLowerCase().endsWith(".csv"),
     );
+    const pdfFiles = fileArray.filter(
+      (f) =>
+        f.type === "application/pdf" ||
+        f.type === "application/x-pdf" ||
+        f.name.toLowerCase().endsWith(".pdf"),
+    );
 
-    if (!text && imageFiles.length === 0 && csvFiles.length === 0) return;
+    if (!text && imageFiles.length === 0 && csvFiles.length === 0 && pdfFiles.length === 0)
+      return;
 
     const csvBlocks: string[] = [];
     for (const csvFile of csvFiles) {
@@ -173,6 +190,51 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
         csvBlocks.push(formatBankCsvForAgent(raw, csvFile.name));
       } catch {
         csvBlocks.push(`(_No se pudo leer el CSV ${csvFile.name}._)`);
+      }
+    }
+
+    const pdfBlocks: string[] = [];
+    const pdfImageFiles: File[] = [];
+    for (const pdfFile of pdfFiles) {
+      try {
+        const fd = new FormData();
+        fd.append("file", pdfFile);
+        const res = await fetch("/api/chat/extract-pdf", {
+          method: "POST",
+          body: fd,
+          credentials: "same-origin",
+        });
+        const payload = (await res.json()) as {
+          text?: string;
+          images?: { dataUrl: string; pageNumber: number }[];
+          error?: string;
+        };
+        if (!res.ok) {
+          pdfBlocks.push(
+            `(_PDF ${pdfFile.name}: ${payload.error ?? "no se pudo leer el archivo"}._)`,
+          );
+          continue;
+        }
+        const extracted = payload.text?.trim() ?? "";
+        if (extracted) {
+          pdfBlocks.push(`### Texto extraído: ${pdfFile.name}\n\n${extracted}`);
+        }
+        if (payload.images?.length) {
+          for (const { dataUrl, pageNumber } of payload.images) {
+            const pagePng = await dataUrlToPngFile(
+              dataUrl,
+              `${pdfBaseName(pdfFile.name)}-p${pageNumber}.png`,
+            );
+            pdfImageFiles.push(pagePng);
+          }
+          if (!extracted) {
+            pdfBlocks.push(
+              `(_PDF ${pdfFile.name}: sin texto seleccionable; las primeras ${payload.images.length} página(s) van como imagen adjunta._)`,
+            );
+          }
+        }
+      } catch {
+        pdfBlocks.push(`(_No se pudo leer el PDF ${pdfFile.name}._)`);
       }
     }
 
@@ -185,13 +247,23 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
         ? `${messageText}\n\n${intro}\n\n${csvSection}`
         : `${intro}\n\n${csvSection}`;
     }
+    if (pdfBlocks.length > 0) {
+      const pdfSection = pdfBlocks.join("\n\n---\n\n");
+      const intro =
+        "Te adjunto uno o más PDF: texto cuando el archivo tiene capa de texto, y/o páginas renderizadas como imagen si era escaneo u hoja visual. Tratalo como extracto o resumen bancario; respetá mis instrucciones personales. Pedí confirmación antes de cargar o marcar pagos.";
+      messageText = messageText
+        ? `${messageText}\n\n${intro}\n\n${pdfSection}`
+        : `${intro}\n\n${pdfSection}`;
+    }
 
-    if (!messageText && imageFiles.length > 0) {
+    const allImageAttachments = [...imageFiles, ...pdfImageFiles];
+
+    if (!messageText && allImageAttachments.length > 0) {
       messageText = "Imagen adjunta.";
     }
 
     const dt = new DataTransfer();
-    for (const img of imageFiles) {
+    for (const img of allImageAttachments) {
       dt.items.add(img);
     }
     const imageList = dt.files;
@@ -304,7 +376,7 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
             autoFocus
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Preguntá por tu mes, agregá un gasto, adjuntá una captura del banco o un CSV (Revolut / extracto)."
+            placeholder="Preguntá por tu mes, agregá un gasto, adjuntá captura, CSV (Revolut / extracto) o PDF."
             rows={2}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
@@ -319,7 +391,7 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.csv,text/csv,application/csv"
+                accept="image/*,.csv,text/csv,application/csv,.pdf,application/pdf"
                 multiple
                 onChange={handleFiles}
                 className="text-muted-foreground text-xs file:mr-2 file:cursor-pointer file:rounded-md file:border file:border-input file:bg-background file:px-2 file:py-1 file:text-foreground"
@@ -327,13 +399,21 @@ export function ChatExperience({ activeMonth, layout = "default" }: ChatExperien
               {files && files.length > 0 ? (
                 <span className="text-muted-foreground text-xs">
                   {files.length} archivo{files.length === 1 ? "" : "s"}
-                  {Array.from(files).some(
-                    (f) =>
-                      f.name.toLowerCase().endsWith(".csv") ||
-                      f.type.includes("csv"),
-                  )
-                    ? " (imágenes y/o CSV)"
-                    : ""}
+                  {(() => {
+                    const list = Array.from(files);
+                    const bits: string[] = [];
+                    if (list.some((f) => f.type.startsWith("image/"))) bits.push("imagen");
+                    if (list.some((f) => f.name.toLowerCase().endsWith(".csv") || f.type.includes("csv")))
+                      bits.push("CSV");
+                    if (
+                      list.some(
+                        (f) =>
+                          f.name.toLowerCase().endsWith(".pdf") || f.type.includes("pdf"),
+                      )
+                    )
+                      bits.push("PDF");
+                    return bits.length > 0 ? ` (${bits.join(", ")})` : "";
+                  })()}
                 </span>
               ) : null}
             </div>
@@ -364,7 +444,10 @@ function EmptyState() {
         <li>· “¿Cuánto me queda este mes?”</li>
         <li>· “Agregá Netflix 8.99 USD al banco Visa.”</li>
         <li>· “Marcá el alquiler como pagado.”</li>
-        <li>· Adjuntá una captura del banco o un **CSV** de movimientos (p. ej. export de Revolut).</li>
+        <li>
+          · Adjuntá captura del banco, CSV de movimientos (p. ej. Revolut) o PDF con texto
+          seleccionable.
+        </li>
       </ul>
     </div>
   );
