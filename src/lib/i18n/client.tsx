@@ -2,17 +2,10 @@
 
 import { createContext, useCallback, useContext, useMemo } from "react";
 
-import { getDict, type Dict, type Locale } from "./index";
+import { getDict, pick, type Dict, type Locale } from "./index";
 
-/**
- * Inline string picker: `pick(locale, { es, en })`. Use sparingly when a
- * string is too local to a component to justify a dictionary entry. The
- * `tx()` hook below builds on this for client components that already
- * have access to the locale via context.
- */
-export function pick<T>(locale: Locale, options: Record<Locale, T>): T {
-  return options[locale];
-}
+/** Re-export the pure inline picker so client components can `import { pick } from "@/lib/i18n/client"`. */
+export { pick };
 
 type LocaleContextValue = {
   locale: Locale;

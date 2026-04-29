@@ -540,7 +540,11 @@ export function ChatExperience({
         }
         const extracted = payload.text?.trim() ?? "";
         if (extracted) {
-          pdfBlocks.push(`### Texto extraído: ${pdfFile.name}\n\n${extracted}`);
+          const heading = pick(locale, {
+            es: "Texto extraído",
+            en: "Extracted text",
+          });
+          pdfBlocks.push(`### ${heading}: ${pdfFile.name}\n\n${extracted}`);
         }
         if (payload.images?.length) {
           for (const { dataUrl, pageNumber } of payload.images) {

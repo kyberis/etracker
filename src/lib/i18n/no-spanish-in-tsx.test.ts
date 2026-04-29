@@ -27,8 +27,10 @@ const IGNORED_FILES = new Set<string>([
   // OG/Twitter images render Spanish text directly into the PNG via satori.
   // The English variant lives in (marketing)/[lang]/opengraph-image.tsx.
   "src/app/opengraph-image.tsx",
-  // Marketing pages embed JSON-LD whose values come from marketing-content.
-  // The localized copy is in marketing-content; these wrappers are fine.
+  // The offline page is served by the SW for any route and prerenders
+  // statically (no request context), so the metadata ships bilingual.
+  // The body itself reads navigator.language from the client.
+  "src/app/offline/page.tsx",
 ]);
 
 function listTsxFiles(): string[] {
@@ -56,6 +58,51 @@ function stripCommentsAndImports(source: string): string {
   return cleaned;
 }
 
+/**
+ * Replace balanced calls to inline-i18n helpers (`pick`, `tr`, `tx`) with
+ * an empty placeholder, preserving line numbers so reported offenders still
+ * point at the right line. We need a balanced-paren walk because the call
+ * arguments contain object literals whose values are template strings or
+ * other expressions that a naive regex cannot match.
+ */
+function stripInlineI18nCalls(source: string): string {
+  const helperRe = /\b(pick|tr|tx)\s*\(/g;
+  const out = source.split("");
+  let m: RegExpExecArray | null;
+  while ((m = helperRe.exec(source)) !== null) {
+    const startInner = m.index + m[0].length;
+    let depth = 1;
+    let i = startInner;
+    let inString: '"' | "'" | "`" | null = null;
+    let escaped = false;
+    while (i < source.length && depth > 0) {
+      const ch = source[i];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === inString) {
+          inString = null;
+        }
+      } else if (ch === '"' || ch === "'" || ch === "`") {
+        inString = ch;
+      } else if (ch === "(") {
+        depth += 1;
+      } else if (ch === ")") {
+        depth -= 1;
+      }
+      i += 1;
+    }
+    // Replace the call's argument body with spaces/newlines, keeping line breaks
+    // so reported line numbers stay accurate.
+    for (let k = startInner; k < i - 1; k++) {
+      out[k] = source[k] === "\n" ? "\n" : " ";
+    }
+  }
+  return out.join("");
+}
+
 describe("no Spanish characters in *.tsx outside i18n", () => {
   const files = listTsxFiles();
 
@@ -77,7 +124,7 @@ describe("no Spanish characters in *.tsx outside i18n", () => {
     } catch {
       continue;
     }
-    const cleaned = stripCommentsAndImports(raw);
+    const cleaned = stripInlineI18nCalls(stripCommentsAndImports(raw));
     const lines = cleaned.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];

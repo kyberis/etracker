@@ -8,6 +8,7 @@ import { PageContainer } from "@/components/page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { YearNavigation } from "@/components/year-navigation";
 import { YearTimeline } from "@/components/year-timeline";
+import { pick } from "@/lib/i18n";
 import { dateLocale } from "@/lib/i18n/format";
 import { getLocale } from "@/lib/i18n/server";
 import { findPreviousMonthWithRecord } from "@/lib/month-bucket";
@@ -43,12 +44,14 @@ export default async function MonthPage({ params }: PageProps) {
     getLocale(),
   ]);
   const suggestedCopyFrom = previousRecord ? formatMonthKey(previousRecord.month) : null;
-  const yearLinkedLabel =
-    locale === "en" ? "Year linked to month" : "Año vinculado al mes";
-  const monthDescription =
-    locale === "en"
-      ? "Tick which expenses you paid this month. Changes apply only here."
-      : "Marca qué gastos del mes pagaste. Los cambios solo aplican a este mes.";
+  const yearLinkedLabel = pick(locale, {
+    es: "Año vinculado al mes",
+    en: "Year linked to month",
+  });
+  const monthDescription = pick(locale, {
+    es: "Marca qué gastos del mes pagaste. Los cambios solo aplican a este mes.",
+    en: "Tick which expenses you paid this month. Changes apply only here.",
+  });
 
   return (
     <PageContainer className="space-y-6">

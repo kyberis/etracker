@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { ChatExperience } from "@/components/chat-experience";
-import { getDict } from "@/lib/i18n";
+import { getDict, pick } from "@/lib/i18n";
 import { getLocaleFromRequest } from "@/lib/i18n/server";
 
 type PageProps = {
@@ -13,10 +13,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const t = getDict(locale);
   return {
     title: t.chat.metaTitle,
-    description:
-      locale === "en"
-        ? "Chat with Clara to log expenses, plan the month and connect your bank."
-        : "Chateá con Clara para registrar gastos, planificar el mes y conectar tu banco.",
+    description: pick(locale, {
+      es: "Chateá con Clara para registrar gastos, planificar el mes y conectar tu banco.",
+      en: "Chat with Clara to log expenses, plan the month and connect your bank.",
+    }),
     robots: { index: false, follow: false },
   };
 }

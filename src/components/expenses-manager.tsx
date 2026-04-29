@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import { formatCurrency } from "@/lib/format";
-import { useLocale, useT } from "@/lib/i18n/client";
+import { pick, useLocale, useT } from "@/lib/i18n/client";
 import { expenseCategoryOptions, isInvestmentCategory } from "@/lib/validators";
 
 import { Button } from "@/components/ui/button";
@@ -56,15 +56,15 @@ export function ExpensesManager({
     locale === "en" ? "Filter by bank" : "Filtrar por banco";
   const recurringFilterPlaceholder =
     locale === "en" ? "Recurring filter" : "Filtro recurrente";
-  const investmentBadge = locale === "en" ? "investment" : "inversión";
-  const noBanksWarning =
-    locale === "en"
-      ? "Create at least one bank before adding expenses."
-      : "Creá al menos un banco antes de agregar plantillas.";
+  const investmentBadge = pick(locale, { es: "inversión", en: "investment" });
+  const noBanksWarning = pick(locale, {
+    es: "Creá al menos un banco antes de agregar plantillas.",
+    en: "Create at least one bank before adding expenses.",
+  });
   const newExpenseTitle = locale === "en" ? "New expense template" : "Nueva plantilla";
   const expensesTitle = locale === "en" ? "Templates" : "Plantillas";
   const searchPlaceholder = locale === "en" ? "Search template" : "Buscar plantilla";
-  const selectBankPlaceholder = locale === "en" ? "Select bank" : "Elegí un banco";
+  const selectBankPlaceholder = pick(locale, { es: "Elegí un banco", en: "Select bank" });
   const optionalEndPlaceholder =
     locale === "en" ? "Optional end month" : "Mes final (opcional)";
   const recurringSwitchLabel =

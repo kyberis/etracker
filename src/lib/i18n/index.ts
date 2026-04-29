@@ -35,3 +35,13 @@ const DICTIONARIES: Record<Locale, Dict> = {
 export function getDict(locale: Locale = DEFAULT_LOCALE): Dict {
   return DICTIONARIES[locale] ?? DICTIONARIES[DEFAULT_LOCALE];
 }
+
+/**
+ * Pure inline picker usable from both server and client trees. Use for
+ * one-off strings that don't justify a dictionary entry. The client-only
+ * variant in `./client` is a thin wrapper that reads the locale from
+ * context.
+ */
+export function pick<T>(locale: Locale, options: Record<Locale, T>): T {
+  return options[locale] ?? options[DEFAULT_LOCALE];
+}

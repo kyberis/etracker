@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { marketingContent } from "@/lib/marketing-content";
 import { privacyCopy } from "@/lib/marketing-pages";
+import { pick } from "@/lib/i18n";
 import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { breadcrumbJsonLd, buildMetadata, jsonLdScript } from "@/lib/seo";
 
@@ -36,62 +37,51 @@ export default async function PrivacyPage({ params }: PageProps) {
   const copy = privacyCopy(locale);
   const { PRIVACY_SECTIONS } = marketingContent(locale);
 
-  const lastUpdatedLabel =
-    locale === "en" ? "Last updated:" : "Última actualización:";
-  const contactHeading = locale === "en" ? "Contact" : "Contacto";
-  const contactBody =
-    locale === "en" ? (
-      <>
-        For any privacy question, open an issue at{" "}
-        <a
-          className="text-foreground decoration-lime decoration-[3px] underline-offset-4 hover:underline"
-          href="https://github.com/kyberis/etracker/issues"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          github.com/kyberis/etracker/issues
-        </a>{" "}
-        or reach out via{" "}
-        <a
-          className="text-foreground decoration-lime decoration-[3px] underline-offset-4 hover:underline"
-          href="https://trefolio.com"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          trefolio.com
-        </a>
-        .
-      </>
-    ) : (
-      <>
-        Para cualquier consulta sobre privacidad, abrí un issue en{" "}
-        <a
-          className="text-foreground decoration-lime decoration-[3px] underline-offset-4 hover:underline"
-          href="https://github.com/kyberis/etracker/issues"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          github.com/kyberis/etracker/issues
-        </a>{" "}
-        o contactanos vía{" "}
-        <a
-          className="text-foreground decoration-lime decoration-[3px] underline-offset-4 hover:underline"
-          href="https://trefolio.com"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          trefolio.com
-        </a>
-        .
-      </>
-    );
+  const lastUpdatedLabel = pick(locale, {
+    es: "Última actualización:",
+    en: "Last updated:",
+  });
+  const contactHeading = pick(locale, { es: "Contacto", en: "Contact" });
+  const contactCopy = pick(locale, {
+    es: {
+      lead: "Para cualquier consulta sobre privacidad, abrí un issue en",
+      via: "o contactanos vía",
+    },
+    en: {
+      lead: "For any privacy question, open an issue at",
+      via: "or reach out via",
+    },
+  });
+  const contactBody = (
+    <>
+      {contactCopy.lead}{" "}
+      <a
+        className="text-foreground decoration-lime decoration-[3px] underline-offset-4 hover:underline"
+        href="https://github.com/kyberis/etracker/issues"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        github.com/kyberis/etracker/issues
+      </a>{" "}
+      {contactCopy.via}{" "}
+      <a
+        className="text-foreground decoration-lime decoration-[3px] underline-offset-4 hover:underline"
+        href="https://trefolio.com"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        trefolio.com
+      </a>
+      .
+    </>
+  );
 
   return (
     <article className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
       <script
         {...jsonLdScript([
           breadcrumbJsonLd([
-            { name: locale === "en" ? "Home" : "Inicio", path: `/${locale}` },
+            { name: pick(locale, { es: "Inicio", en: "Home" }), path: `/${locale}` },
             { name: copy.metaTitle, path: `/${locale}/privacy` },
           ]),
         ])}

@@ -8,12 +8,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CurrencyPicker } from "@/components/ui/currency-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { pick, useLocale } from "@/lib/i18n/client";
 import {
   COUNTRY_OPTIONS,
   type CountryOption,
   currencyForCountry,
   getCountryOption,
 } from "@/lib/i18n/country-currency";
+import type { Locale } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 import { type UsageReason, usageReasonValues } from "@/lib/validators";
 
@@ -35,12 +37,12 @@ export type OnboardingInitial = {
 type Step = 0 | 1 | 2 | 3 | 4;
 const TOTAL_STEPS = 5;
 
-const REASON_LABELS: Record<UsageReason, { label: string; emoji: string }> = {
-  personal: { label: "Personal", emoji: "🧍" },
-  couple_family: { label: "Pareja / Familia", emoji: "👫" },
-  freelance: { label: "Freelance", emoji: "💼" },
-  business: { label: "Negocio", emoji: "🏢" },
-  other: { label: "Otro", emoji: "✨" },
+const REASON_LABELS: Record<UsageReason, { label: Record<Locale, string>; emoji: string }> = {
+  personal: { label: { es: "Personal", en: "Personal" }, emoji: "🧍" },
+  couple_family: { label: { es: "Pareja / Familia", en: "Couple / Family" }, emoji: "👫" },
+  freelance: { label: { es: "Freelance", en: "Freelance" }, emoji: "💼" },
+  business: { label: { es: "Negocio", en: "Business" }, emoji: "🏢" },
+  other: { label: { es: "Otro", en: "Other" }, emoji: "✨" },
 };
 
 type OnboardingPatchBody = {
@@ -53,6 +55,7 @@ type OnboardingPatchBody = {
 
 export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
   const router = useRouter();
+  const locale = useLocale();
   const [step, setStep] = useState<Step>(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,12 +81,16 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
       });
       if (!response.ok) {
         const data = (await response.json().catch(() => ({}))) as { error?: string };
-        setError(data.error ?? "No se pudo guardar.");
+        setError(data.error ?? pick(locale, { es: "No se pudo guardar.", en: "Could not save." }));
         return false;
       }
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : pick(locale, { es: "No se pudo guardar.", en: "Could not save." }),
+      );
       return false;
     } finally {
       setSubmitting(false);
@@ -142,7 +149,7 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
 
   return (
     <div className="w-full max-w-xl">
-      <ProgressDots step={step} />
+      <ProgressDots step={step} locale={locale} />
 
       {error ? (
         <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -153,10 +160,16 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
       <Card className="mt-6 shadow-sm">
         <CardContent className="p-6 sm:p-8">
           {step === 0 ? (
-            <StepWelcome onContinue={goNext} onSkipAll={skipAll} disabled={submitting} />
+            <StepWelcome
+              locale={locale}
+              onContinue={goNext}
+              onSkipAll={skipAll}
+              disabled={submitting}
+            />
           ) : null}
           {step === 1 ? (
             <StepIdentity
+              locale={locale}
               name={name}
               setName={setName}
               reasons={reasons}
@@ -169,6 +182,7 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
           ) : null}
           {step === 2 ? (
             <StepCountryCurrency
+              locale={locale}
               country={country}
               setCountry={setCountry}
               currency={currency}
@@ -181,6 +195,7 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
           ) : null}
           {step === 3 ? (
             <StepWhatsapp
+              locale={locale}
               initial={initial.whatsapp}
               ttlMinutes={initial.whatsappLinkTtlMinutes}
               onBack={goBack}
@@ -191,6 +206,7 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
           ) : null}
           {step === 4 ? (
             <StepDone
+              locale={locale}
               name={name.trim() || initial.name}
               currency={currency || initial.primaryCurrency}
               onFinish={finish}
@@ -203,9 +219,13 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
   );
 }
 
-function ProgressDots({ step }: { step: Step }) {
+function ProgressDots({ step, locale }: { step: Step; locale: Locale }) {
+  const stepLabel = pick(locale, {
+    es: `Paso ${step + 1} de ${TOTAL_STEPS}`,
+    en: `Step ${step + 1} of ${TOTAL_STEPS}`,
+  });
   return (
-    <div className="flex items-center gap-1.5" aria-label={`Paso ${step + 1} de ${TOTAL_STEPS}`}>
+    <div className="flex items-center gap-1.5" aria-label={stepLabel}>
       {Array.from({ length: TOTAL_STEPS }).map((_, idx) => {
         const state = idx < step ? "done" : idx === step ? "active" : "pending";
         return (
@@ -221,9 +241,7 @@ function ProgressDots({ step }: { step: Step }) {
           />
         );
       })}
-      <span className="ml-2 text-xs text-muted-foreground">
-        Paso {step + 1} de {TOTAL_STEPS}
-      </span>
+      <span className="ml-2 text-xs text-muted-foreground">{stepLabel}</span>
     </div>
   );
 }
@@ -232,15 +250,21 @@ function StepHeader({
   index,
   title,
   description,
+  locale,
 }: {
   index: number;
   title: string;
   description?: string;
+  locale: Locale;
 }) {
+  const stepLabel = pick(locale, {
+    es: `Paso ${index} de ${TOTAL_STEPS}`,
+    en: `Step ${index} of ${TOTAL_STEPS}`,
+  });
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
-        Paso {index} de {TOTAL_STEPS}
+        {stepLabel}
       </p>
       <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
       {description ? (
@@ -251,14 +275,16 @@ function StepHeader({
 }
 
 function StepFooter({
+  locale,
   onBack,
   onSkip,
   onContinue,
-  continueLabel = "Continuar",
-  skipLabel = "Saltar",
+  continueLabel,
+  skipLabel,
   disabled,
   hint,
 }: {
+  locale: Locale;
   onBack?: () => void;
   onSkip: () => void;
   onContinue: () => void;
@@ -267,22 +293,25 @@ function StepFooter({
   disabled?: boolean;
   hint?: string;
 }) {
+  const back = pick(locale, { es: "← Atrás", en: "← Back" });
+  const skip = skipLabel ?? pick(locale, { es: "Saltar", en: "Skip" });
+  const cont = continueLabel ?? pick(locale, { es: "Continuar", en: "Continue" });
   return (
     <div className="border-border/60 mt-8 flex items-center justify-between border-t pt-5">
       <div className="flex items-center gap-2">
         {onBack ? (
           <Button variant="ghost" size="sm" onClick={onBack} disabled={disabled}>
-            ← Atrás
+            {back}
           </Button>
         ) : null}
         <Button variant="ghost" size="sm" onClick={onSkip} disabled={disabled}>
-          {skipLabel}
+          {skip}
         </Button>
       </div>
       <div className="flex items-center gap-3">
         {hint ? <span className="text-muted-foreground text-xs">{hint}</span> : null}
         <Button onClick={onContinue} disabled={disabled} size="lg">
-          {continueLabel} →
+          {cont} →
         </Button>
       </div>
     </div>
@@ -290,10 +319,12 @@ function StepFooter({
 }
 
 function StepWelcome({
+  locale,
   onContinue,
   onSkipAll,
   disabled,
 }: {
+  locale: Locale;
   onContinue: () => void;
   onSkipAll: () => void;
   disabled?: boolean;
@@ -301,35 +332,48 @@ function StepWelcome({
   return (
     <div className="space-y-6">
       <StepHeader
+        locale={locale}
         index={1}
-        title="¡Hola! Soy Clara."
-        description="Tu asistente financiera. Te ayudo a planificar gastos fijos y puntuales, ver en qué se te va la plata y cuánto te sobra al cierre del mes."
+        title={pick(locale, { es: "¡Hola! Soy Clara.", en: "Hi! I'm Clara." })}
+        description={pick(locale, {
+          es: "Tu asistente financiera. Te ayudo a planificar gastos fijos y puntuales, ver en qué se te va la plata y cuánto te sobra al cierre del mes.",
+          en: "Your financial assistant. I help you plan recurring and one-off expenses, see where your money goes and how much is left at month end.",
+        })}
       />
 
       <div className="grid gap-3">
         <FeatureRow
           emoji="🗓️"
-          title="Mes a mes"
-          description="Cargás tus gastos fijos una vez y los copiamos cada mes nuevo."
+          title={pick(locale, { es: "Mes a mes", en: "Month by month" })}
+          description={pick(locale, {
+            es: "Cargás tus gastos fijos una vez y los copiamos cada mes nuevo.",
+            en: "Set up your recurring expenses once and we copy them into every new month.",
+          })}
         />
         <FeatureRow
           emoji="💬"
-          title="Chateá conmigo"
-          description="Mandame fotos del banco, CSV de Revolut o describime gastos en lenguaje natural. Si me linkeás WhatsApp, también desde ahí."
+          title={pick(locale, { es: "Chateá conmigo", en: "Chat with me" })}
+          description={pick(locale, {
+            es: "Mandame fotos del banco, CSV de Revolut o describime gastos en lenguaje natural. Si me linkeás WhatsApp, también desde ahí.",
+            en: "Send me bank screenshots, Revolut CSVs or describe expenses in plain language. If you link WhatsApp, also from there.",
+          })}
         />
         <FeatureRow
           emoji="🌎"
-          title="Multi-moneda, sin sermones"
-          description="Cargá gastos en cualquier moneda; los convierto al toque a tu moneda principal usando el tipo de cambio del momento."
+          title={pick(locale, { es: "Multi-moneda, sin sermones", en: "Multi-currency, no lectures" })}
+          description={pick(locale, {
+            es: "Cargá gastos en cualquier moneda; los convierto al toque a tu moneda principal usando el tipo de cambio del momento.",
+            en: "Log expenses in any currency; I convert them on the fly to your primary currency using the exchange rate at the time.",
+          })}
         />
       </div>
 
       <div className="border-border/60 mt-8 flex items-center justify-between border-t pt-5">
         <Button variant="ghost" size="sm" onClick={onSkipAll} disabled={disabled}>
-          Saltar todo
+          {pick(locale, { es: "Saltar todo", en: "Skip all" })}
         </Button>
         <Button onClick={onContinue} disabled={disabled} size="lg">
-          Empezar →
+          {pick(locale, { es: "Empezar", en: "Start" })} →
         </Button>
       </div>
     </div>
@@ -357,6 +401,7 @@ function FeatureRow({
 }
 
 function StepIdentity({
+  locale,
   name,
   setName,
   reasons,
@@ -366,6 +411,7 @@ function StepIdentity({
   onContinue,
   disabled,
 }: {
+  locale: Locale;
   name: string;
   setName: (value: string) => void;
   reasons: Set<UsageReason>;
@@ -387,16 +433,30 @@ function StepIdentity({
     onContinue();
   }
 
+  const selectedHint =
+    reasons.size > 0
+      ? pick(locale, {
+          es: `${reasons.size} seleccionado${reasons.size === 1 ? "" : "s"}`,
+          en: `${reasons.size} selected`,
+        })
+      : undefined;
+
   return (
     <form className="space-y-6" onSubmit={handleSubmit}>
       <StepHeader
+        locale={locale}
         index={2}
-        title="Contame quién sos"
-        description="Te llamo por tu nombre y entiendo mejor el contexto. Todo opcional."
+        title={pick(locale, { es: "Contame quién sos", en: "Tell me about you" })}
+        description={pick(locale, {
+          es: "Te llamo por tu nombre y entiendo mejor el contexto. Todo opcional.",
+          en: "I call you by name and understand the context better. All optional.",
+        })}
       />
 
       <div className="space-y-2">
-        <Label htmlFor="onboarding-name">¿Cómo te llamás?</Label>
+        <Label htmlFor="onboarding-name">
+          {pick(locale, { es: "¿Cómo te llamás?", en: "What's your name?" })}
+        </Label>
         <Input
           id="onboarding-name"
           autoComplete="given-name"
@@ -410,8 +470,10 @@ function StepIdentity({
 
       <div className="space-y-3">
         <div className="space-y-1">
-          <Label>¿Para qué la vas a usar?</Label>
-          <p className="text-muted-foreground text-xs">Podés elegir más de uno.</p>
+          <Label>{pick(locale, { es: "¿Para qué la vas a usar?", en: "What will you use it for?" })}</Label>
+          <p className="text-muted-foreground text-xs">
+            {pick(locale, { es: "Podés elegir más de uno.", en: "You can pick more than one." })}
+          </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {usageReasonValues.map((value) => {
@@ -431,7 +493,7 @@ function StepIdentity({
                 aria-pressed={active}
               >
                 <span className="text-base leading-none">{meta.emoji}</span>
-                <span className="font-medium">{meta.label}</span>
+                <span className="font-medium">{pick(locale, meta.label)}</span>
               </button>
             );
           })}
@@ -439,17 +501,19 @@ function StepIdentity({
       </div>
 
       <StepFooter
+        locale={locale}
         onBack={onBack}
         onSkip={onSkip}
         onContinue={onContinue}
         disabled={disabled}
-        hint={reasons.size > 0 ? `${reasons.size} seleccionado${reasons.size === 1 ? "" : "s"}` : undefined}
+        hint={selectedHint}
       />
     </form>
   );
 }
 
 function StepCountryCurrency({
+  locale,
   country,
   setCountry,
   currency,
@@ -459,6 +523,7 @@ function StepCountryCurrency({
   onContinue,
   disabled,
 }: {
+  locale: Locale;
   country: string | null;
   setCountry: (value: string | null) => void;
   currency: string;
@@ -491,16 +556,22 @@ function StepCountryCurrency({
   return (
     <div className="space-y-6">
       <StepHeader
+        locale={locale}
         index={3}
-        title="¿Dónde vivís?"
-        description="Lo usamos para sugerir tu moneda principal. La podés cambiar siempre desde Configuración."
+        title={pick(locale, { es: "¿Dónde vivís?", en: "Where do you live?" })}
+        description={pick(locale, {
+          es: "Lo usamos para sugerir tu moneda principal. La podés cambiar siempre desde Configuración.",
+          en: "We use it to suggest your primary currency. You can change it any time from Settings.",
+        })}
       />
 
       <div className="space-y-2">
-        <Label htmlFor="country-search">País de residencia</Label>
+        <Label htmlFor="country-search">
+          {pick(locale, { es: "País de residencia", en: "Country of residence" })}
+        </Label>
         <Input
           id="country-search"
-          placeholder="Buscar país…"
+          placeholder={pick(locale, { es: "Buscar país…", en: "Search country…" })}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           autoComplete="off"
@@ -540,7 +611,10 @@ function StepCountryCurrency({
           })}
           {filtered.length === 0 ? (
             <li className="text-muted-foreground px-3 py-4 text-center text-sm">
-              No encontramos ese país. Elegí la moneda manualmente abajo.
+              {pick(locale, {
+                es: "No encontramos ese país. Elegí la moneda manualmente abajo.",
+                en: "We couldn't find that country. Pick the currency manually below.",
+              })}
             </li>
           ) : null}
         </ul>
@@ -552,7 +626,7 @@ function StepCountryCurrency({
         </div>
         <div className="flex-1">
           <p className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
-            Moneda principal
+            {pick(locale, { es: "Moneda principal", en: "Primary currency" })}
           </p>
           <div className="flex items-baseline gap-2">
             <span className="font-display text-lg font-semibold">{currency || "USD"}</span>
@@ -575,6 +649,7 @@ function StepCountryCurrency({
       </div>
 
       <StepFooter
+        locale={locale}
         onBack={onBack}
         onSkip={onSkip}
         onContinue={onContinue}
@@ -587,6 +662,7 @@ function StepCountryCurrency({
 type WhatsappStatus = OnboardingInitial["whatsapp"];
 
 function StepWhatsapp({
+  locale,
   initial,
   ttlMinutes,
   onBack,
@@ -594,6 +670,7 @@ function StepWhatsapp({
   onContinue,
   disabled,
 }: {
+  locale: Locale;
   initial: WhatsappStatus;
   ttlMinutes: number;
   onBack: () => void;
@@ -630,10 +707,21 @@ function StepWhatsapp({
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        setError(data.error ?? "No se pudo iniciar la vinculación.");
+        setError(
+          data.error ??
+            pick(locale, {
+              es: "No se pudo iniciar la vinculación.",
+              en: "Could not start the linking.",
+            }),
+        );
         return;
       }
-      setFeedback("Te generamos un código. Mandalo por WhatsApp para terminar la vinculación.");
+      setFeedback(
+        pick(locale, {
+          es: "Te generamos un código. Mandalo por WhatsApp para terminar la vinculación.",
+          en: "We generated a code. Send it via WhatsApp to finish linking.",
+        }),
+      );
       await refresh();
     } finally {
       setBusy(false);
@@ -643,15 +731,19 @@ function StepWhatsapp({
   return (
     <div className="space-y-6">
       <StepHeader
+        locale={locale}
         index={4}
-        title="Linkeá WhatsApp (opcional)"
-        description="Chateá conmigo desde WhatsApp: mandá fotos del banco, dictá gastos por audio o consultá tu mes sin abrir la app."
+        title={pick(locale, { es: "Linkeá WhatsApp (opcional)", en: "Link WhatsApp (optional)" })}
+        description={pick(locale, {
+          es: "Chateá conmigo desde WhatsApp: mandá fotos del banco, dictá gastos por audio o consultá tu mes sin abrir la app.",
+          en: "Chat with me on WhatsApp: send bank photos, dictate expenses by voice, or check your month without opening the app.",
+        })}
       />
 
       {linked ? (
         <div className="border-good/40 bg-good/10 flex items-center justify-between rounded-xl border p-4">
           <div>
-            <p className="text-sm font-medium">Vinculado</p>
+            <p className="text-sm font-medium">{pick(locale, { es: "Vinculado", en: "Linked" })}</p>
             <p className="text-muted-foreground text-xs">{status.phone}</p>
           </div>
           <span className="text-good text-sm" aria-hidden>
@@ -662,7 +754,10 @@ function StepWhatsapp({
         <form className="space-y-3" onSubmit={startLink}>
           <div className="space-y-2">
             <Label htmlFor="whatsapp-phone">
-              Tu número (formato internacional, ej. +5491112345678)
+              {pick(locale, {
+                es: "Tu número (formato internacional, ej. +5491112345678)",
+                en: "Your number (international format, e.g. +5491112345678)",
+              })}
             </Label>
             <Input
               id="whatsapp-phone"
@@ -674,7 +769,9 @@ function StepWhatsapp({
             />
           </div>
           <Button type="submit" disabled={busy || !phone.trim()} size="sm">
-            {busy ? "Generando…" : "Generar código"}
+            {busy
+              ? pick(locale, { es: "Generando…", en: "Generating…" })
+              : pick(locale, { es: "Generar código", en: "Generate code" })}
           </Button>
         </form>
       )}
@@ -683,13 +780,21 @@ function StepWhatsapp({
         <div className="border-border/60 bg-muted/30 space-y-2 rounded-xl border p-4 text-sm">
           <div className="flex items-baseline justify-between">
             <p className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
-              Tu código
+              {pick(locale, { es: "Tu código", en: "Your code" })}
             </p>
-            <p className="text-muted-foreground text-xs">expira en ~{ttlMinutes} min</p>
+            <p className="text-muted-foreground text-xs">
+              {pick(locale, {
+                es: `expira en ~${ttlMinutes} min`,
+                en: `expires in ~${ttlMinutes} min`,
+              })}
+            </p>
           </div>
           <p className="font-display text-3xl font-bold tracking-widest">{status.pendingCode}</p>
           <p className="text-muted-foreground text-xs leading-relaxed">
-            Abrí WhatsApp y mandale al asistente{" "}
+            {pick(locale, {
+              es: "Abrí WhatsApp y mandale al asistente",
+              en: "Open WhatsApp and send the assistant",
+            })}{" "}
             <span className="bg-background rounded px-1.5 py-0.5 font-mono text-xs">
               LINK {status.pendingCode}
             </span>
@@ -702,15 +807,19 @@ function StepWhatsapp({
       {feedback ? <p className="text-good text-sm">{feedback}</p> : null}
 
       <p className="text-muted-foreground text-xs text-center">
-        Lo podés hacer más tarde desde Configuración.
+        {pick(locale, {
+          es: "Lo podés hacer más tarde desde Configuración.",
+          en: "You can do it later from Settings.",
+        })}
       </p>
 
       <StepFooter
+        locale={locale}
         onBack={onBack}
         onSkip={onSkip}
         onContinue={onContinue}
-        skipLabel="Más tarde"
-        continueLabel="Listo"
+        skipLabel={pick(locale, { es: "Más tarde", en: "Later" })}
+        continueLabel={pick(locale, { es: "Listo", en: "Done" })}
         disabled={disabled}
       />
     </div>
@@ -718,11 +827,13 @@ function StepWhatsapp({
 }
 
 function StepDone({
+  locale,
   name,
   currency,
   onFinish,
   disabled,
 }: {
+  locale: Locale;
   name: string | null;
   currency: string;
   onFinish: () => void;
@@ -747,25 +858,31 @@ function StepDone({
 
       <div className="space-y-2">
         <p className="text-muted-foreground text-xs uppercase tracking-[0.2em]">
-          Listo{name ? `, ${name}` : ""}
+          {pick(locale, { es: "Listo", en: "Ready" })}
+          {name ? `, ${name}` : ""}
         </p>
-        <h1 className="font-display text-3xl font-bold tracking-tight">Hablamos en el chat.</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">
+          {pick(locale, { es: "Hablamos en el chat.", en: "See you in the chat." })}
+        </h1>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Decime tu ingreso del mes o tirame una foto del banco para arrancar.
+          {pick(locale, {
+            es: "Decime tu ingreso del mes o tirame una foto del banco para arrancar.",
+            en: "Tell me your monthly income or send me a bank screenshot to get started.",
+          })}
           <br />
-          Tu moneda principal es{" "}
+          {pick(locale, { es: "Tu moneda principal es", en: "Your primary currency is" })}{" "}
           <span className="text-foreground font-semibold">{currency}</span>.
         </p>
       </div>
 
       <div className="grid w-full grid-cols-3 gap-2">
-        <DoneTile emoji="💬" label="Chat" />
-        <DoneTile emoji="📅" label="Mes" />
-        <DoneTile emoji="📊" label="Año" />
+        <DoneTile emoji="💬" label={pick(locale, { es: "Chat", en: "Chat" })} />
+        <DoneTile emoji="📅" label={pick(locale, { es: "Mes", en: "Month" })} />
+        <DoneTile emoji="📊" label={pick(locale, { es: "Año", en: "Year" })} />
       </div>
 
       <Button onClick={onFinish} disabled={disabled} size="lg" className="w-full">
-        Ir al chat →
+        {pick(locale, { es: "Ir al chat", en: "Go to chat" })} →
       </Button>
     </div>
   );
