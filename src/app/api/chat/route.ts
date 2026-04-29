@@ -9,6 +9,7 @@ import {
   quotaHeaders,
   recordAgentTokens,
 } from "@/lib/agent-quota";
+import { persistWebChatMessage } from "@/lib/chat/web-history";
 import { jsonError, withApi } from "@/lib/http";
 import { limitByUser } from "@/lib/rate-limit";
 import { requireUserId } from "@/lib/session";
@@ -94,6 +95,19 @@ export async function POST(request: Request) {
     );
     const modelMessages = await convertToModelMessages(uiMessages);
 
+    // Persist the latest user turn before streaming so the next page load
+    // shows it even if the user navigates away mid-stream. `persistWebChatMessage`
+    // upserts on `id`, so retries from the AI SDK don't create duplicates.
+    const lastUser = [...uiMessages].reverse().find((m) => m.role === "user");
+    if (lastUser) {
+      try {
+        await persistWebChatMessage({ userId, message: lastUser });
+      } catch (error) {
+        // History is best-effort: a DB hiccup must not block the response.
+        console.error("[etracker.chat] persist user message failed", error);
+      }
+    }
+
     const result = await streamExpenseAgent({
       userId,
       messages: modelMessages,
@@ -103,7 +117,26 @@ export async function POST(request: Request) {
         await recordAgentTokens(userId, usage);
       },
     });
-    const response = result.toUIMessageStreamResponse();
+    // Drain the stream server-side so the model finishes generating and
+    // `onFinish` runs (token accounting + assistant persistence) even when
+    // the client disconnects mid-stream — closing the tab, navigating away
+    // or a flaky network would otherwise leave orphan user messages in the
+    // chat history. See AI SDK docs: "Handling client disconnects".
+    result.consumeStream();
+    const response = result.toUIMessageStreamResponse({
+      // `originalMessages` enables persistence mode in the AI SDK: the
+      // assistant message gets a stable id, and `onFinish` receives the full
+      // `responseMessage` with every part (text, tool-*, file). We persist
+      // it as JSON so charts and tool labels re-render on rehydration.
+      originalMessages: uiMessages,
+      onFinish: async ({ responseMessage }) => {
+        try {
+          await persistWebChatMessage({ userId, message: responseMessage });
+        } catch (error) {
+          console.error("[etracker.chat] persist assistant message failed", error);
+        }
+      },
+    });
     const headers = quotaHeaders(quota);
     for (const [k, v] of Object.entries(headers)) response.headers.set(k, v);
     return response;

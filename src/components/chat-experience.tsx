@@ -4,6 +4,8 @@ import { Chat, useChat, type UIMessage } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import {
   ChevronDown,
+  ChevronUp,
+  Loader2,
   Paperclip,
   Send,
   Sparkles,
@@ -153,7 +155,14 @@ export function ChatExperience({
     [],
   );
   /* eslint-enable react-hooks/refs */
-  const { messages, sendMessage, status, error, stop } = useChat({ chat });
+  const {
+    messages,
+    sendMessage,
+    setMessages,
+    status,
+    error,
+    stop,
+  } = useChat({ chat });
 
   const isStreaming = status === "submitted" || status === "streaming";
 
@@ -192,6 +201,27 @@ export function ChatExperience({
     }
     wasStreamingForQuotaRef.current = isStreaming;
   }, [isStreaming, refreshQuota]);
+
+  // When a turn finishes, return focus to the textarea — but only if focus
+  // was effectively lost (e.g. the Send-button click handed focus to a
+  // button that got unmounted). If the user already moved on to another
+  // element we leave them alone, and on mobile we skip entirely so we don't
+  // pop the soft keyboard back open after Clara replies.
+  const wasStreamingForFocusRef = useRef(false);
+  useEffect(() => {
+    if (wasStreamingForFocusRef.current && !isStreaming) {
+      const isCoarsePointer =
+        typeof window !== "undefined" &&
+        window.matchMedia?.("(pointer: coarse)").matches;
+      if (!isCoarsePointer) {
+        const active = typeof document !== "undefined" ? document.activeElement : null;
+        const focusLost =
+          !active || active === document.body || active === textareaRef.current;
+        if (focusLost) textareaRef.current?.focus();
+      }
+    }
+    wasStreamingForFocusRef.current = isStreaming;
+  }, [isStreaming]);
 
   // After each assistant turn, peek the last assistant message for tool parts
   // that mutate state and refresh the balance pill if any.
@@ -274,19 +304,95 @@ export function ChatExperience({
   const [files, setFiles] = useState<FileList | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const wasStreamingRef = useRef(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
-  // Bring focus back to the textarea once the assistant finishes streaming
-  useEffect(() => {
-    if (wasStreamingRef.current && !isStreaming) {
-      textareaRef.current?.focus();
-    }
-    wasStreamingRef.current = isStreaming;
-  }, [isStreaming]);
+  // Persistent history: hydrated from `/api/chat/history` on mount and
+  // extended via the "Cargar mensajes anteriores" button. `hydratedAtRef`
+  // gates the first auto-scroll so the user lands at the bottom on initial
+  // load (last message visible) but doesn't get yanked when prepending older
+  // history.
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [oldestId, setOldestId] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const skipNextAutoScrollRef = useRef(false);
+  const hydratedRef = useRef(false);
 
-  // Auto-scroll to bottom on new messages / streaming.
   useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch("/api/chat/history?limit=50", {
+          credentials: "same-origin",
+          signal: ac.signal,
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          messages: UIMessage[];
+          hasMore: boolean;
+          oldestId: string | null;
+        };
+        if (data.messages.length > 0) {
+          setMessages(data.messages);
+        }
+        setHasMore(Boolean(data.hasMore));
+        setOldestId(data.oldestId);
+      } catch {
+        // Silent: an empty chat is preferable to a crash on a flaky network.
+      } finally {
+        setHistoryLoading(false);
+      }
+    })();
+    return () => {
+      ac.abort();
+    };
+  }, [setMessages]);
+
+  const loadMoreHistory = useCallback(async () => {
+    if (loadingOlder || !hasMore || !oldestId) return;
+    setLoadingOlder(true);
+    const el = scrollerRef.current;
+    // Anchor the visual position so prepending older messages doesn't yank
+    // the scroller back to the top.
+    const prevScrollHeight = el?.scrollHeight ?? 0;
+    const prevScrollTop = el?.scrollTop ?? 0;
+    try {
+      const res = await fetch(
+        `/api/chat/history?limit=50&before=${encodeURIComponent(oldestId)}`,
+        { credentials: "same-origin" },
+      );
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        messages: UIMessage[];
+        hasMore: boolean;
+        oldestId: string | null;
+      };
+      if (data.messages.length > 0) {
+        skipNextAutoScrollRef.current = true;
+        setMessages((prev) => [...data.messages, ...prev]);
+        // Restore the scroll position after the prepend lays out.
+        requestAnimationFrame(() => {
+          const next = scrollerRef.current;
+          if (!next) return;
+          next.scrollTop = prevScrollTop + (next.scrollHeight - prevScrollHeight);
+        });
+      }
+      setHasMore(Boolean(data.hasMore));
+      setOldestId(data.oldestId ?? oldestId);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [hasMore, oldestId, loadingOlder, setMessages]);
+
+  // Auto-scroll to bottom on new outgoing/incoming messages and during
+  // streaming. Skipped exactly once when older history is prepended.
+  useEffect(() => {
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false;
+      return;
+    }
     const el = scrollerRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
@@ -298,7 +404,11 @@ export function ChatExperience({
   }
 
   async function submitText(messageText: string) {
+    // Refocus immediately so the textarea stays "live" — the user can keep
+    // typing the next message while Clara is still streaming, WhatsApp-style.
+    textareaRef.current?.focus();
     await sendMessage({ text: messageText });
+    textareaRef.current?.focus();
   }
 
   async function handleSubmit(event?: FormEvent) {
@@ -321,6 +431,16 @@ export function ChatExperience({
 
     if (!text && imageFiles.length === 0 && csvFiles.length === 0 && pdfFiles.length === 0)
       return;
+
+    // Clear the composer and refocus the textarea synchronously, BEFORE any
+    // `await`. This way the input goes blank the instant the user hits Enter
+    // and the cursor stays in the textarea so they can keep typing while we
+    // process attachments and stream the response. Refocusing after the
+    // awaited work is too late: the Send → Stop button swap can steal focus
+    // and the user perceives it as the textarea "losing" the cursor.
+    setInput("");
+    clearFiles();
+    textareaRef.current?.focus();
 
     const csvBlocks: string[] = [];
     for (const csvFile of csvFiles) {
@@ -411,8 +531,11 @@ export function ChatExperience({
       text: messageText,
       ...(imageList.length > 0 ? { files: imageList } : {}),
     });
-    setInput("");
-    clearFiles();
+    // Safety net in case focus moved during the awaited work above (e.g. the
+    // Send button got replaced by the Stop button while we were processing
+    // attachments and React's render stole focus). Cheap if it's already
+    // focused — the browser no-ops.
+    textareaRef.current?.focus();
   }
 
   function handleFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -435,59 +558,82 @@ export function ChatExperience({
         ref={scrollerRef}
         className={cn(
           "min-h-0 flex-1 overflow-y-auto",
-          fullscreen
-            ? "px-3 pb-44 pt-4 sm:px-6"
-            : "space-y-3 pr-1",
+          fullscreen ? "px-3 pt-4 pb-2 sm:px-6" : "space-y-3 pr-1",
         )}
       >
-        <div
-          className={cn(
-            "mx-auto flex w-full max-w-3xl flex-col gap-3",
-            fullscreen ? "" : "",
-          )}
-        >
-          {messages.length === 0 ? (
-            <EmptyState
-              onPick={(prompt) => {
-                setInput(prompt);
-                void submitText(prompt);
-              }}
-            />
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+          {historyLoading ? (
+            <HistoryLoadingSkeleton />
           ) : (
-            messages.map((m) => (
-              <MessageBubble
-                key={m.id}
-                message={m}
-                audioSrc={m.role === "assistant" ? voiceUrlByMessageId[m.id] : undefined}
-                audioLoading={
-                  m.role === "assistant" && ttsLoadingMessageId === m.id
-                }
-              />
-            ))
+            <>
+              {hasMore ? (
+                <div className="flex justify-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void loadMoreHistory()}
+                    disabled={loadingOlder}
+                    className="bg-lilac/10 text-lilac border-lilac/20 hover:bg-lilac/15 inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors disabled:opacity-60"
+                  >
+                    {loadingOlder ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      <ChevronUp className="size-3.5" aria-hidden />
+                    )}
+                    cargar mensajes anteriores
+                  </button>
+                </div>
+              ) : null}
+              {messages.length === 0 ? (
+                <EmptyState
+                  onPick={(prompt) => {
+                    setInput(prompt);
+                    void submitText(prompt);
+                  }}
+                />
+              ) : (
+                messages.map((m) => (
+                  <MessageBubble
+                    key={m.id}
+                    message={m}
+                    audioSrc={
+                      m.role === "assistant" ? voiceUrlByMessageId[m.id] : undefined
+                    }
+                    audioLoading={
+                      m.role === "assistant" && ttsLoadingMessageId === m.id
+                    }
+                  />
+                ))
+              )}
+              {isStreaming && messages.length > 0 ? <TypingIndicator /> : null}
+              {error ? (
+                <p className="text-sm text-bad px-2">
+                  {error.message ?? "Algo salió mal con el asistente."}
+                </p>
+              ) : null}
+            </>
           )}
-          {isStreaming && messages.length > 0 ? <TypingIndicator /> : null}
-          {error ? (
-            <p className="text-sm text-bad px-2">
-              {error.message ?? "Algo salió mal con el asistente."}
-            </p>
-          ) : null}
         </div>
       </div>
 
       {quota ? <QuotaBadge quota={quota} /> : null}
 
-      {/* composer */}
+      {/* composer — stays pinned at the bottom of the flex column. With
+          `min-h-dvh` on the AppShell + `interactive-widget=resizes-content`
+          in the viewport, the layout shrinks when the on-screen keyboard
+          opens, so the composer ends up sitting right above the keyboard
+          (WhatsApp-style) without needing artificial padding on the
+          scroller. */}
       <form
         onSubmit={handleSubmit}
         className={cn(
           fullscreen
-            ? "from-background via-background/95 sticky bottom-0 left-0 right-0 mt-auto bg-gradient-to-t to-transparent px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 sm:px-6"
+            ? "bg-background/95 supports-[backdrop-filter]:bg-background/80 mt-auto border-t border-foreground/5 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:px-6"
             : "mt-3",
         )}
       >
         <div className="mx-auto w-full max-w-3xl">
-          {/* suggestions when empty */}
-          {messages.length === 0 ? (
+          {/* suggestions when empty (skipped during history hydration) */}
+          {messages.length === 0 && !historyLoading ? (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {SUGGESTIONS.slice(0, 2).map((s) => (
                 <button
@@ -523,7 +669,6 @@ export function ChatExperience({
             </Button>
             <Textarea
               ref={textareaRef}
-              autoFocus={fullscreen}
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Decime algo… o adjuntá un PDF del banco 📎"
@@ -535,7 +680,13 @@ export function ChatExperience({
                   void handleSubmit();
                 }
               }}
-              disabled={isStreaming}
+              // Intentionally NOT `disabled={isStreaming}`: WhatsApp-style,
+              // the user keeps focus and can start typing the next message
+              // while Clara is still answering. Disabling here on iOS would
+              // collapse the soft keyboard mid-stream, which is jarring.
+              // Intentionally NOT `autoFocus`: opening the chat shouldn't
+              // pop the keyboard. The user taps the field when they want to
+              // type — just like WhatsApp.
             />
             <input
               ref={fileInputRef}
@@ -733,6 +884,17 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function HistoryLoadingSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 py-6" aria-label="Cargando conversación…">
+      <div className="bg-card/60 ml-auto h-10 w-44 animate-pulse rounded-full" />
+      <div className="bg-card/60 mr-auto h-12 w-64 animate-pulse rounded-3xl" />
+      <div className="bg-card/60 ml-auto h-10 w-56 animate-pulse rounded-full" />
+      <div className="bg-card/60 mr-auto h-14 w-72 animate-pulse rounded-3xl" />
     </div>
   );
 }

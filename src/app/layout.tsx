@@ -104,6 +104,11 @@ export const viewport: Viewport = {
   initialScale: 1,
   // Avoid the iOS auto-zoom on input focus while keeping pinch-zoom available.
   maximumScale: 5,
+  // Tell Android Chrome to shrink the layout viewport when the on-screen
+  // keyboard appears, so the chat composer (`sticky bottom-0` + `100dvh`)
+  // sits right above the keyboard instead of being covered by it. iOS
+  // Safari already does this by default; this aligns Android with that.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

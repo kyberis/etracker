@@ -66,6 +66,7 @@ model User {
   monthRecords             MonthRecord[]
   monthExpenseLines        MonthExpenseLine[]
   whatsappMessages         WhatsappMessage[]
+  webChatMessages          WebChatMessage[]
   agentUsage               AgentMessageUsage[]
   revolutConnection        RevolutConnection?
   apiTokens                ApiToken[]
@@ -120,6 +121,22 @@ model WhatsappMessage {
   userId    String
   role      String   // "user" | "assistant"
   text      String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// Conversation history for the web chat (`/app`). We persist the full
+/// `UIMessage.parts` array (`text`, `file`, `tool-*`, `dynamic-tool`) as JSON
+/// so the bubbles re-render identically when the user comes back later
+/// (including charts and image attachments). Separate from `WhatsappMessage`
+/// because that table only stores plain text for the WhatsApp channel.
+model WebChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String   // "user" | "assistant"
+  parts     Json
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 

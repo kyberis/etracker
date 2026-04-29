@@ -19,8 +19,22 @@ const publicRoutes = [
 
 const PUBLIC_PREFIXES = ["/api/mcp"];
 
+/**
+ * File extensions for assets that must never be auth-gated. Hitting the
+ * proxy for these breaks the Next.js image optimizer in particular: when
+ * `<Image src="/foo.png" />` requests `/_next/image?url=/foo.png`, the
+ * optimizer fetches the original bytes through this same origin. If the
+ * proxy redirects that fetch to `/login`, the optimizer sees a 307 with no
+ * image body and returns 400 ("The requested resource isn't a valid image"),
+ * which silently breaks every avatar in the app for non-logged-in flows AND
+ * for some internal SSR-time fetches even with a session cookie.
+ */
+const STATIC_ASSET_RE =
+  /\.(?:png|jpe?g|gif|svg|webp|ico|avif|woff2?|ttf|otf|map|css|js|mjs|json|txt|xml|webmanifest)$/i;
+
 function isPublicPathname(pathname: string): boolean {
   if (pathname === "/") return true;
+  if (STATIC_ASSET_RE.test(pathname)) return true;
   if (publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
     return true;
   }
@@ -32,6 +46,11 @@ function isPublicPathname(pathname: string): boolean {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  // Static assets (PNG/SVG/CSS/etc.) skip the auth check entirely — no token
+  // lookup needed. Saves a JWT decode per asset request.
+  if (STATIC_ASSET_RE.test(pathname)) {
+    return NextResponse.next();
+  }
   const isPublic = isPublicPathname(pathname);
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
 

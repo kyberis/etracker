@@ -26,7 +26,7 @@ export function AppShell({
     <Suspense fallback={null}>
       <BalanceProvider>
         <MonthDrawerProvider>
-          <div className="flex min-h-screen flex-col">
+          <div className="flex min-h-dvh flex-col">
             <AppHeader isAdmin={isAdmin} />
             <div className="flex min-h-0 flex-1 flex-col">{children}</div>
           </div>
