@@ -319,9 +319,9 @@ export default async function LandingPage({ params }: PageProps) {
 {
   "mcpServers": {
     "clara": {
-      "url": "https://ada.trefolio.com/api/mcp/user",
+      "url": "https://clara.trefolio.com/api/mcp/user",
       "headers": {
-        "Authorization": "Bearer <ada_pat_…>"
+        "Authorization": "Bearer <clara_pat_…>"
       }
     }
   }

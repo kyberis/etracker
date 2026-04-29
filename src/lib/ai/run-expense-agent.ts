@@ -303,7 +303,11 @@ export async function streamExpenseAgent({
    * usage after the stream finishes. Errors are swallowed by AI SDK; we
    * still wrap our own usage of this in best-effort code paths.
    */
-  onFinish?: (event: { usage: ExpenseAgentUsage; text: string }) => void | Promise<void>;
+  onFinish?: (event: {
+    usage: ExpenseAgentUsage;
+    text: string;
+    model: string;
+  }) => void | Promise<void>;
 }) {
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -373,6 +377,7 @@ export async function streamExpenseAgent({
               outputTokens: event.totalUsage?.outputTokens,
             },
             text: event.text,
+            model: DEFAULT_MODEL,
           });
         } catch {
           // Caller errors must not break the stream — log only.
@@ -396,7 +401,7 @@ export async function generateExpenseAgentReply({
   messages: ExpenseAgentMessages;
   source?: AgentSource;
   responseStyle?: ExpenseAgentResponseStyle;
-}): Promise<{ text: string; usage: ExpenseAgentUsage }> {
+}): Promise<{ text: string; usage: ExpenseAgentUsage; model: string }> {
   const user = await db.user.findUnique({
     where: { id: userId },
     select: {
@@ -464,5 +469,6 @@ export async function generateExpenseAgentReply({
       inputTokens: result.totalUsage?.inputTokens,
       outputTokens: result.totalUsage?.outputTokens,
     },
+    model: DEFAULT_MODEL,
   };
 }

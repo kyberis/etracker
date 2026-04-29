@@ -19,7 +19,7 @@
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#-contributing)
 
-**[Live demo](https://ada.trefolio.com) · [Quick start](#-quick-start) · [Features](#-una-asistente-no-una-planilla) · [MCP](#-tu-propio-ai-puede-hablar-con-ada) · [Contributing](#-contributing)**
+**[Live demo](https://clara.trefolio.com) · [Quick start](#-quick-start) · [Features](#-una-asistente-no-una-planilla) · [MCP](#-tu-propio-ai-puede-hablar-con-ada) · [Contributing](#-contributing)**
 
 </div>
 
@@ -76,7 +76,7 @@ Ada expone un servidor **MCP (Model Context Protocol)**. Generás un token desde
 {
   "mcpServers": {
     "ada": {
-      "url": "https://ada.trefolio.com/api/mcp/user",
+      "url": "https://clara.trefolio.com/api/mcp/user",
       "headers": { "Authorization": "Bearer ada_pat_..." }
     }
   }
@@ -257,7 +257,7 @@ Sin auth. Expone documentación de Ada (features, FAQ, changelog, privacy) como 
 ```json
 {
   "mcpServers": {
-    "ada": { "url": "https://ada.trefolio.com/api/mcp" }
+    "ada": { "url": "https://clara.trefolio.com/api/mcp" }
   }
 }
 ```

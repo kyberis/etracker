@@ -1,3 +1,4 @@
+import { touchActivity } from "@/lib/activity";
 import { getAuthSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -6,6 +7,10 @@ export async function requireUserId() {
   if (!session?.user?.id) {
     throw new Error("UNAUTHORIZED");
   }
+  // Fire-and-forget: this writes at most once per UTC day per user, so the
+  // common case is a no-op read. We don't await to avoid adding latency to
+  // every authenticated API call.
+  void touchActivity(session.user.id);
   return session.user.id;
 }
 

@@ -132,6 +132,53 @@ export async function getAgentQuotaSnapshot(
 }
 
 /**
+ * Best-effort per-model usage tracker for the admin analytics page. Lives
+ * alongside `recordAgentTokens` (which feeds the daily quota row); we keep
+ * the per-model split in its own table to avoid touching the quota schema
+ * and to allow grouping by `model` for cost-per-model charts.
+ *
+ * Increments `count` by 1 and tokens by the supplied deltas, upserting the
+ * `(userId, day, model)` row. Never throws.
+ */
+export async function recordAgentModelUsage(
+  userId: string,
+  model: string,
+  tokens: { inputTokens?: number | null; outputTokens?: number | null },
+): Promise<void> {
+  const trimmed = model.trim();
+  if (!trimmed) return;
+  const inputTokens = Math.max(0, Math.floor(tokens.inputTokens ?? 0));
+  const outputTokens = Math.max(0, Math.floor(tokens.outputTokens ?? 0));
+  try {
+    const day = getTodayUtcDate();
+    await db.agentDailyModelUsage.upsert({
+      where: { userId_day_model: { userId, day, model: trimmed } },
+      create: {
+        userId,
+        day,
+        model: trimmed,
+        count: 1,
+        inputTokens,
+        outputTokens,
+      },
+      update: {
+        count: { increment: 1 },
+        inputTokens: { increment: inputTokens },
+        outputTokens: { increment: outputTokens },
+      },
+    });
+  } catch (error) {
+    log.error("agent_quota.record_model_usage_failed", {
+      userId,
+      model: trimmed,
+      inputTokens,
+      outputTokens,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
  * Best-effort token accounting. Never throws — token tracking failures
  * must not break the user-facing reply.
  */

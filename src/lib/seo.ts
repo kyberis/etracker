@@ -8,7 +8,7 @@ import { getPublicAppBaseUrl } from "@/lib/public-app-url";
  * is set (local builds, prerender during `next build`). Keep this aligned
  * with the production domain.
  */
-export const DEFAULT_SITE_URL = "https://ada.trefolio.com";
+export const DEFAULT_SITE_URL = "https://clara.trefolio.com";
 
 export function getSiteUrl(): string {
   return getPublicAppBaseUrl() ?? DEFAULT_SITE_URL;

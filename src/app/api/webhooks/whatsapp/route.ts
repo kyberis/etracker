@@ -5,7 +5,11 @@ import { waitUntil } from "@vercel/functions";
 import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
 import { synthesizeSpeechMp3 } from "@/lib/ai/text-to-speech";
 import { transcribeAudioOpenAI } from "@/lib/ai/transcribe-audio";
-import { consumeAgentQuota, recordAgentTokens } from "@/lib/agent-quota";
+import {
+  consumeAgentQuota,
+  recordAgentModelUsage,
+  recordAgentTokens,
+} from "@/lib/agent-quota";
 import { uploadTtsAudioToBlob } from "@/lib/blob/tts";
 import { db } from "@/lib/db";
 import { isLocale, type Locale } from "@/lib/i18n/locale";
@@ -352,7 +356,10 @@ async function respondToUser(
       messages: [...history, userMessage],
     });
     reply = result.text;
-    await recordAgentTokens(userId, result.usage);
+    await Promise.all([
+      recordAgentTokens(userId, result.usage),
+      recordAgentModelUsage(userId, result.model, result.usage),
+    ]);
   } catch (error) {
     log.error("twilio.agent_error", { error: serializeError(error) });
     reply = t.agentError;

@@ -4,6 +4,7 @@ import { type NextAuthOptions, getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
+import { touchActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
 
 import { isGoogleAuthConfigured } from "./auth-providers";
@@ -110,6 +111,9 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, trigger }) {
       if (user) {
         token.sub = user.id;
+        // Fresh sign-in: mark the user as active today even if they land on
+        // a route that bypasses the (app) layout (e.g. /onboarding).
+        void touchActivity(user.id);
       }
       // Refresh admin/active flags from DB on first JWT issuance and whenever
       // the client requests a session update (e.g. after admin self-service

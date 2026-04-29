@@ -1,8 +1,16 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { LineChart } from "lucide-react";
 
 import { AdminUsersTable, type AdminUser } from "@/components/admin-users-table";
 import { PageContainer } from "@/components/page-container";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { getTodayUtcDate } from "@/lib/agent-quota";
 import { getAuthSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -56,6 +64,23 @@ export default async function AdminPage() {
         <h1 className="font-display text-2xl font-semibold">{t.admin.pageTitle}</h1>
         <p className="text-muted-foreground text-sm">{t.admin.pageDescription}</p>
       </div>
+
+      <Link
+        href="/admin/analytics"
+        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-xl"
+      >
+        <Card className="hover:bg-muted/40 transition-colors">
+          <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+            <div className="bg-foreground/5 flex size-10 items-center justify-center rounded-lg">
+              <LineChart className="size-5" aria-hidden />
+            </div>
+            <div className="flex-1">
+              <CardTitle>{t.admin.analyticsLink}</CardTitle>
+              <CardDescription>{t.admin.analyticsLinkDesc}</CardDescription>
+            </div>
+          </CardHeader>
+        </Card>
+      </Link>
 
       <Card>
         <CardHeader>

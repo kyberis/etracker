@@ -1,4 +1,4 @@
-import { type UIMessage, convertToModelMessages } from "ai";
+import { type UIMessage, convertToModelMessages, generateId } from "ai";
 
 import {
   type ExpenseAgentResponseStyle,
@@ -7,6 +7,7 @@ import {
 import {
   consumeAgentQuota,
   quotaHeaders,
+  recordAgentModelUsage,
   recordAgentTokens,
 } from "@/lib/agent-quota";
 import { persistWebChatMessage } from "@/lib/chat/web-history";
@@ -113,8 +114,11 @@ export async function POST(request: Request) {
       messages: modelMessages,
       responseStyle,
       activeMonth,
-      onFinish: async ({ usage }) => {
-        await recordAgentTokens(userId, usage);
+      onFinish: async ({ usage, model }) => {
+        await Promise.all([
+          recordAgentTokens(userId, usage),
+          recordAgentModelUsage(userId, model, usage),
+        ]);
       },
     });
     // Drain the stream server-side so the model finishes generating and
@@ -123,12 +127,23 @@ export async function POST(request: Request) {
     // or a flaky network would otherwise leave orphan user messages in the
     // chat history. See AI SDK docs: "Handling client disconnects".
     result.consumeStream();
+    // Stamp the assistant message with a wall-clock `createdAt` at the
+    // start of the stream so the client can render WhatsApp-style
+    // timestamps (and day separators) without waiting for a refresh.
+    // The same value gets persisted to the DB via `onFinish` below.
+    const assistantStartedAt = new Date().toISOString();
     const response = result.toUIMessageStreamResponse({
-      // `originalMessages` enables persistence mode in the AI SDK: the
-      // assistant message gets a stable id, and `onFinish` receives the full
-      // `responseMessage` with every part (text, tool-*, file). We persist
-      // it as JSON so charts and tool labels re-render on rehydration.
+      // `originalMessages` + `generateMessageId` enables persistence mode in
+      // the AI SDK: the assistant message gets a stable, non-empty id (we
+      // pass the AI SDK's own generator), and `onFinish` receives the full
+      // `responseMessage` with every part (text, tool-*, file). Without
+      // `generateMessageId` the SDK leaves the response message id as `""`,
+      // which makes our DB upsert collapse every assistant turn onto a
+      // single empty-id row — i.e. nothing gets persisted.
       originalMessages: uiMessages,
+      generateMessageId: () => generateId(),
+      messageMetadata: ({ part }) =>
+        part.type === "start" ? { createdAt: assistantStartedAt } : undefined,
       onFinish: async ({ responseMessage }) => {
         try {
           await persistWebChatMessage({ userId, message: responseMessage });

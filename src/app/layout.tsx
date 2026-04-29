@@ -93,6 +93,15 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false },
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION,
+    other: {
+      // Bing Webmaster Tools (also covers DuckDuckGo / Yahoo / Ecosia indirectly).
+      ...(process.env.BING_SITE_VERIFICATION
+        ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION }
+        : {}),
+    },
+  },
   other: {
     // Discovery hints for AI clients that look for these in <head>.
     "ai-content-declaration": "human-authored",

@@ -11,6 +11,16 @@ import { db } from "@/lib/db";
 export const HISTORY_DEFAULT_LIMIT = 50;
 export const HISTORY_MAX_LIMIT = 200;
 
+/**
+ * Metadata we attach to every persisted chat message. The wall-clock time
+ * is exposed to the client (via the WebChat history endpoint and via the
+ * `messageMetadata` callback during streaming) so the chat can render
+ * WhatsApp-style timestamps and per-day separators.
+ */
+export type WebChatMessageMetadata = {
+  createdAt: string;
+};
+
 type DbRow = {
   id: string;
   role: string;
@@ -117,9 +127,13 @@ export async function persistWebChatMessage({
 
 function rowToUIMessage(row: DbRow): UIMessage {
   const parts = Array.isArray(row.parts) ? (row.parts as UIMessage["parts"]) : [];
+  const metadata: WebChatMessageMetadata = {
+    createdAt: row.createdAt.toISOString(),
+  };
   return {
     id: row.id,
     role: row.role === "assistant" ? "assistant" : "user",
     parts,
+    metadata,
   } as UIMessage;
 }

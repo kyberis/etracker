@@ -44,6 +44,43 @@ import { intlLocale } from "@/lib/i18n/format";
 import { pick, useLocale, useT, useTx } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
+type DayGroup = {
+  /** Local-day "key" (yyyy-mm-dd) for React; not displayed. */
+  dayKey: string;
+  /** A representative Date for this day, used to render the separator label. */
+  dayDate: Date;
+  /**
+   * Items inside the day, in chronological order: messages plus their
+   * resolved timestamps so each bubble can render a WhatsApp-style hour.
+   */
+  items: { message: UIMessage; createdAt: Date }[];
+};
+
+function localDayKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function groupMessagesByDay(
+  messages: UIMessage[],
+  resolveCreatedAt: (m: UIMessage) => Date,
+): DayGroup[] {
+  const groups: DayGroup[] = [];
+  for (const message of messages) {
+    const createdAt = resolveCreatedAt(message);
+    const dayKey = localDayKey(createdAt);
+    const last = groups[groups.length - 1];
+    if (last && last.dayKey === dayKey) {
+      last.items.push({ message, createdAt });
+    } else {
+      groups.push({ dayKey, dayDate: createdAt, items: [{ message, createdAt }] });
+    }
+  }
+  return groups;
+}
+
 export type ChatExperienceProps = {
   /** When set (yyyy-MM), the agent prefers this month for ambiguous queries. */
   activeMonth?: string;
@@ -74,6 +111,69 @@ function assistantPlainText(message: UIMessage): string {
     if (p.type === "text") s += p.text;
   }
   return s;
+}
+
+/**
+ * Read the persisted `createdAt` from a UIMessage's metadata. Hydrated
+ * messages from `/api/chat/history` have it; live messages produced by
+ * the AI SDK get it via the `messageMetadata` callback in `/api/chat`.
+ * Live user messages are stamped client-side via `firstSeenAt` until the
+ * next history rehydration replaces them.
+ */
+function metadataCreatedAt(message: UIMessage): string | undefined {
+  const meta = (message as { metadata?: unknown }).metadata;
+  if (
+    meta &&
+    typeof meta === "object" &&
+    "createdAt" in meta &&
+    typeof (meta as { createdAt: unknown }).createdAt === "string"
+  ) {
+    return (meta as { createdAt: string }).createdAt;
+  }
+  return undefined;
+}
+
+function isSameLocalDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function formatDaySeparator(
+  date: Date,
+  locale: string,
+  labels: { today: string; yesterday: string },
+): string {
+  const now = new Date();
+  if (isSameLocalDay(date, now)) return labels.today;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameLocalDay(date, yesterday)) return labels.yesterday;
+  const diffDays = Math.floor(
+    (startOfLocalDay(now).getTime() - startOfLocalDay(date).getTime()) /
+      (1000 * 60 * 60 * 24),
+  );
+  if (diffDays >= 0 && diffDays < 7) {
+    return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(date);
+  }
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "long",
+    year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
+  }).format(date);
+}
+
+function formatMessageTime(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function pdfBaseName(filename: string): string {
@@ -371,6 +471,12 @@ export function ChatExperience({
   const [hasMore, setHasMore] = useState(false);
   const [oldestId, setOldestId] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  // When the most recent persisted message is older than today, we start in
+  // "fresh" mode: the welcome card + suggestion grid take over the chat
+  // viewport so opening the assistant on a new day feels like a clean slate.
+  // The hidden conversation remains one click away via "ver conversación
+  // anterior" so the user never loses context.
+  const [staleHistory, setStaleHistory] = useState(false);
   const skipNextAutoScrollRef = useRef(false);
   const hydratedRef = useRef(false);
   // Forces an instant (non-smooth) jump to bottom on initial hydration so the
@@ -395,8 +501,16 @@ export function ChatExperience({
           oldestId: string | null;
         };
         if (data.messages.length > 0) {
+          const newest = data.messages[data.messages.length - 1];
+          const newestAt = metadataCreatedAt(newest);
+          const newestDate = newestAt ? new Date(newestAt) : null;
+          const newestIsToday =
+            newestDate !== null &&
+            !Number.isNaN(newestDate.getTime()) &&
+            isSameLocalDay(newestDate, new Date());
           initialJumpPendingRef.current = true;
           setMessages(data.messages);
+          setStaleHistory(!newestIsToday);
         }
         setHasMore(Boolean(data.hasMore));
         setOldestId(data.oldestId);
@@ -410,6 +524,26 @@ export function ChatExperience({
       ac.abort();
     };
   }, [setMessages]);
+
+  // Once the user starts a new turn (or the assistant streams a reply),
+  // there's a fresh "today" message and the welcome card no longer makes
+  // sense — flip back to the normal threaded view automatically. We detect
+  // this by remembering how many messages were hydrated and watching for
+  // any growth past that baseline.
+  const hydratedMessageCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (historyLoading) return;
+    if (hydratedMessageCountRef.current === null) {
+      hydratedMessageCountRef.current = messages.length;
+      return;
+    }
+    if (
+      staleHistory &&
+      messages.length > (hydratedMessageCountRef.current ?? 0)
+    ) {
+      setStaleHistory(false);
+    }
+  }, [messages, staleHistory, historyLoading]);
 
   const loadMoreHistory = useCallback(async () => {
     if (loadingOlder || !hasMore || !oldestId) return;
@@ -447,6 +581,46 @@ export function ChatExperience({
     }
   }, [hasMore, oldestId, loadingOlder, setMessages]);
 
+  // First-seen timestamp per message id. Live messages produced by
+  // `useChat` (especially user turns) don't carry server metadata, so we
+  // remember the moment they first appear in the local state and use it
+  // until the next history rehydration replaces them with the canonical
+  // `metadata.createdAt` from the DB.
+  const firstSeenAtRef = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    const seen = firstSeenAtRef.current;
+    const now = Date.now();
+    for (const m of messages) {
+      if (m.id && !seen.has(m.id)) {
+        seen.set(m.id, now);
+      }
+    }
+  }, [messages]);
+
+  const resolveCreatedAt = useCallback((m: UIMessage): Date => {
+    const fromMeta = metadataCreatedAt(m);
+    if (fromMeta) {
+      const d = new Date(fromMeta);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+    const seen = firstSeenAtRef.current.get(m.id);
+    return new Date(seen ?? Date.now());
+  }, []);
+
+  const dayGroups = useMemo(
+    () => groupMessagesByDay(messages, resolveCreatedAt),
+    [messages, resolveCreatedAt],
+  );
+
+  const intlBcp47 = intlLocale(locale);
+  const daySeparatorLabels = useMemo(
+    () => ({
+      today: pick(locale, { es: "Hoy", en: "Today" }),
+      yesterday: pick(locale, { es: "Ayer", en: "Yesterday" }),
+    }),
+    [locale],
+  );
+
   // Auto-scroll to bottom on new outgoing/incoming messages and during
   // streaming. Skipped exactly once when older history is prepended.
   // The first hydration jump uses `instant` and is repeated across two
@@ -475,7 +649,7 @@ export function ChatExperience({
       return;
     }
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages, isStreaming]);
+  }, [messages, isStreaming, staleHistory]);
 
   function clearFiles() {
     setFiles(null);
@@ -646,6 +820,10 @@ export function ChatExperience({
   }
 
   const fullscreen = layout === "fullscreen";
+  // The welcome card replaces the threaded view when there's nothing to
+  // continue: either a brand-new chat or a conversation whose latest
+  // message is from a previous local day.
+  const showWelcome = messages.length === 0 || staleHistory;
 
   return (
     <div
@@ -667,6 +845,42 @@ export function ChatExperience({
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
           {historyLoading ? (
             <HistoryLoadingSkeleton />
+          ) : showWelcome ? (
+            <>
+              {staleHistory ? (
+                <div className="flex justify-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Jump to the latest message after the threaded view
+                      // re-mounts so the user lands at the end of the
+                      // previous conversation (WhatsApp behaviour).
+                      initialJumpPendingRef.current = true;
+                      setStaleHistory(false);
+                    }}
+                    className="bg-lilac/10 text-lilac border-lilac/20 hover:bg-lilac/15 inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors"
+                  >
+                    <ChevronUp className="size-3.5" aria-hidden />
+                    {pick(locale, {
+                      es: "ver conversación anterior",
+                      en: "see previous conversation",
+                    })}
+                  </button>
+                </div>
+              ) : null}
+              <EmptyState
+                suggestions={suggestions}
+                onPick={(prompt) => {
+                  setInput(prompt);
+                  void submitText(prompt);
+                }}
+              />
+              {error ? (
+                <p className="text-sm text-bad px-2">
+                  {error.message ?? t.chat.error}
+                </p>
+              ) : null}
+            </>
           ) : (
             <>
               {hasMore ? (
@@ -686,28 +900,32 @@ export function ChatExperience({
                   </button>
                 </div>
               ) : null}
-              {messages.length === 0 ? (
-                <EmptyState
-                  suggestions={suggestions}
-                  onPick={(prompt) => {
-                    setInput(prompt);
-                    void submitText(prompt);
-                  }}
-                />
-              ) : (
-                messages.map((m) => (
-                  <MessageBubble
-                    key={m.id}
-                    message={m}
-                    audioSrc={
-                      m.role === "assistant" ? voiceUrlByMessageId[m.id] : undefined
-                    }
-                    audioLoading={
-                      m.role === "assistant" && ttsLoadingMessageId === m.id
-                    }
+              {dayGroups.map((group) => (
+                <div key={group.dayKey} className="contents">
+                  <DaySeparator
+                    label={formatDaySeparator(
+                      group.dayDate,
+                      intlBcp47,
+                      daySeparatorLabels,
+                    )}
                   />
-                ))
-              )}
+                  {group.items.map(({ message: m, createdAt }) => (
+                    <MessageBubble
+                      key={m.id}
+                      message={m}
+                      timeLabel={formatMessageTime(createdAt, intlBcp47)}
+                      audioSrc={
+                        m.role === "assistant"
+                          ? voiceUrlByMessageId[m.id]
+                          : undefined
+                      }
+                      audioLoading={
+                        m.role === "assistant" && ttsLoadingMessageId === m.id
+                      }
+                    />
+                  ))}
+                </div>
+              ))}
               {isStreaming && messages.length > 0 ? <TypingIndicator /> : null}
               {error ? (
                 <p className="text-sm text-bad px-2">
@@ -736,8 +954,9 @@ export function ChatExperience({
         )}
       >
         <div className="mx-auto w-full max-w-3xl">
-          {/* suggestions when empty (skipped during history hydration) */}
-          {messages.length === 0 && !historyLoading ? (
+          {/* suggestions when empty or when reopening on a new day
+              (skipped during history hydration) */}
+          {showWelcome && !historyLoading ? (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {suggestions.slice(0, 2).map((s) => (
                 <button
@@ -1180,12 +1399,31 @@ function MarkdownContent({ text }: { text: string }) {
   );
 }
 
+function DaySeparator({ label }: { label: string }) {
+  // WhatsApp-style centered chip introducing a new local day. Capitalised so
+  // weekday/Today/Yesterday labels look polished even when Intl returns them
+  // in lowercase (Spanish defaults).
+  return (
+    <div
+      className="flex items-center justify-center py-2"
+      role="separator"
+      aria-label={label}
+    >
+      <span className="bg-card text-muted-foreground rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ring-1 ring-foreground/5">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function MessageBubble({
   message,
+  timeLabel,
   audioSrc,
   audioLoading,
 }: {
   message: UIMessage;
+  timeLabel?: string;
   audioSrc?: string;
   audioLoading?: boolean;
 }) {
@@ -1194,10 +1432,16 @@ function MessageBubble({
   return (
     <div
       className={cn(
-        "flex items-end gap-2",
-        isUser ? "justify-end" : "justify-start",
+        "flex flex-col gap-1",
+        isUser ? "items-end" : "items-start",
       )}
     >
+      <div
+        className={cn(
+          "flex items-end gap-2",
+          isUser ? "justify-end" : "justify-start",
+        )}
+      >
       {!isUser ? (
         <Image
           src="/clara-avatar-simple.png"
@@ -1286,6 +1530,17 @@ function MessageBubble({
           ) : null}
         </div>
       </div>
+      </div>
+      {timeLabel ? (
+        <span
+          className={cn(
+            "text-muted-foreground/80 px-2 text-[10px] tabular-nums",
+            isUser ? "text-right" : "ml-11 text-left",
+          )}
+        >
+          {timeLabel}
+        </span>
+      ) : null}
     </div>
   );
 }

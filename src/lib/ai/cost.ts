@@ -1,6 +1,20 @@
 import type { LanguageModelUsage } from "ai";
 
 /**
+ * Loose subset of `LanguageModelUsage` that `calculateCost` actually reads.
+ * Accepting a structural subtype lets callers pass plain `{ inputTokens,
+ * outputTokens, totalTokens }` aggregates (e.g. from analytics groupBy
+ * results) without having to fabricate the full usage object.
+ */
+type CostUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  inputTokenDetails?: LanguageModelUsage["inputTokenDetails"];
+  outputTokenDetails?: LanguageModelUsage["outputTokenDetails"];
+};
+
+/**
  * USD price per 1,000,000 tokens for OpenAI models.
  * Keep this table updated from https://openai.com/api/pricing/.
  * Override at runtime with OPENAI_PRICE_INPUT_PER_M / OPENAI_PRICE_OUTPUT_PER_M
@@ -68,7 +82,7 @@ export type CostBreakdown = {
 
 export function calculateCost(
   modelId: string,
-  usage: LanguageModelUsage,
+  usage: CostUsage,
 ): CostBreakdown {
   const pricing = resolvePricing(modelId);
 

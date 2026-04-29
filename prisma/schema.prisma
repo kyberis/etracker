@@ -78,6 +78,10 @@ model User {
   /// escribe la herramienta `setUserLocale` del agente, el endpoint
   /// /api/settings/locale (selector del menú) y el formulario de Settings.
   locale                   String              @default("es")
+  /// Última vez que el usuario fue visto activo (cualquier request autenticado).
+  /// Lo actualiza `touchActivity()` como guardia: solo escribe una vez por día
+  /// UTC para evitar contention. Lo consume el dashboard de analytics interno.
+  lastSeenAt               DateTime?
   banks                    Bank[]
   expenses                 Expense[]
   monthRecords             MonthRecord[]
@@ -85,6 +89,8 @@ model User {
   whatsappMessages         WhatsappMessage[]
   webChatMessages          WebChatMessage[]
   agentUsage               AgentMessageUsage[]
+  agentModelUsage          AgentDailyModelUsage[]
+  activeDays               DailyActiveUser[]
   revolutConnection        RevolutConnection?
   apiTokens                ApiToken[]
   createdAt                DateTime            @default(now())
@@ -113,6 +119,42 @@ model Account {
 // `Session` and `VerificationToken` were removed in migration
 // `20260428220000_drop_unused_authjs_tables`: `session.strategy === "jwt"` in
 // `src/lib/auth.ts` means NextAuth never reads/writes them.
+
+/// One row per user per UTC day on which the user had any authenticated
+/// activity (page visit, API call, login). Powers DAU/WAU/MAU on the admin
+/// analytics dashboard. Insert is gated by `User.lastSeenAt` so the upsert
+/// only fires the first time the user is seen each day.
+model DailyActiveUser {
+  id        String   @id @default(cuid())
+  userId    String
+  day       DateTime @db.Date
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, day])
+  @@index([day])
+}
+
+/// Per-user, per-day, per-model breakdown of agent calls. Lives alongside
+/// `AgentMessageUsage` (which gates the daily quota and stays untouched);
+/// this one only feeds the admin analytics page so we can split usage and
+/// estimated cost by model. Best-effort: failures don't affect the user.
+model AgentDailyModelUsage {
+  id           String   @id @default(cuid())
+  userId       String
+  day          DateTime @db.Date
+  /// Model identifier as passed to the AI SDK gateway, e.g. `openai/gpt-5.4`.
+  model        String
+  count        Int      @default(0)
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, day, model])
+  @@index([day])
+  @@index([model])
+}
 
 /// Daily counter (UTC) of agent messages per user. `count` is the hard-limit
 /// against `User.dailyAgentMessageLimit`; tokens are informational only and

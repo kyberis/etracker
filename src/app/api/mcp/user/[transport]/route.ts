@@ -16,9 +16,9 @@ import { registerUserMcp } from "@/lib/mcp/user-server";
  * ```json
  * {
  *   "mcpServers": {
- *     "ada": {
- *       "url": "https://ada.trefolio.com/api/mcp/user",
- *       "headers": { "Authorization": "Bearer ada_pat_..." }
+ *     "clara": {
+ *       "url": "https://clara.trefolio.com/api/mcp/user",
+ *       "headers": { "Authorization": "Bearer clara_pat_..." }
  *     }
  *   }
  * }

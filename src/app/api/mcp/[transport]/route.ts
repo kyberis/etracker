@@ -15,7 +15,7 @@ import { registerPublicMcp } from "@/lib/mcp/public-server";
  * ```json
  * {
  *   "mcpServers": {
- *     "clara": { "url": "https://ada.trefolio.com/api/mcp" }
+ *     "clara": { "url": "https://clara.trefolio.com/api/mcp" }
  *   }
  * }
  * ```
