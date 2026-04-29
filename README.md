@@ -2,7 +2,7 @@
 
 <img src="public/ada-avatar.png" width="120" alt="Ada — asistente financiera con IA" />
 
-# Clara
+# Clara AI Assistant
 
 ### Tu plata, finalmente clara.
 
