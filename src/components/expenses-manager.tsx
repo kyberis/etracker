@@ -297,14 +297,14 @@ export function ExpensesManager({
                 <p className="font-medium">
                   {expense.name}
                   {isInvestmentCategory(expense.category) ? (
-                    <span className="bg-cleo-violet/30 text-foreground ml-2 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-bold">
+                    <span className="bg-lilac/30 text-foreground ml-2 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-bold">
                       inversión
                     </span>
                   ) : null}
                 </p>
                 <p className="text-muted-foreground text-sm">
                   {expense.bank.name} ·{" "}
-                  <span className={isInvestmentCategory(expense.category) ? "text-cleo-violet" : ""}>
+                  <span className={isInvestmentCategory(expense.category) ? "text-lilac" : ""}>
                     {formatCurrency(Number(expense.amount), primaryCurrency)}
                   </span>{" "}
                   · {expense.isRecurring ? "Recurring" : "One-off"} · {expense.category.toLowerCase()}

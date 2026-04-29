@@ -104,7 +104,7 @@ export default function LandingPage() {
                     width={56}
                     height={56}
                     priority
-                    className="avatar-cleo size-14 shrink-0"
+                    className="avatar-clara size-14 shrink-0"
                   />
                   <div>
                     <p className="display text-foreground text-base font-bold">
@@ -131,9 +131,9 @@ export default function LandingPage() {
                       width={40}
                       height={40}
                       aria-hidden
-                      className="avatar-cleo size-10 shrink-0"
+                      className="avatar-clara size-10 shrink-0"
                     />
-                    <div className="bubble-cleo max-w-[85%] space-y-2 px-4 py-3">
+                    <div className="bubble-clara max-w-[85%] space-y-2 px-4 py-3">
                       <p className="text-sm leading-snug">
                         Listo, marqué <strong>Alquiler</strong> como pagado en
                         abril ✅. Te quedan{" "}
@@ -164,9 +164,9 @@ export default function LandingPage() {
                       width={40}
                       height={40}
                       aria-hidden
-                      className="avatar-cleo size-10 shrink-0 opacity-60"
+                      className="avatar-clara size-10 shrink-0 opacity-60"
                     />
-                    <div className="bubble-cleo flex items-center gap-1.5 px-4 py-3">
+                    <div className="bubble-clara flex items-center gap-1.5 px-4 py-3">
                       <span className="bg-lime-deep size-1.5 animate-pulse rounded-full" />
                       <span
                         className="bg-lime-deep size-1.5 animate-pulse rounded-full"

@@ -100,7 +100,7 @@ export function MonthLinesByBank({
                       <p className="truncate text-sm font-medium leading-tight">
                         {expense.name}
                         {isInvestmentCategory(expense.category) ? (
-                          <span className="bg-cleo-violet/30 text-foreground ml-1.5 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-bold">
+                          <span className="bg-lilac/30 text-foreground ml-1.5 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-bold">
                             <TrendingUp className="size-2.5" />
                             inversión
                           </span>
@@ -112,7 +112,7 @@ export function MonthLinesByBank({
                           className={cn(
                             "tabular-nums",
                             isInvestmentCategory(expense.category)
-                              ? "text-cleo-violet"
+                              ? "text-lilac"
                               : "text-bad",
                           )}
                         >

@@ -461,7 +461,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       ) : null}
 
       {data.isCurrentMonth && data.revolut.linked ? (
-        <Card className="border-cleo-violet/40 bg-cleo-violet/15">
+        <Card className="border-lilac/40 bg-lilac/15">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Revolut</CardTitle>
           </CardHeader>

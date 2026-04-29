@@ -50,7 +50,7 @@
   --color-lime-deep: var(--lime-deep);
   --color-hotpink: var(--hotpink);
   --color-peach: var(--peach);
-  --color-cleo-violet: var(--cleo-violet);
+  --color-lilac: var(--lilac);
   --color-sky: var(--sky);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -61,7 +61,7 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Cleo-inspired palette: cream base, deep navy ink, lime primary, with hot pink
+/* Editorial palette: cream base, deep navy ink, lime primary, with hot pink
    and peach accents. Light is the default; the .dark variant is kept for any
    future opt-in but the rest of the app forces light at <html> level. */
 :root {
@@ -93,7 +93,7 @@
   --chart-5: oklch(0.78 0.13 220);
   --radius: 1.25rem;
 
-  /* Cleo brand tokens (raw values, used directly via `bg-cleo-violet`, etc.). */
+  /* Brand tokens (raw values, used directly via `bg-lilac`, etc.). */
   --cream: oklch(0.94 0.05 90);
   --cream-soft: oklch(0.97 0.04 90);
   --ink: oklch(0.18 0.08 285);
@@ -101,7 +101,7 @@
   --lime-deep: oklch(0.74 0.18 156);
   --hotpink: oklch(0.65 0.21 5);
   --peach: oklch(0.85 0.13 55);
-  --cleo-violet: oklch(0.78 0.1 295);
+  --lilac: oklch(0.78 0.1 295);
   --sky: oklch(0.85 0.1 235);
 
   --sidebar: oklch(0.96 0.04 90);
@@ -168,7 +168,7 @@
 }
 
 @layer components {
-  /* White card surface, the default Cleo card. Used for stat tiles and content cards. */
+  /* White card surface, the default content card. Used for stat tiles and content cards. */
   .surface-card {
     background: var(--card);
     border-radius: 1.5rem;
@@ -182,8 +182,8 @@
     border-radius: 1.25rem;
     box-shadow: inset 0 0 0 1px oklch(0.18 0.08 285 / 0.06);
   }
-  /* Cleo-style asymmetric chat bubbles. */
-  .bubble-cleo {
+  /* Asymmetric chat bubbles for Clara. */
+  .bubble-clara {
     background: #ffffff;
     color: var(--foreground);
     border-radius: 1.75rem 1.75rem 1.75rem 0.5rem;
@@ -196,7 +196,7 @@
     box-shadow: 0 12px 24px -16px oklch(0.18 0.08 285 / 0.45);
   }
   /* Avatar circle for the assistant: gradient + emoji. */
-  .avatar-cleo {
+  .avatar-clara {
     background: linear-gradient(135deg, oklch(0.86 0.17 158) 0%, oklch(0.83 0.1 295) 100%);
     border-radius: 9999px;
     box-shadow:
@@ -249,7 +249,7 @@
   }
   .hl-pink::before { background: oklch(0.85 0.13 5 / 0.7); }
   .hl-peach::before { background: var(--peach); }
-  .hl-violet::before { background: var(--cleo-violet); }
+  .hl-violet::before { background: var(--lilac); }
   /* Decorative squiggle line, hot-pink. Used in editorial separators. */
   .squiggle {
     height: 12px;

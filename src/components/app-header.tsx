@@ -75,7 +75,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
             alt="Clara"
             width={40}
             height={40}
-            className="avatar-cleo size-10 shrink-0 rounded-full object-cover"
+            className="avatar-clara size-10 shrink-0 rounded-full object-cover"
           />
           <span className="hidden flex-col leading-none sm:flex">
             <span className="display text-base font-bold">Clara</span>
@@ -137,7 +137,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
             onClick={() => drawer.setOpen(true)}
             aria-label="Abrir panel del mes"
           >
-            <CalendarDays className="size-4 text-cleo-violet" />
+            <CalendarDays className="size-4 text-lilac" />
             <span className="ml-1.5 text-xs font-bold">Mes</span>
           </Button>
           {!isHome ? (
@@ -183,7 +183,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                   }}
                   className="text-foreground hover:bg-muted flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm sm:hidden"
                 >
-                  <CalendarDays className="size-4 text-cleo-violet" /> Panel del mes
+                  <CalendarDays className="size-4 text-lilac" /> Panel del mes
                 </button>
                 {navLinks.map((link) => {
                   const Icon = link.icon;

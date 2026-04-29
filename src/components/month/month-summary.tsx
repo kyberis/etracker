@@ -85,7 +85,7 @@ export function MonthSummary({
         <CardContent title="Total de gastos planificados (pagados y no pagados)">
           <p className="num text-bad text-xl">{fmt(totals.planned)}</p>
           {totals.investment > 0 ? (
-            <p className="text-cleo-violet mt-1 flex items-center gap-1 text-xs">
+            <p className="text-lilac mt-1 flex items-center gap-1 text-xs">
               <TrendingUp className="size-3" />
               {fmt(totals.investment)} inversión
             </p>
@@ -149,7 +149,7 @@ export function MonthSummary({
             <CardTitle className="text-muted-foreground text-sm">Ahorros</CardTitle>
           </CardHeader>
           <CardContent
-            className="text-cleo-violet num text-xl"
+            className="text-lilac num text-xl"
             title="Pila acumulada cuando elegiste 'dejar aparte' al cierre de un mes."
           >
             {fmt(savings)}

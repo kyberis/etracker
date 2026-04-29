@@ -693,7 +693,7 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
         alt="Clara"
         width={80}
         height={80}
-        className="avatar-cleo size-20 rounded-full object-cover"
+        className="avatar-clara size-20 rounded-full object-cover"
       />
       <div className="space-y-3">
         <h2 className="display text-3xl tracking-tight sm:text-4xl">
@@ -720,7 +720,7 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
                 s.tone === "lime" && "bg-lime/30",
                 s.tone === "pink" && "bg-hotpink/15",
                 s.tone === "peach" && "bg-peach/30",
-                s.tone === "violet" && "bg-cleo-violet/30",
+                s.tone === "violet" && "bg-lilac/30",
               )}
               aria-hidden
             >
@@ -745,10 +745,10 @@ function TypingIndicator() {
         alt=""
         width={36}
         height={36}
-        className="avatar-cleo size-9 shrink-0 rounded-full object-cover"
+        className="avatar-clara size-9 shrink-0 rounded-full object-cover"
         aria-hidden
       />
-      <div className="bubble-cleo flex items-center gap-1.5 px-4 py-3">
+      <div className="bubble-clara flex items-center gap-1.5 px-4 py-3">
         <span className="bg-lime-deep size-1.5 animate-pulse rounded-full" />
         <span
           className="bg-lime-deep size-1.5 animate-pulse rounded-full"
@@ -882,14 +882,14 @@ function MessageBubble({
           alt=""
           width={36}
           height={36}
-          className="avatar-cleo size-9 shrink-0 rounded-full object-cover"
+          className="avatar-clara size-9 shrink-0 rounded-full object-cover"
           aria-hidden
         />
       ) : null}
       <div
         className={cn(
           "max-w-[82%] px-4 py-3 text-sm",
-          isUser ? "bubble-user" : "bubble-cleo",
+          isUser ? "bubble-user" : "bubble-clara",
         )}
       >
         <div className="space-y-2">

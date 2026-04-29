@@ -202,7 +202,7 @@ function MonthDrawerSheet() {
             />
           </div>
 
-          <div className="bg-cleo-violet/30 ring-cleo-violet/30 mt-5 rounded-3xl px-4 py-4 text-xs leading-relaxed ring-1">
+          <div className="bg-lilac/30 ring-lilac/30 mt-5 rounded-3xl px-4 py-4 text-xs leading-relaxed ring-1">
             <span className="sticker sticker-violet">la regla</span>
             <p className="text-foreground/80 mt-2">
               Solo las plantillas{" "}
@@ -225,7 +225,7 @@ function MonthDrawerSheet() {
               onClick={() => setOpen(false)}
               className="text-muted-foreground hover:text-foreground inline-flex h-10 items-center justify-center rounded-full text-sm transition-colors"
             >
-              Volver al chat con Cleo
+              Volver al chat con Clara
             </button>
           </div>
         </div>
