@@ -132,7 +132,7 @@ export default function AboutPage() {
       <section className="space-y-5">
         <div className="ink-card ink-glow flex items-center gap-5 p-6 text-white/90">
           <Image
-            src="/ada-avatar.png"
+            src="/clara-avatar-simple.png"
             alt="Clara"
             width={88}
             height={88}

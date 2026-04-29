@@ -19,25 +19,19 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["finance", "productivity", "lifestyle"],
     icons: [
       {
-        src: "/icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
-        purpose: "any",
-      },
-      {
-        src: "/manifest-icon/192",
+        src: "/clara-icon-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/manifest-icon/512",
+        src: "/clara-icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/manifest-icon/maskable",
+        src: "/clara-icon-maskable.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

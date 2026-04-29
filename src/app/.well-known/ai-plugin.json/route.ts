@@ -33,7 +33,7 @@ export async function GET() {
       type: "openapi",
       url: `${site}/openapi.json`,
     },
-    logo_url: `${site}/icon.svg`,
+    logo_url: `${site}/clara-icon.png`,
     contact_email: "hi@trefolio.com",
     legal_info_url: `${site}/privacy`,
   };

@@ -72,6 +72,6 @@ export const config = {
     // session cookie), static assets, favicon/sitemap/robots/llms files, the
     // PWA public assets, OpenGraph/Twitter image generators, .well-known and
     // OpenAPI/MCP discovery endpoints.
-    "/((?!api/auth|api/webhooks|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|llms.txt|llms-full.txt|openapi.json|\\.well-known|opengraph-image|twitter-image|manifest.webmanifest|sw.js|icon.svg|apple-icon|manifest-icon).*)",
+    "/((?!api/auth|api/webhooks|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|llms.txt|llms-full.txt|openapi.json|\\.well-known|opengraph-image|twitter-image|manifest.webmanifest|sw.js|icon\\.|apple-icon).*)",
   ],
 };

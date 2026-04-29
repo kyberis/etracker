@@ -127,7 +127,7 @@ export function organizationJsonLd() {
     "@type": "Organization",
     name: ORG_LEGAL_NAME,
     url: ORG_URL,
-    logo: `${site}/icon.svg`,
+    logo: `${site}/clara-icon.png`,
     sameAs: [SOURCE_URL, ORG_URL],
   };
 }

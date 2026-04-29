@@ -49,7 +49,6 @@ export const metadata: Metadata = {
   publisher: "Trefolio",
   category: "finance",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon.svg", apple: "/apple-icon" },
   alternates: {
     canonical: "/",
     languages: {

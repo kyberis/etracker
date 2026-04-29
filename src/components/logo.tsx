@@ -34,7 +34,7 @@ export function LogoMark({
       }}
     >
       <Image
-        src="/ada-avatar.png"
+        src="/clara-avatar-simple.png"
         alt=""
         width={px}
         height={px}

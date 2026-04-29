@@ -1,13 +1,22 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { ImageResponse } from "next/og";
 
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from "@/lib/seo";
 
-export const runtime = "edge";
 export const alt = `${SITE_NAME} — ${SITE_TAGLINE}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OGImage() {
+export default async function OGImage() {
+  // The OG card needs to be visually consistent with the favicon and the
+  // PWA home-screen icon, so we embed the Clara avatar PNG that powers
+  // both. Keeping a single source of truth means search engines, social
+  // shares, and the iOS home screen all show the same face.
+  const claraPng = await readFile(join(process.cwd(), "public/clara-icon.png"));
+  const claraDataUrl = `data:image/png;base64,${claraPng.toString("base64")}`;
+
   return new ImageResponse(
     (
       <div
@@ -24,28 +33,22 @@ export default function OGImage() {
           fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <div
+        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          <img
+            src={claraDataUrl}
+            width={120}
+            height={120}
             style={{
-              width: 80,
-              height: 80,
-              borderRadius: 24,
-              background: "linear-gradient(135deg, #C8FF7B 0%, #7FE26B 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 44,
-              fontWeight: 800,
-              color: "#1B0F3A",
+              borderRadius: 9999,
+              border: "3px solid #C8FF7B",
             }}
-          >
-            ∮
-          </div>
+            alt=""
+          />
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: 56, fontWeight: 800, lineHeight: 1 }}>
+            <span style={{ fontSize: 64, fontWeight: 800, lineHeight: 1 }}>
               {SITE_NAME}
             </span>
-            <span style={{ fontSize: 22, color: "#C8FF7B", marginTop: 6 }}>
+            <span style={{ fontSize: 24, color: "#C8FF7B", marginTop: 8 }}>
               {SITE_TAGLINE}
             </span>
           </div>

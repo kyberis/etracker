@@ -1,0 +1,54 @@
+---
+description: Personal git identity for the etracker repo
+alwaysApply: true
+---
+
+# Git author for this repo
+
+This is a personal/open-source project, NOT an Uber project. All commits and
+pushes from this repo must be authored as **`Marcos Suarez <suarez84@gmail.com>`**,
+never with the Uber email.
+
+Never run `git config` to change the global identity. Override per-command instead:
+
+```bash
+git -c user.name="Marcos Suarez" -c user.email="suarez84@gmail.com" \
+    commit -m "..." \
+    --author="Marcos Suarez <suarez84@gmail.com>"
+```
+
+Or set env vars for a single command:
+
+```bash
+GIT_AUTHOR_NAME="Marcos Suarez" GIT_AUTHOR_EMAIL="suarez84@gmail.com" \
+GIT_COMMITTER_NAME="Marcos Suarez" GIT_COMMITTER_EMAIL="suarez84@gmail.com" \
+  git commit -m "..."
+```
+
+## Pre-commit hook & GPG signing
+
+The machine has Uber's tooling installed globally (an `asd-cli` pre-commit
+hook AND `commit.gpgsign=true` with `gpg.format=x509` pointing at an Uber
+x509 key that requires `ussh`). Both fail on this personal repo with
+`no ssh cert is found, please run ussh first`.
+
+The user has explicitly authorized bypassing both for commits in this repo.
+Always pass **`--no-verify --no-gpg-sign`** when committing here:
+
+```bash
+GIT_AUTHOR_NAME="Marcos Suarez" GIT_AUTHOR_EMAIL="suarez84@gmail.com" \
+GIT_COMMITTER_NAME="Marcos Suarez" GIT_COMMITTER_EMAIL="suarez84@gmail.com" \
+  git commit --no-verify --no-gpg-sign -m "..."
+```
+
+## Pushing to prod
+
+`origin/main` on https://github.com/kyberis/etracker is wired to Vercel; pushing
+to `main` triggers a production deploy.
+
+The pre-push hook is also Uber's `asd-cli` and fails the same way as the
+pre-commit hook. Always push with **`--no-verify`**:
+
+```bash
+git push --no-verify origin main
+```
