@@ -203,6 +203,87 @@
       0 0 0 3px var(--background),
       0 8px 18px -6px oklch(0.74 0.18 156 / 0.55);
   }
+
+  /* ===========================================================
+     Clara welcome-card greeting (EmptyState).
+     - First-ever open per device: sparkle entrance.
+       (Gated by localStorage["clara-greeted-v1"].)
+     - Subsequent opens: subtle breathing loop only.
+     prefers-reduced-motion disables both.
+     =========================================================== */
+  @keyframes clara-fade-pop {
+    0%   { transform: scale(0.85); opacity: 0; }
+    70%  { transform: scale(1.04); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes clara-sparkle-fly {
+    0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+    20%  { opacity: 1; }
+    100% {
+      transform:
+        translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+        scale(1.1) rotate(var(--rot));
+      opacity: 0;
+    }
+  }
+  @keyframes clara-fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes clara-breathe {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.045); }
+  }
+
+  .clara-greet-first .clara-avatar-anim {
+    animation: clara-fade-pop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .clara-greet-first .clara-greet-stagger-1,
+  .clara-greet-first .clara-greet-stagger-2,
+  .clara-greet-first .clara-greet-stagger-3 {
+    animation: clara-fade-up 480ms ease-out both;
+  }
+  .clara-greet-first .clara-greet-stagger-1 { animation-delay: 200ms; }
+  .clara-greet-first .clara-greet-stagger-2 { animation-delay: 340ms; }
+  .clara-greet-first .clara-greet-stagger-3 { animation-delay: 460ms; }
+
+  .clara-greet-subsequent .clara-avatar-anim {
+    animation: clara-breathe 4.2s ease-in-out infinite;
+  }
+
+  .clara-sparkle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    font-size: 1.1rem;
+    line-height: 1;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+    filter: drop-shadow(0 4px 8px oklch(0.74 0.18 156 / 0.4));
+  }
+  .clara-greet-first .clara-sparkle {
+    animation: clara-sparkle-fly 1100ms cubic-bezier(0.2, 0.7, 0.4, 1) both;
+  }
+  .clara-sparkle:nth-child(1) { --dx: -78px; --dy: -64px; --rot: -25deg; animation-delay: 120ms; }
+  .clara-sparkle:nth-child(2) { --dx:  82px; --dy: -56px; --rot:  20deg; animation-delay: 220ms; }
+  .clara-sparkle:nth-child(3) { --dx: -58px; --dy:  78px; --rot:  35deg; animation-delay: 320ms; }
+  .clara-sparkle:nth-child(4) { --dx:  74px; --dy:  68px; --rot: -30deg; animation-delay: 180ms; }
+  .clara-sparkle:nth-child(5) { --dx:   2px; --dy: -94px; --rot: -10deg; animation-delay: 280ms; }
+  .clara-sparkle:nth-child(6) { --dx:  -4px; --dy:  92px; --rot:  18deg; animation-delay: 380ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .clara-greet-first .clara-avatar-anim,
+    .clara-greet-first .clara-sparkle,
+    .clara-greet-first .clara-greet-stagger-1,
+    .clara-greet-first .clara-greet-stagger-2,
+    .clara-greet-first .clara-greet-stagger-3,
+    .clara-greet-subsequent .clara-avatar-anim {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
   /* Mini uppercase label, sticker style. */
   .sticker {
     display: inline-flex;

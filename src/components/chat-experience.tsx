@@ -1175,6 +1175,38 @@ function ChatModeMenu({
   );
 }
 
+/** Persisted flag: once set, future welcome cards render with the subtle
+ *  breathing loop instead of the full sparkle entrance. The "v1" suffix
+ *  lets us re-introduce the big greeting later without colliding with old
+ *  flags. */
+const CLARA_GREETED_KEY = "clara-greeted-v1";
+
+/**
+ * Resolves whether to render the welcome card with the big sparkle
+ * entrance ("first") or the subtle breathing loop ("subsequent"). Returns
+ * `null` until the effect has run so SSR markup matches the hydrated DOM
+ * (no class, no animation) — once mounted we flip to the right mode and
+ * the CSS keyframes restart from frame 0.
+ */
+function useClaraGreetingMode(): "first" | "subsequent" | null {
+  const [mode, setMode] = useState<"first" | "subsequent" | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let isFirst = false;
+    try {
+      isFirst = window.localStorage.getItem(CLARA_GREETED_KEY) !== "1";
+      if (isFirst) window.localStorage.setItem(CLARA_GREETED_KEY, "1");
+    } catch {
+      // Private browsing / disabled storage: fall back to "subsequent" so
+      // we never show the splashy animation on every reopen.
+      isFirst = false;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- we intentionally defer this to post-mount to avoid hydration mismatch and to (re)trigger CSS keyframes.
+    setMode(isFirst ? "first" : "subsequent");
+  }, []);
+  return mode;
+}
+
 function EmptyState({
   suggestions,
   onPick,
@@ -1183,19 +1215,55 @@ function EmptyState({
   onPick: (prompt: string) => void;
 }) {
   const tr = useTx();
+  const greetingMode = useClaraGreetingMode();
+  const greetingClass =
+    greetingMode === "first"
+      ? "clara-greet-first"
+      : greetingMode === "subsequent"
+        ? "clara-greet-subsequent"
+        : "";
   return (
-    <div className="flex flex-col items-center gap-7 py-10 text-center">
-      <span className="sticker sticker-lime">
-        {tr({ es: "hola, soy tu coach", en: "hi, I’m your coach" })}
+    <div
+      className={cn(
+        "flex flex-col items-center gap-7 py-10 text-center",
+        greetingClass,
+      )}
+    >
+      <span className="sticker sticker-lime clara-greet-stagger-1">
+        {tr({ es: "hola, soy tu asistente", en: "hi, I’m your assistant" })}
       </span>
-      <Image
-        src="/clara-avatar-simple.png"
-        alt="Clara"
-        width={80}
-        height={80}
-        className="avatar-clara size-20 rounded-full object-cover"
-      />
-      <div className="space-y-3">
+      <div className="clara-avatar-anim relative inline-block">
+        <Image
+          src="/clara-avatar-simple.png"
+          alt="Clara"
+          width={80}
+          height={80}
+          className="avatar-clara size-20 rounded-full object-cover"
+        />
+        {greetingMode === "first" ? (
+          <>
+            <span className="clara-sparkle" aria-hidden>
+              ✨
+            </span>
+            <span className="clara-sparkle" aria-hidden>
+              ⚡
+            </span>
+            <span className="clara-sparkle" aria-hidden>
+              ✨
+            </span>
+            <span className="clara-sparkle" aria-hidden>
+              💫
+            </span>
+            <span className="clara-sparkle" aria-hidden>
+              ✨
+            </span>
+            <span className="clara-sparkle" aria-hidden>
+              ⭐
+            </span>
+          </>
+        ) : null}
+      </div>
+      <div className="space-y-3 clara-greet-stagger-2">
         <h2 className="display text-3xl tracking-tight sm:text-4xl">
           {tr({
             es: (
@@ -1231,7 +1299,7 @@ function EmptyState({
           })}
         </p>
       </div>
-      <div className="grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2">
+      <div className="grid w-full max-w-2xl grid-cols-1 gap-2.5 clara-greet-stagger-3 sm:grid-cols-2">
         {suggestions.map((s) => (
           <button
             key={s.label}

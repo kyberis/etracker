@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Clara · greeting animations (opción C)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ['"Bricolage Grotesque"', "system-ui", "sans-serif"],
+              sans: ['"Schibsted Grotesk"', "system-ui", "sans-serif"],
+            },
+            colors: {
+              cream: { 50: "#FFF7E8", 100: "#FBEFD3", 200: "#F5E5C0" },
+              ink: { 900: "#0E0833", 800: "#1B0F3A", 700: "#2A1A4A", 500: "#5A4982" },
+              lime: { 300: "#C8FF7B", 400: "#A5FFD0", 500: "#5EF2B0", 600: "#22D67F", 700: "#0FA864" },
+              hotpink: { 300: "#FFD4DF", 400: "#FFB1C8", 500: "#FF7AA2", 600: "#F23F7A" },
+              peach: { 400: "#FFD1A4", 500: "#FFB07A" },
+              violet: { 400: "#C8B6FF", 500: "#A38EFF", 600: "#7C5BFF" },
+              sky: { 400: "#A8E1FF", 500: "#74C8FF" },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root { color-scheme: light; }
+      html, body {
+        background: #FBEFD3;
+        background-image:
+          radial-gradient(720px 380px at 0% -8%, rgba(195, 168, 255, 0.45), transparent 60%),
+          radial-gradient(820px 400px at 102% -2%, rgba(255, 195, 161, 0.45), transparent 65%),
+          radial-gradient(900px 460px at 50% 102%, rgba(110, 230, 165, 0.18), transparent 65%);
+        background-attachment: fixed;
+        font-family: "Schibsted Grotesk", system-ui, sans-serif;
+        color: #1B0F3A;
+      }
+      .display { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+
+      .surface-card {
+        background: rgba(255, 255, 255, 0.86);
+        backdrop-filter: blur(10px);
+        border-radius: 1.75rem;
+        box-shadow: 0 18px 50px -28px rgba(14, 8, 51, 0.4);
+        border: 1px solid rgba(14, 8, 51, 0.05);
+      }
+
+      .avatar-clara {
+        background: linear-gradient(135deg, #A5FFD0 0%, #C8B6FF 100%);
+        border-radius: 9999px;
+        box-shadow: 0 0 0 3px #FBEFD3, 0 8px 18px -6px rgba(34, 214, 127, 0.55);
+        transform-origin: center bottom;
+      }
+
+      .sticker {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-family: "Bricolage Grotesque", system-ui, sans-serif;
+        font-weight: 700;
+        font-size: 0.7rem;
+        letter-spacing: 0.04em;
+        text-transform: lowercase;
+      }
+      .sticker-lime { background: #C8FF7B; color: #0E0833; }
+      .sticker-soft { background: rgba(195, 168, 255, 0.35); color: #2A1A4A; }
+
+      /* ==========================================================
+         Variant A — Pop & Wave
+         Avatar enters with a bouncy scale, then waves a few times.
+         Sticker / heading / paragraph fade-in-up with stagger.
+         ========================================================== */
+      @keyframes pop-in {
+        0%   { transform: scale(0.55); opacity: 0; }
+        55%  { transform: scale(1.10); opacity: 1; }
+        72%  { transform: scale(0.96); }
+        88%  { transform: scale(1.02); }
+        100% { transform: scale(1); }
+      }
+      @keyframes wave {
+        0%   { transform: rotate(0deg); }
+        15%  { transform: rotate(14deg); }
+        30%  { transform: rotate(-10deg); }
+        45%  { transform: rotate(10deg); }
+        60%  { transform: rotate(-6deg); }
+        75%  { transform: rotate(4deg); }
+        100% { transform: rotate(0deg); }
+      }
+      @keyframes fade-up {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      .variant-pop[data-mode="first"] .avatar-wrap {
+        animation:
+          pop-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+          wave 1000ms ease-in-out 700ms 1 both;
+      }
+      .variant-pop[data-mode="first"] .sticker,
+      .variant-pop[data-mode="first"] .heading,
+      .variant-pop[data-mode="first"] .subheading {
+        animation: fade-up 480ms ease-out both;
+      }
+      .variant-pop[data-mode="first"] .sticker     { animation-delay: 80ms; }
+      .variant-pop[data-mode="first"] .heading     { animation-delay: 220ms; }
+      .variant-pop[data-mode="first"] .subheading  { animation-delay: 360ms; }
+
+      /* ==========================================================
+         Variant B — Sparkles
+         Avatar mild fade+scale, plus radial sparkles flying outward.
+         ========================================================== */
+      @keyframes gentle-pop {
+        0%   { transform: scale(0.85); opacity: 0; }
+        70%  { transform: scale(1.04); opacity: 1; }
+        100% { transform: scale(1); }
+      }
+      @keyframes sparkle-fly {
+        0%   { transform: translate(0, 0) scale(0.4); opacity: 0; }
+        20%  { opacity: 1; }
+        100% { transform: translate(var(--dx), var(--dy)) scale(1.1) rotate(var(--rot)); opacity: 0; }
+      }
+
+      .variant-sparkle[data-mode="first"] .avatar-wrap {
+        animation: gentle-pop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+      }
+      .variant-sparkle[data-mode="first"] .sparkle {
+        animation: sparkle-fly 1100ms cubic-bezier(0.2, 0.7, 0.4, 1) both;
+      }
+      .variant-sparkle[data-mode="first"] .sticker,
+      .variant-sparkle[data-mode="first"] .heading,
+      .variant-sparkle[data-mode="first"] .subheading {
+        animation: fade-up 480ms ease-out both;
+      }
+      .variant-sparkle[data-mode="first"] .sticker    { animation-delay: 200ms; }
+      .variant-sparkle[data-mode="first"] .heading    { animation-delay: 340ms; }
+      .variant-sparkle[data-mode="first"] .subheading { animation-delay: 460ms; }
+
+      .sparkle {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(0, 0) scale(0.4);
+        font-size: 1.25rem;
+        line-height: 1;
+        pointer-events: none;
+        opacity: 0;
+        filter: drop-shadow(0 4px 8px rgba(34, 214, 127, 0.35));
+      }
+      .sparkle:nth-child(1) { --dx: -78px; --dy: -64px; --rot: -25deg; animation-delay: 120ms; }
+      .sparkle:nth-child(2) { --dx:  82px; --dy: -56px; --rot:  20deg; animation-delay: 220ms; }
+      .sparkle:nth-child(3) { --dx: -58px; --dy:  78px; --rot:  35deg; animation-delay: 320ms; }
+      .sparkle:nth-child(4) { --dx:  74px; --dy:  68px; --rot: -30deg; animation-delay: 180ms; }
+      .sparkle:nth-child(5) { --dx:   2px; --dy: -94px; --rot: -10deg; animation-delay: 280ms; }
+      .sparkle:nth-child(6) { --dx:  -4px; --dy:  92px; --rot:  18deg; animation-delay: 380ms; }
+
+      /* ==========================================================
+         Variant C — Breathing only (this is also the *subsequent*
+         state for ALL variants, when the visitor isn't first-timer).
+         ========================================================== */
+      @keyframes breathe {
+        0%, 100% { transform: scale(1); }
+        50%      { transform: scale(1.045); }
+      }
+      @keyframes simple-fade-in {
+        from { opacity: 0; transform: scale(0.96); }
+        to   { opacity: 1; transform: scale(1); }
+      }
+
+      .variant-breathe[data-mode="first"] .avatar-wrap {
+        animation: simple-fade-in 520ms ease-out both;
+      }
+      .variant-breathe[data-mode="first"] .sticker,
+      .variant-breathe[data-mode="first"] .heading,
+      .variant-breathe[data-mode="first"] .subheading {
+        animation: fade-up 480ms ease-out both;
+      }
+      .variant-breathe[data-mode="first"] .sticker    { animation-delay: 100ms; }
+      .variant-breathe[data-mode="first"] .heading    { animation-delay: 240ms; }
+      .variant-breathe[data-mode="first"] .subheading { animation-delay: 360ms; }
+
+      /* When in subsequent mode (option C "next visits"), every variant
+         settles into the breathing loop. */
+      [data-mode="subsequent"] .avatar-wrap {
+        animation: breathe 4.2s ease-in-out infinite;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .avatar-wrap,
+        .sticker,
+        .heading,
+        .subheading,
+        .sparkle {
+          animation: none !important;
+          opacity: 1 !important;
+          transform: none !important;
+        }
+      }
+
+      /* Replay flash on the panel itself for affordance. */
+      @keyframes panel-flash {
+        0%   { box-shadow: 0 0 0 0 rgba(34, 214, 127, 0.45); }
+        100% { box-shadow: 0 0 0 16px rgba(34, 214, 127, 0); }
+      }
+      .panel.flash { animation: panel-flash 700ms ease-out; }
+
+      .pill-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.45rem 0.95rem;
+        border-radius: 9999px;
+        font-weight: 700;
+        font-size: 0.78rem;
+        transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      }
+      .pill-btn:hover { transform: translateY(-1px); }
+      .pill-primary {
+        background: linear-gradient(135deg, #C8FF7B 0%, #5EF2B0 100%);
+        color: #0E0833;
+        box-shadow: 0 12px 24px -10px rgba(34, 214, 127, 0.55);
+      }
+      .pill-ghost {
+        background: rgba(255,255,255,0.7);
+        color: #2A1A4A;
+        border: 1px solid rgba(14, 8, 51, 0.08);
+      }
+      .pill-ghost.active {
+        background: #1B0F3A;
+        color: #FBEFD3;
+        border-color: #1B0F3A;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen">
+    <header class="mx-auto max-w-6xl px-6 pt-10 pb-6">
+      <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <p class="sticker sticker-soft mb-3">opción C · greeting animations</p>
+          <h1 class="display text-4xl sm:text-5xl text-ink-900">¿cómo saluda Clara?</h1>
+          <p class="text-ink-700 mt-2 max-w-2xl">
+            Tres variantes de la animación que se reproduce la <strong>primera vez</strong> que el usuario abre el chat.
+            En las siguientes visitas todas se reducen a un <em>breathing</em> sutil (mismo loop infinito).
+            Tocá <strong>replay</strong> en cada una, o cambiá entre <strong>primera vez</strong> y <strong>siguientes</strong>
+            con los pills de abajo.
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="mode-first" class="pill-btn pill-ghost active" type="button">primera vez</button>
+          <button id="mode-subsequent" class="pill-btn pill-ghost" type="button">siguientes (breathing)</button>
+          <button id="replay-all" class="pill-btn pill-primary" type="button">↻ replay all</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-6 pb-16 grid gap-5 md:grid-cols-3">
+      <!-- ============= Variant A — Pop & Wave ============= -->
+      <section class="panel surface-card p-6 flex flex-col" data-variant="pop">
+        <header class="flex items-center justify-between mb-4">
+          <div>
+            <p class="sticker sticker-lime">A · pop &amp; wave</p>
+            <p class="text-xs text-ink-500 mt-2 leading-snug">
+              Pop con rebote + saludo (~1.7s). Stagger en sticker / título / bajada.
+            </p>
+          </div>
+          <button class="replay pill-btn pill-ghost" type="button" aria-label="replay variante A">↻</button>
+        </header>
+
+        <div class="variant-pop relative flex flex-col items-center text-center gap-4 flex-1 justify-center" data-mode="first">
+          <span class="sticker sticker-lime">hola, soy tu coach</span>
+          <div class="avatar-wrap relative inline-block">
+            <img src="clara-avatar-simple.png" alt="Clara" class="avatar-clara size-20 block" />
+          </div>
+          <h2 class="heading display text-2xl text-ink-900 leading-tight">
+            ¿qué hacemos<br />con tu plata hoy?
+          </h2>
+          <p class="subheading text-sm text-ink-700 max-w-[28ch]">
+            Anotá un gasto, marcá un pago, adjuntá una captura. Si querés que sea cruel, pedí un <strong>roast</strong>.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============= Variant B — Sparkles ============= -->
+      <section class="panel surface-card p-6 flex flex-col" data-variant="sparkle">
+        <header class="flex items-center justify-between mb-4">
+          <div>
+            <p class="sticker sticker-lime" style="background:#FFD1A4;">B · sparkles</p>
+            <p class="text-xs text-ink-500 mt-2 leading-snug">
+              Avatar fade-in + chispas radiales. Más “mágico”, encaja con stickers.
+            </p>
+          </div>
+          <button class="replay pill-btn pill-ghost" type="button" aria-label="replay variante B">↻</button>
+        </header>
+
+        <div class="variant-sparkle relative flex flex-col items-center text-center gap-4 flex-1 justify-center" data-mode="first">
+          <span class="sticker sticker-lime">hola, soy tu coach</span>
+          <div class="avatar-wrap relative inline-block">
+            <img src="clara-avatar-simple.png" alt="Clara" class="avatar-clara size-20 block relative z-10" />
+            <span class="sparkle" aria-hidden>✨</span>
+            <span class="sparkle" aria-hidden>⚡</span>
+            <span class="sparkle" aria-hidden>✨</span>
+            <span class="sparkle" aria-hidden>💫</span>
+            <span class="sparkle" aria-hidden>✨</span>
+            <span class="sparkle" aria-hidden>⭐</span>
+          </div>
+          <h2 class="heading display text-2xl text-ink-900 leading-tight">
+            ¿qué hacemos<br />con tu plata hoy?
+          </h2>
+          <p class="subheading text-sm text-ink-700 max-w-[28ch]">
+            Anotá un gasto, marcá un pago, adjuntá una captura. Si querés que sea cruel, pedí un <strong>roast</strong>.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============= Variant C — Breathing only ============= -->
+      <section class="panel surface-card p-6 flex flex-col" data-variant="breathe">
+        <header class="flex items-center justify-between mb-4">
+          <div>
+            <p class="sticker sticker-lime" style="background:#C8B6FF;">C · breathing only</p>
+            <p class="text-xs text-ink-500 mt-2 leading-snug">
+              Lo más sutil. Fade-in suave, después pulso lento infinito (4.2s).
+            </p>
+          </div>
+          <button class="replay pill-btn pill-ghost" type="button" aria-label="replay variante C">↻</button>
+        </header>
+
+        <div class="variant-breathe relative flex flex-col items-center text-center gap-4 flex-1 justify-center" data-mode="first">
+          <span class="sticker sticker-lime">hola, soy tu coach</span>
+          <div class="avatar-wrap relative inline-block">
+            <img src="clara-avatar-simple.png" alt="Clara" class="avatar-clara size-20 block" />
+          </div>
+          <h2 class="heading display text-2xl text-ink-900 leading-tight">
+            ¿qué hacemos<br />con tu plata hoy?
+          </h2>
+          <p class="subheading text-sm text-ink-700 max-w-[28ch]">
+            Anotá un gasto, marcá un pago, adjuntá una captura. Si querés que sea cruel, pedí un <strong>roast</strong>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="mx-auto max-w-6xl px-6 pb-12 text-xs text-ink-500">
+      <p>
+        💡 Tip: en la opción C real, “primera vez” se persiste en
+        <code class="bg-white/60 px-1 rounded">localStorage["clara-greeted-v1"]</code>; en visitas siguientes
+        sólo corre el breathing. <code class="bg-white/60 px-1 rounded">prefers-reduced-motion</code> desactiva
+        todo automáticamente.
+      </p>
+    </footer>
+
+    <script>
+      const panels = document.querySelectorAll(".panel");
+      let globalMode = "first";
+
+      function applyMode(panel, mode) {
+        const inner = panel.querySelector("[data-mode]");
+        if (!inner) return;
+        // Re-trigger CSS animations by toggling off in a frame.
+        inner.dataset.mode = "off";
+        // Force a reflow so the next assignment restarts animations.
+        void inner.offsetWidth;
+        inner.dataset.mode = mode;
+      }
+
+      function setGlobalMode(mode) {
+        globalMode = mode;
+        document.getElementById("mode-first").classList.toggle("active", mode === "first");
+        document.getElementById("mode-subsequent").classList.toggle("active", mode === "subsequent");
+        panels.forEach((p) => applyMode(p, mode));
+      }
+
+      document.getElementById("mode-first").addEventListener("click", () => setGlobalMode("first"));
+      document.getElementById("mode-subsequent").addEventListener("click", () => setGlobalMode("subsequent"));
+
+      document.getElementById("replay-all").addEventListener("click", () => {
+        setGlobalMode("first");
+        panels.forEach((p) => {
+          p.classList.remove("flash");
+          void p.offsetWidth;
+          p.classList.add("flash");
+        });
+      });
+
+      panels.forEach((panel) => {
+        const replay = panel.querySelector(".replay");
+        replay.addEventListener("click", () => {
+          applyMode(panel, "first");
+          panel.classList.remove("flash");
+          void panel.offsetWidth;
+          panel.classList.add("flash");
+        });
+      });
+
+      // Auto-play once on load.
+      window.addEventListener("load", () => {
+        setGlobalMode("first");
+      });
+    </script>
+  </body>
+</html>
