@@ -3,14 +3,14 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
-import { getBanksCached } from "@/lib/cache/banks";
+import { getBanksCached, invalidateBanksCache } from "@/lib/cache/banks";
 import { db } from "@/lib/db";
 import {
   isUniqueViolation,
   parseIsoDate,
   todayUtcDate,
 } from "@/lib/expense-line";
-import { FxUnavailableError, convertToPrimary } from "@/lib/fx/rates";
+import { FxUnavailableError, convertToPrimary, fetchFxRate } from "@/lib/fx/rates";
 import {
   applyPrevMonthLeftoverDecision,
   mergePendingTemplateLinesIntoMonth,
@@ -29,6 +29,21 @@ import {
   expenseCategoryOptions,
   expenseSchema,
 } from "@/lib/validators";
+import { expireYearTimeline } from "@/lib/year-timeline-data";
+
+/** Accepts 6-char hex with or without `#`. Mirrors `bankSchema` in validators. */
+const hexColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#?[0-9a-fA-F]{6}$/u, "Color must be a 6-char hex (e.g. #1f6feb).");
+
+/** Normalises hex color to `#rrggbb` (or null when omitted/empty). */
+function normalizeHexColor(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+}
 
 const monthKey = z
   .string()
@@ -114,6 +129,112 @@ export function buildExpenseTools(userId: string) {
       },
     }),
 
+    createBank: tool({
+      description:
+        "Crea un nuevo banco/cuenta para el usuario (p. ej. 'Visa', 'Galicia', 'Efectivo'). " +
+        "Si ya existe uno con el mismo nombre devuelve `error` con código duplicado. " +
+        "`color` opcional en hex (con o sin `#`).",
+      inputSchema: z.object({
+        name: z.string().min(1).max(80),
+        color: hexColorSchema.optional(),
+      }),
+      execute: async ({ name, color }) => {
+        try {
+          const bank = await db.bank.create({
+            data: {
+              userId,
+              name: name.trim(),
+              color: normalizeHexColor(color),
+            },
+          });
+          await invalidateBanksCache(userId);
+          return {
+            ok: true as const,
+            bank: { id: bank.id, name: bank.name, color: bank.color },
+          };
+        } catch (error) {
+          if (isUniqueViolation(error)) {
+            return { error: `Ya existe un banco llamado "${name.trim()}".` };
+          }
+          throw error;
+        }
+      },
+    }),
+
+    updateBank: tool({
+      description:
+        "Renombra un banco o cambia su color. Pasá los campos a modificar; los omitidos quedan igual. " +
+        "Verifica que el banco pertenezca al usuario.",
+      inputSchema: z.object({
+        id: z.string().min(1),
+        name: z.string().min(1).max(80).optional(),
+        color: hexColorSchema.nullable().optional().describe(
+          "Color hex (con o sin `#`). Pasá `null` para limpiar el color.",
+        ),
+      }),
+      execute: async ({ id, name, color }) => {
+        const existing = await db.bank.findFirst({ where: { id, userId } });
+        if (!existing) return { error: "El banco indicado no existe." };
+
+        const data: { name?: string; color?: string | null } = {};
+        if (name !== undefined) data.name = name.trim();
+        if (color !== undefined) data.color = normalizeHexColor(color);
+        if (Object.keys(data).length === 0) {
+          return { error: "Nada para actualizar." };
+        }
+
+        try {
+          const bank = await db.bank.update({ where: { id }, data });
+          await invalidateBanksCache(userId);
+          return {
+            ok: true as const,
+            bank: { id: bank.id, name: bank.name, color: bank.color },
+          };
+        } catch (error) {
+          if (isUniqueViolation(error)) {
+            return {
+              error: `Ya existe un banco con ese nombre. Elegí otro o renombrá el anterior.`,
+            };
+          }
+          throw error;
+        }
+      },
+    }),
+
+    deleteBank: tool({
+      description:
+        "Borra un banco del usuario. Bloqueado si el banco tiene plantillas (`Expense`) o " +
+        "líneas (`MonthExpenseLine`) asociadas: en ese caso devuelve los conteos para que " +
+        "ofrezcas reasignar a otro banco o borrar primero esos registros. Pedí confirmación " +
+        "verbal al usuario antes de llamar este tool.",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      execute: async ({ id }) => {
+        const existing = await db.bank.findFirst({
+          where: { id, userId },
+          select: { id: true, name: true },
+        });
+        if (!existing) return { error: "El banco indicado no existe." };
+
+        const [templateCount, lineCount] = await Promise.all([
+          db.expense.count({ where: { bankId: id, userId } }),
+          db.monthExpenseLine.count({ where: { bankId: id, userId } }),
+        ]);
+        if (templateCount > 0 || lineCount > 0) {
+          return {
+            error:
+              `No puedo borrar "${existing.name}": tiene ${templateCount} plantilla(s) y ${lineCount} línea(s) asociadas. ` +
+              "Reasigná esos registros a otro banco o borralos primero.",
+            templateCount,
+            lineCount,
+          };
+        }
+
+        await db.bank.delete({ where: { id } });
+        await invalidateBanksCache(userId);
+        return { ok: true as const, deleted: { id: existing.id, name: existing.name } };
+      },
+    }),
+
     listExpenseTemplates: tool({
       description:
         "Lista las plantillas de gastos del usuario (recurrentes y de un solo mes).",
@@ -186,6 +307,125 @@ export function buildExpenseTools(userId: string) {
             bankName: bank.name,
             category: created.category,
           },
+        };
+      },
+    }),
+
+    updateExpenseTemplate: tool({
+      description:
+        "Actualiza una plantilla de gasto existente. Pasá solo los campos a modificar (nombre, monto, banco, categoría, recurrencia, mes de inicio/fin). " +
+        "No materializa cambios sobre meses ya creados; los meses futuros (o los que se sincronicen con `mergePendingTemplates`) tomarán los nuevos valores. " +
+        "Si pasás `endMonth=null`, lo dejamos abierto (sin fecha de cierre).",
+      inputSchema: z.object({
+        id: z.string().min(1),
+        name: z.string().min(1).max(120).optional(),
+        amount: z.number().positive().optional(),
+        bankId: z.string().min(1).optional(),
+        isRecurring: z.boolean().optional(),
+        startMonth: optionalMonthKey,
+        endMonth: monthKey.nullable().optional(),
+        category: categoryEnum.optional(),
+      }),
+      execute: async ({
+        id,
+        name,
+        amount,
+        bankId,
+        isRecurring,
+        startMonth,
+        endMonth,
+        category,
+      }) => {
+        const existing = await db.expense.findFirst({ where: { id, userId } });
+        if (!existing) return { error: "La plantilla indicada no existe." };
+
+        const data: {
+          name?: string;
+          amount?: Prisma.Decimal;
+          bankId?: string;
+          isRecurring?: boolean;
+          startMonth?: Date;
+          endMonth?: Date | null;
+          category?: ExpenseCategory;
+        } = {};
+        if (name !== undefined) data.name = name.trim();
+        if (amount !== undefined) {
+          data.amount = new Prisma.Decimal(amount.toFixed(2));
+        }
+        if (category !== undefined) data.category = category as ExpenseCategory;
+        if (isRecurring !== undefined) data.isRecurring = isRecurring;
+        if (startMonth !== undefined) data.startMonth = parseMonthKey(startMonth);
+        if (endMonth !== undefined) {
+          data.endMonth = endMonth === null ? null : parseMonthKey(endMonth);
+        }
+        if (bankId !== undefined) {
+          const bank = await db.bank.findFirst({
+            where: { id: bankId, userId },
+            select: { id: true },
+          });
+          if (!bank) return { error: "El banco indicado no existe." };
+          data.bankId = bankId;
+        }
+
+        if (Object.keys(data).length === 0) {
+          return { error: "Nada para actualizar." };
+        }
+
+        // Cross-field validation: one-off templates must not have endMonth, and
+        // endMonth must be >= startMonth on the resulting record.
+        const nextRecurring = data.isRecurring ?? existing.isRecurring;
+        const nextStart = data.startMonth ?? existing.startMonth;
+        const nextEnd = data.endMonth !== undefined ? data.endMonth : existing.endMonth;
+        if (!nextRecurring && nextEnd) {
+          return { error: "Las plantillas puntuales no pueden tener endMonth." };
+        }
+        if (nextEnd && nextEnd < nextStart) {
+          return { error: "endMonth tiene que ser >= startMonth." };
+        }
+
+        const updated = await db.expense.update({
+          where: { id },
+          data,
+          include: { bank: { select: { name: true } } },
+        });
+        return {
+          ok: true as const,
+          expense: {
+            id: updated.id,
+            name: updated.name,
+            amount: updated.amount.toString(),
+            isRecurring: updated.isRecurring,
+            startMonth: formatMonthKey(updated.startMonth),
+            endMonth: updated.endMonth ? formatMonthKey(updated.endMonth) : null,
+            bankId: updated.bankId,
+            bankName: updated.bank.name,
+            category: updated.category,
+          },
+        };
+      },
+    }),
+
+    deleteExpenseTemplate: tool({
+      description:
+        "Borra una plantilla (`Expense`). Las líneas (`MonthExpenseLine`) ya materializadas en " +
+        "meses existentes se preservan y simplemente quedan desvinculadas (`templateId=null`), así que el " +
+        "histórico no se pierde. Pedí confirmación verbal al usuario antes de llamar este tool.",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      execute: async ({ id }) => {
+        const existing = await db.expense.findFirst({
+          where: { id, userId },
+          select: { id: true, name: true },
+        });
+        if (!existing) return { error: "La plantilla indicada no existe." };
+
+        const lineCount = await db.monthExpenseLine.count({
+          where: { templateId: id, userId },
+        });
+        await db.expense.delete({ where: { id } });
+        return {
+          ok: true as const,
+          deleted: { id: existing.id, name: existing.name },
+          detachedLineCount: lineCount,
         };
       },
     }),
@@ -325,9 +565,9 @@ export function buildExpenseTools(userId: string) {
 
     updateMonthLine: tool({
       description:
-        "Actualiza una línea del mes (pagado, importe, nombre, moneda o tipo de cambio). " +
-        "Útil para conciliar con una foto del banco o marcar pagos. " +
-        "Si pasás `currency` o `fxRate`, recalculamos `amountConverted` con el rate correspondiente.",
+        "Actualiza una línea del mes. Campos editables: `paid`, `amount`, `name`, `currency`, `fxRate`, `bankId`, `category`, `occurredOn` (yyyy-MM-dd). " +
+        "Útil para conciliar con una foto del banco, mover una línea a otro banco/categoría, corregir la fecha real o marcar pagos. " +
+        "Si pasás `currency` o `fxRate`, recalculamos `amountConverted` con el rate correspondiente; si solo cambia `amount` y la moneda no varía, mantenemos el rate ya fijado en la línea.",
       inputSchema: z.object({
         id: z.string().min(1),
         paid: z.boolean().optional(),
@@ -335,10 +575,27 @@ export function buildExpenseTools(userId: string) {
         name: z.string().min(1).max(120).optional(),
         currency: currencySchema.optional(),
         fxRate: z.number().positive().optional(),
+        bankId: z.string().min(1).optional(),
+        category: categoryEnum.optional(),
+        occurredOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .optional(),
       }),
-      execute: async ({ id, paid, amount, name, currency, fxRate }) => {
+      execute: async ({
+        id,
+        paid,
+        amount,
+        name,
+        currency,
+        fxRate,
+        bankId,
+        category,
+        occurredOn,
+      }) => {
         const existing = await db.monthExpenseLine.findFirst({
           where: { id, monthRecord: { userId } },
+          include: { monthRecord: { select: { month: true } } },
         });
         if (!existing) return { error: "Línea no encontrada." };
 
@@ -349,9 +606,28 @@ export function buildExpenseTools(userId: string) {
           currency?: string;
           fxRate?: Prisma.Decimal;
           amountConverted?: Prisma.Decimal;
+          bankId?: string;
+          category?: ExpenseCategory;
+          occurredOn?: Date;
         } = {};
         if (paid !== undefined) data.paid = paid;
         if (name !== undefined) data.name = name.trim();
+        if (category !== undefined) data.category = category as ExpenseCategory;
+
+        if (occurredOn !== undefined) {
+          const parsed = parseIsoDate(occurredOn);
+          if (!parsed) return { error: "occurredOn inválido (yyyy-MM-dd)." };
+          data.occurredOn = parsed;
+        }
+
+        if (bankId !== undefined) {
+          const bank = await db.bank.findFirst({
+            where: { id: bankId, userId },
+            select: { id: true },
+          });
+          if (!bank) return { error: "El banco indicado no existe." };
+          data.bankId = bankId;
+        }
 
         const amountChanged = amount !== undefined;
         const currencyChanged = currency !== undefined;
@@ -410,6 +686,10 @@ export function buildExpenseTools(userId: string) {
           }
           throw error;
         }
+        await expireYearTimeline(
+          userId,
+          existing.monthRecord.month.getUTCFullYear(),
+        );
         return {
           ok: true,
           line: {
@@ -420,6 +700,38 @@ export function buildExpenseTools(userId: string) {
             fxRate: updated.fxRate.toString(),
             amountConverted: updated.amountConverted.toString(),
             paid: updated.paid,
+            bankId: updated.bankId,
+            category: updated.category,
+            occurredOn: updated.occurredOn.toISOString().slice(0, 10),
+          },
+        };
+      },
+    }),
+
+    deleteMonthLine: tool({
+      description:
+        "Borra una línea del mes (`MonthExpenseLine`). No toca la plantilla original. " +
+        "Pedí confirmación verbal al usuario antes de llamar este tool.",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      execute: async ({ id }) => {
+        const existing = await db.monthExpenseLine.findFirst({
+          where: { id, monthRecord: { userId } },
+          include: { monthRecord: { select: { month: true } } },
+        });
+        if (!existing) return { error: "Línea no encontrada." };
+
+        await db.monthExpenseLine.delete({ where: { id } });
+        await expireYearTimeline(
+          userId,
+          existing.monthRecord.month.getUTCFullYear(),
+        );
+        return {
+          ok: true as const,
+          deleted: {
+            id: existing.id,
+            name: existing.name,
+            amount: existing.amount.toString(),
+            currency: existing.currency,
           },
         };
       },
@@ -590,6 +902,46 @@ export function buildExpenseTools(userId: string) {
           note:
             "Las líneas existentes mantienen su tipo de cambio original; sólo cambian los totales nuevos.",
         };
+      },
+    }),
+
+    getFxRate: tool({
+      description:
+        "Consulta el tipo de cambio actual `1 from = X to`. Si omitís `to`, usamos la moneda principal del usuario. " +
+        "Útil para previsualizar conversiones antes de cargar un gasto, o cuando el usuario pregunta '¿a cuánto está USD/ARS?'. " +
+        "El rate se cachea por 1h. Si la fuente no responde, devolvemos `error` y conviene pedirle al usuario un rate manual " +
+        "para usar como `fxRate` en addMonthLine/updateMonthLine.",
+      inputSchema: z.object({
+        from: currencySchema,
+        to: currencySchema.optional(),
+      }),
+      execute: async ({ from, to }) => {
+        let target = to;
+        if (!target) {
+          const user = await db.user.findUnique({
+            where: { id: userId },
+            select: { primaryCurrency: true },
+          });
+          if (!user) return { error: "Usuario no encontrado." };
+          target = user.primaryCurrency;
+        }
+        try {
+          const rate = await fetchFxRate(from, target);
+          return {
+            ok: true as const,
+            from,
+            to: target,
+            fxRate: rate.toString(),
+            example: `1 ${from} ≈ ${rate.toString()} ${target}`,
+          };
+        } catch (error) {
+          if (error instanceof FxUnavailableError) {
+            return {
+              error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate manual.`,
+            };
+          }
+          throw error;
+        }
       },
     }),
 
