@@ -78,9 +78,14 @@ export async function createMonthFromTemplates(userId: string, monthKey: string)
         income: user.monthlyIncome,
         lines: {
           create: lineData.map((l) => ({
+            userId,
             templateId: l.templateId,
             bankId: l.bankId,
             name: l.name,
+            // Stub de plantilla: la fecha "real" todavía no existe, así que
+            // usamos el primer día del mes. `templateId` está seteado, así
+            // que el índice único parcial (templateId IS NULL) las ignora.
+            occurredOn: start,
             amount: l.amount,
             currency: l.currency,
             fxRate: l.fxRate,
@@ -131,9 +136,16 @@ export async function createMonthFromCopy(
         income: sourceRecord.income,
         lines: {
           create: sourceRecord.lines.map((l) => ({
+            userId,
             templateId: l.templateId,
             bankId: l.bankId,
             name: l.name,
+            // Al copiar un mes a otro, las líneas son stubs nuevos (sin
+            // pago real todavía); arrancan con el 1 del mes destino. Las
+            // que vienen de plantilla quedan fuera del índice único; las
+            // sueltas (templateId null) se diferencian del original
+            // porque quedan en otro `occurredOn`.
+            occurredOn: targetStart,
             amount: l.amount,
             currency: l.currency,
             fxRate: l.fxRate,
@@ -324,10 +336,12 @@ export async function mergePendingTemplateLinesIntoMonth(userId: string, monthKe
       const amount = new Prisma.Decimal(p.amount);
       return db.monthExpenseLine.create({
         data: {
+          userId,
           monthRecordId: monthRecord.id,
           templateId: p.templateId,
           bankId: p.bankId,
           name: p.name,
+          occurredOn: start,
           amount,
           currency: primaryCurrency,
           fxRate: new Prisma.Decimal(1),

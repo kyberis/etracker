@@ -1,6 +1,11 @@
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import {
+  isUniqueViolation,
+  parseIsoDate,
+  todayUtcDate,
+} from "@/lib/expense-line";
 import { parseMonthKey, toMonthStart } from "@/lib/months";
 
 import { classifyImportableTransactions } from "./import-classifier";
@@ -33,14 +38,27 @@ function monthUtcRange(monthKey: string): { from: string; to: string } {
   };
 }
 
-function parseBookingDate(tx: GocardlessBookedTransaction): string | null {
+/**
+ * Fecha contable del movimiento. GoCardless devuelve `bookingDate` para
+ * transacciones consolidadas y `valueDate` para algunas pendientes; cuando un
+ * movimiento todavía no consolidó ninguna de las dos (Revolut suele etiquetar
+ * estos como "today" en su UI), asumimos que ocurrió hoy. Devolvemos siempre
+ * `yyyy-MM-dd` (UTC) para que `isDateInMonth` y la fecha guardada en
+ * `MonthExpenseLine.occurredOn` sean consistentes entre zonas horarias.
+ */
+function parseBookingDate(tx: GocardlessBookedTransaction): string {
   const raw = tx.bookingDate ?? tx.valueDate;
-  if (!raw || raw.length < 10) return null;
-  return raw.slice(0, 10);
+  if (raw && raw.length >= 10) {
+    return raw.slice(0, 10);
+  }
+  const today = todayUtcDate();
+  const y = today.getUTCFullYear();
+  const mo = String(today.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(today.getUTCDate()).padStart(2, "0");
+  return `${y}-${mo}-${day}`;
 }
 
-function isDateInMonth(dateStr: string | null, monthKey: string): boolean {
-  if (!dateStr) return false;
+function isDateInMonth(dateStr: string, monthKey: string): boolean {
   return dateStr.startsWith(monthKey);
 }
 
@@ -110,6 +128,10 @@ export async function runRevolutSyncForMonth(params: {
     if (!isDateInMonth(d, params.monthKey)) continue;
     inMonth.push(tx);
   }
+  // Revolut/GoCardless puede devolver transacciones del día de hoy sin
+  // bookingDate ni valueDate (estado pending). `parseBookingDate` las
+  // resuelve a hoy, así que solo entran al loop cuando el monthKey es el
+  // mes en curso (caso típico del usuario sincronizando a media tarde).
 
   const monthStart = toMonthStart(parseMonthKey(params.monthKey));
   const monthRecord = await db.monthRecord.findFirst({
@@ -192,7 +214,7 @@ export async function runRevolutSyncForMonth(params: {
       transactionId: id,
       amount: tx.transactionAmount.amount,
       currency: tx.transactionAmount.currency,
-      bookingDate: parseBookingDate(tx) ?? undefined,
+      bookingDate: parseBookingDate(tx),
       description: buildDescription(tx),
     });
   }
@@ -211,15 +233,21 @@ export async function importRevolutLine(params: {
   bankId: string;
   name: string;
   amount: number;
-}): Promise<{
-  id: string;
-  name: string;
-  amount: string;
-  bankId: string;
-  bankName: string;
-  paid: boolean;
-  category: string;
-}> {
+  /** Fecha real del movimiento (`yyyy-MM-dd`). Default: hoy. */
+  bookingDate?: string;
+}): Promise<
+  | {
+      duplicate: false;
+      id: string;
+      name: string;
+      amount: string;
+      bankId: string;
+      bankName: string;
+      paid: boolean;
+      category: string;
+    }
+  | { duplicate: true }
+> {
   const monthStart = toMonthStart(parseMonthKey(params.monthKey));
   const monthRecord = await db.monthRecord.findFirst({
     where: { userId: params.userId, month: monthStart },
@@ -242,23 +270,35 @@ export async function importRevolutLine(params: {
   // legacy helper. The new flow goes through `/api/months/[month]/lines` which
   // applies the FX lookup; this code path is kept for tests/back-compat only.
   const amount = new Prisma.Decimal(params.amount.toFixed(2));
-  const line = await db.monthExpenseLine.create({
-    data: {
-      monthRecordId: monthRecord.id,
-      templateId: null,
-      bankId: params.bankId,
-      name: params.name.trim(),
-      amount,
-      currency: primaryCurrency,
-      fxRate: new Prisma.Decimal(1),
-      amountConverted: amount,
-      category: "OTROS",
-      paid: false,
-    },
-    include: { bank: { select: { name: true } } },
-  });
+  const occurredOn = parseIsoDate(params.bookingDate) ?? todayUtcDate();
+  let line;
+  try {
+    line = await db.monthExpenseLine.create({
+      data: {
+        userId: params.userId,
+        monthRecordId: monthRecord.id,
+        templateId: null,
+        bankId: params.bankId,
+        name: params.name.trim(),
+        occurredOn,
+        amount,
+        currency: primaryCurrency,
+        fxRate: new Prisma.Decimal(1),
+        amountConverted: amount,
+        category: "OTROS",
+        paid: false,
+      },
+      include: { bank: { select: { name: true } } },
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { duplicate: true as const };
+    }
+    throw error;
+  }
 
   return {
+    duplicate: false as const,
     id: line.id,
     name: line.name,
     amount: line.amount.toString(),

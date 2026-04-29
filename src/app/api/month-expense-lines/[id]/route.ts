@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/expense-line";
 import { FxUnavailableError, convertToPrimary } from "@/lib/fx/rates";
 import { jsonError, withApi } from "@/lib/http";
 import { requireUserId } from "@/lib/session";
@@ -84,7 +85,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return jsonError("Nothing to update.", 400);
     }
 
-    const updated = await db.monthExpenseLine.update({ where: { id }, data });
+    let updated;
+    try {
+      updated = await db.monthExpenseLine.update({ where: { id }, data });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        return jsonError(
+          "Ya tenés un gasto con esa fecha, descripción y monto. No puedo dejarlo idéntico a otro.",
+          409,
+        );
+      }
+      throw error;
+    }
     await expireYearTimeline(userId, line.monthRecord.month.getUTCFullYear());
     return { line: updated };
   });

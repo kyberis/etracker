@@ -1,4 +1,9 @@
 import { db } from "@/lib/db";
+import {
+  isUniqueViolation,
+  parseIsoDate,
+  todayUtcDate,
+} from "@/lib/expense-line";
 import { FxUnavailableError, convertToPrimary } from "@/lib/fx/rates";
 import { jsonError, withApi } from "@/lib/http";
 import { isCurrentMonthKey, parseMonthKey, toMonthStart } from "@/lib/months";
@@ -53,21 +58,36 @@ export async function POST(request: Request, context: { params: Promise<{ month:
       throw error;
     }
 
-    const line = await db.monthExpenseLine.create({
-      data: {
-        monthRecordId: monthRecord.id,
-        templateId: null,
-        bankId: payload.bankId,
-        name: payload.name.trim(),
-        amount: converted.amount,
-        currency: converted.currency,
-        fxRate: converted.fxRate,
-        amountConverted: converted.amountConverted,
-        category: payload.category,
-        paid: payload.paid ?? false,
-      },
-      include: { bank: { select: { name: true } } },
-    });
+    const occurredOn = parseIsoDate(payload.occurredOn) ?? todayUtcDate();
+
+    let line;
+    try {
+      line = await db.monthExpenseLine.create({
+        data: {
+          userId,
+          monthRecordId: monthRecord.id,
+          templateId: null,
+          bankId: payload.bankId,
+          name: payload.name.trim(),
+          occurredOn,
+          amount: converted.amount,
+          currency: converted.currency,
+          fxRate: converted.fxRate,
+          amountConverted: converted.amountConverted,
+          category: payload.category,
+          paid: payload.paid ?? false,
+        },
+        include: { bank: { select: { name: true } } },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        return jsonError(
+          "Ya tenés un gasto con esa fecha, descripción y monto. No lo dupliqué.",
+          409,
+        );
+      }
+      throw error;
+    }
 
     await expireYearTimeline(userId, month.getUTCFullYear());
 

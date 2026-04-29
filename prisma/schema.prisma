@@ -64,6 +64,7 @@ model User {
   banks                    Bank[]
   expenses                 Expense[]
   monthRecords             MonthRecord[]
+  monthExpenseLines        MonthExpenseLine[]
   whatsappMessages         WhatsappMessage[]
   agentUsage               AgentMessageUsage[]
   revolutConnection        RevolutConnection?
@@ -184,10 +185,22 @@ model MonthRecord {
 
 model MonthExpenseLine {
   id            String          @id @default(cuid())
+  /// Denormalizado desde `monthRecord.userId` para soportar el índice único
+  /// global de deduplicación (un usuario no puede tener dos líneas con la
+  /// misma fecha/descripción/monto/moneda). FK con cascade igual que
+  /// `MonthRecord.userId`.
+  userId        String
   monthRecordId String
   templateId    String?
   bankId        String
   name          String
+  /// Fecha real del gasto (no la del bucket). Para Revolut: `bookingDate`
+  /// con fallback a `valueDate`; si la transacción está pending y no trae
+  /// fecha la registramos con HOY (UTC). Para entradas manuales por chat /
+  /// foto / formulario: HOY (UTC) salvo que el usuario indique otra fecha.
+  /// Solo guardamos la parte de fecha (sin hora) para que la deduplicación
+  /// sea determinística entre zonas horarias.
+  occurredOn    DateTime        @db.Date
   /// Monto en la moneda original de la línea (`currency`).
   amount        Decimal         @db.Decimal(12, 2)
   /// ISO 4217 (3 letras, mayúsculas). Moneda en la que el usuario carga el
@@ -203,6 +216,7 @@ model MonthExpenseLine {
   amountConverted Decimal       @db.Decimal(12, 2)
   category      ExpenseCategory @default(OTROS)
   paid          Boolean         @default(false)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   monthRecord   MonthRecord     @relation(fields: [monthRecordId], references: [id], onDelete: Cascade)
   template      Expense?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
   bank          Bank            @relation(fields: [bankId], references: [id], onDelete: Restrict)
@@ -211,6 +225,12 @@ model MonthExpenseLine {
   updatedAt     DateTime        @updatedAt
 
   @@index([monthRecordId])
+  @@index([userId])
+  // El índice único de deduplicación
+  // (`userId`, `occurredOn`, lower(trim(regexp_replace(name,...))), `amount`,
+  // `currency`) WHERE `templateId` IS NULL se crea con SQL en la migración
+  // `20260429140000_expense_dedup` porque Prisma no expresa índices con
+  // funciones ni parciales.
 }
 
 model RevolutConnection {

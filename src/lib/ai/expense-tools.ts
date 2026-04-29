@@ -5,6 +5,11 @@ import { z } from "zod";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
 import { getBanksCached } from "@/lib/cache/banks";
 import { db } from "@/lib/db";
+import {
+  isUniqueViolation,
+  parseIsoDate,
+  todayUtcDate,
+} from "@/lib/expense-line";
 import { FxUnavailableError, convertToPrimary } from "@/lib/fx/rates";
 import {
   applyPrevMonthLeftoverDecision,
@@ -193,7 +198,9 @@ export function buildExpenseTools(userId: string) {
         "algo que ya gastó. Pasá `paid=false` SOLO si el usuario aclara explícitamente que aún no lo pagó. " +
         "Si el gasto está en otra moneda que la principal del usuario, pasá `currency` (ISO 4217). " +
         "Podés overridear el tipo de cambio con `fxRate` (p. ej. dólar blue en Argentina); si lo omitís, " +
-        "buscamos un rate automático y lo dejamos congelado en la línea.",
+        "buscamos un rate automático y lo dejamos congelado en la línea. " +
+        "Las líneas son únicas por (usuario, fecha, descripción, monto, moneda): " +
+        "si ya existe una idéntica el tool devuelve `duplicate=true` sin crear nada.",
       inputSchema: z.object({
         name: z.string().min(1).max(120),
         amount: z.number().positive(),
@@ -217,6 +224,13 @@ export function buildExpenseTools(userId: string) {
           .optional()
           .describe(
             "Override manual del tipo de cambio. Útil para casos como dólar blue/MEP. Si la omitís, usamos el rate del momento.",
+          ),
+        occurredOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .optional()
+          .describe(
+            "Fecha real del gasto (yyyy-MM-dd). Default = hoy. Pasala si el usuario indica una fecha distinta (p. ej. 'la semana pasada', un comprobante con fecha).",
           ),
       }),
       execute: async (input) => {
@@ -259,22 +273,39 @@ export function buildExpenseTools(userId: string) {
           throw error;
         }
 
-        const line = await db.monthExpenseLine.create({
-          data: {
-            monthRecordId: record.id,
-            templateId: null,
-            bankId: input.bankId,
-            name: input.name.trim(),
-            amount: converted.amount,
-            currency: converted.currency,
-            fxRate: converted.fxRate,
-            amountConverted: converted.amountConverted,
-            category: input.category as ExpenseCategory,
-            paid: input.paid,
-          },
-        });
+        const occurredOn = parseIsoDate(input.occurredOn) ?? todayUtcDate();
+        let line;
+        try {
+          line = await db.monthExpenseLine.create({
+            data: {
+              userId,
+              monthRecordId: record.id,
+              templateId: null,
+              bankId: input.bankId,
+              name: input.name.trim(),
+              occurredOn,
+              amount: converted.amount,
+              currency: converted.currency,
+              fxRate: converted.fxRate,
+              amountConverted: converted.amountConverted,
+              category: input.category as ExpenseCategory,
+              paid: input.paid,
+            },
+          });
+        } catch (error) {
+          if (isUniqueViolation(error)) {
+            return {
+              ok: true as const,
+              duplicate: true as const,
+              note:
+                "Ya existía un gasto con esa fecha, descripción y monto. No lo dupliqué.",
+            };
+          }
+          throw error;
+        }
         return {
-          ok: true,
+          ok: true as const,
+          duplicate: false as const,
           line: {
             id: line.id,
             month,
@@ -364,10 +395,21 @@ export function buildExpenseTools(userId: string) {
           return { error: "Nada para actualizar." };
         }
 
-        const updated = await db.monthExpenseLine.update({
-          where: { id },
-          data,
-        });
+        let updated;
+        try {
+          updated = await db.monthExpenseLine.update({
+            where: { id },
+            data,
+          });
+        } catch (error) {
+          if (isUniqueViolation(error)) {
+            return {
+              error:
+                "Ya hay un gasto con esa fecha, descripción y monto; no puedo dejar dos idénticos.",
+            };
+          }
+          throw error;
+        }
         return {
           ok: true,
           line: {

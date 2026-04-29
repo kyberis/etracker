@@ -139,6 +139,8 @@ export const monthExpenseLineUpdateSchema = z.object({
   fxRate: z.coerce.number().positive().optional(),
 });
 
+const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
 export const monthExpenseLineCreateSchema = z.object({
   name: z.string().min(1, "Name is required.").max(120),
   amount: z.coerce.number().positive("Amount must be greater than 0."),
@@ -153,6 +155,15 @@ export const monthExpenseLineCreateSchema = z.object({
   fxRate: z.coerce.number().positive().optional(),
   /** Optional override for `paid`; defaults to `false` server-side. */
   paid: z.coerce.boolean().optional(),
+  /**
+   * Fecha real del gasto (`yyyy-MM-dd`, UTC). Default server-side: hoy.
+   * Forma parte de la clave de deduplicación junto a usuario, descripción
+   * normalizada, monto y moneda.
+   */
+  occurredOn: z
+    .string()
+    .regex(isoDateRegex, "occurredOn must be yyyy-MM-dd.")
+    .optional(),
 });
 
 export const yearParamSchema = z.object({

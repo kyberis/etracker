@@ -4,6 +4,11 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import {
+  isUniqueViolation,
+  parseIsoDate,
+  todayUtcDate,
+} from "@/lib/expense-line";
+import {
   formatMonthKey,
   getCurrentMonthKey,
   parseMonthKey,
@@ -463,9 +468,13 @@ export function registerUserMcp(server: McpServer): void {
         amount: z.number().positive(),
         category: categorySchema.default("OTROS"),
         paid: z.boolean().default(false),
+        occurredOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .optional(),
       },
     },
-    async ({ month, bankId, name, amount, category, paid }, extra) => {
+    async ({ month, bankId, name, amount, category, paid, occurredOn }, extra) => {
       const userId = getUserIdFromExtra(extra);
       if (!userId) return errContent("Unauthorized.");
       const start = toMonthStart(parseMonthKey(month));
@@ -482,23 +491,39 @@ export function registerUserMcp(server: McpServer): void {
       }
       const primaryCurrency = user?.primaryCurrency ?? "USD";
       const moneyAmount = toMoney(amount);
-      const line = await db.monthExpenseLine.create({
-        data: {
-          monthRecordId: monthRecord.id,
-          bankId,
-          name,
-          amount: moneyAmount,
-          currency: primaryCurrency,
-          fxRate: toMoney(1),
-          amountConverted: moneyAmount,
-          category: category as ExpenseCategory,
-          paid,
-        },
-      });
+      const occurredOnDate = parseIsoDate(occurredOn) ?? todayUtcDate();
+      let line;
+      try {
+        line = await db.monthExpenseLine.create({
+          data: {
+            userId,
+            monthRecordId: monthRecord.id,
+            bankId,
+            name,
+            occurredOn: occurredOnDate,
+            amount: moneyAmount,
+            currency: primaryCurrency,
+            fxRate: toMoney(1),
+            amountConverted: moneyAmount,
+            category: category as ExpenseCategory,
+            paid,
+          },
+        });
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          return jsonContent({
+            ok: true,
+            duplicate: true,
+            message: `Ya existía un gasto idéntico ("${name}", $${fmt(amount)}) en esa fecha; no lo dupliqué.`,
+          });
+        }
+        throw error;
+      }
       const year = start.getUTCFullYear();
       await expireYearTimeline(userId, year);
       return jsonContent({
         ok: true,
+        duplicate: false,
         id: line.id,
         message: `Agregué "${name}" por $${fmt(amount)} a ${month}.`,
       });
