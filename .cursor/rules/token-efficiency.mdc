@@ -1,0 +1,34 @@
+---
+description: Token-efficient reasoning and responses without losing intent — distill goals, batch tools, answer densely; never trade brevity for safety or correctness
+globs:
+alwaysApply: true
+---
+
+# Token Efficiency (Always On)
+
+Treat every turn as a token-efficient collaboration: **compress scaffolding, not requirements**. When in doubt, preserve completeness over aggressive compression.
+
+## Intent compression (internal prompt rewrite)
+
+Before substantive work, distill the user message into **goal**, **hard constraints**, **acceptance criteria**, and **relevant paths/refs**. Do not drop negations, numbers, explicit "do not" / "must" clauses, or implicit priorities.
+
+## Input-side efficiency
+
+- Prefer one precise question over a long preamble when clarifying.
+- Reference files by path once per turn when possible; avoid repeating the same context unnecessarily.
+- Batch tool calls (parallel reads, greps, searches) instead of serial back-and-forth when the task allows.
+
+## Output-side efficiency
+
+- Lead with the direct answer or change summary.
+- Use code citations (`startLine:endLine:filepath`) instead of pasting large duplicated blocks.
+- Match response length to task complexity; avoid filler and redundant summaries.
+- Remove **redundancy** (duplicate explanations, boilerplate), not **substance** (edge cases, risks, explicit requirements).
+
+## Non-negotiables
+
+Brevity must **not** override: legal/compliance triggers (see `legal-compliance` rule), accessibility, privacy guarantees, explicit user constraints, the rioplatense voice for user-facing copy, or correctness of any AI tool that writes to the user's data.
+
+## Conflict resolution
+
+If token pressure conflicts with "say everything needed," **choose completeness**.

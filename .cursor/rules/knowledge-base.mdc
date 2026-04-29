@@ -1,0 +1,45 @@
+---
+description: Keep knowledge/ and key root docs (AGENTS.md, ARCHITECTURE.md) in sync with the code so agents can reason about Clara from the repo alone
+globs:
+alwaysApply: true
+---
+
+# Knowledge Base Maintenance
+
+The `knowledge/` folder is the system of record for this codebase. It lives
+alongside [`AGENTS.md`](../../AGENTS.md) and [`ARCHITECTURE.md`](../../ARCHITECTURE.md)
+at the repository root.
+
+> Read [`AGENTS.md`](../../AGENTS.md) and [`knowledge/product-specs/index.md`](../../knowledge/product-specs/index.md)
+> at the start of any non-trivial task.
+
+## When to update
+
+Update the knowledge base when you:
+
+1. **Add a new feature** → create a spec in `knowledge/product-specs/` using
+   [`knowledge/templates/product-spec.template.md`](../../knowledge/templates/product-spec.template.md)
+   and add it to the index.
+2. **Change an existing feature's data model, API shape, MCP tool surface,
+   or AI prompt** → edit its spec.
+3. **Add or change a Prisma model** → if the change is non-trivial, document
+   it in the spec; the migration itself is the source of truth.
+4. **Introduce an architectural pattern worth preserving** → add a design doc
+   at `knowledge/design-docs/<slug>.md` and list it in
+   [`knowledge/design-docs/index.md`](../../knowledge/design-docs/index.md).
+5. **Change `.cursor/skills/` or `.cursor/rules/`** → cross-link the relevant
+   spec to the updated skill or rule.
+6. **Ship something user-visible** → add a CHANGELOG entry to
+   [`src/lib/marketing-content.ts`](../../src/lib/marketing-content.ts) (ES + EN).
+   See [`changelog`](changelog.mdc).
+
+## Specs are not marketing copy
+
+Specs describe what a feature does and how to change it safely. Marketing
+language (claims, benefits, taglines) belongs in `src/lib/marketing-content.ts`.
+Never duplicate.
+
+## When in doubt
+
+Link instead of inlining. The knowledge base works because it's a graph, not a
+single document.

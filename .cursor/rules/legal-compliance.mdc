@@ -1,0 +1,61 @@
+---
+description: Legal compliance guardrails for Clara — triggers legal-advisor skill review when changes touch user data, third-party services, AI prompts, Open Banking, marketing claims, or auth/consent flows
+globs: "src/**/*.ts,src/**/*.tsx,prisma/**"
+alwaysApply: true
+---
+
+# Legal Compliance Guardrails
+
+Before completing any change, check if it triggers a legal review. If **any**
+condition below matches, read and follow the `legal-advisor` skill at
+[`.cursor/skills/legal-advisor/SKILL.md`](../skills/legal-advisor/SKILL.md).
+
+## Trigger Conditions
+
+Involve `legal-advisor` when the change:
+
+1. **Collects new user data** — any new form field, API parameter, or stored
+   value derived from user input (especially financial transactions, banking
+   metadata, or personal identifiers).
+2. **Adds or changes a third-party service** — new API integration, SDK,
+   analytics provider, or external data processor (AI Gateway model swap,
+   GoCardless region, Twilio service, Vercel sub-product, …).
+3. **Modifies AI features** — changes to prompts, the data Clara sends to the
+   model, the tools the agent can call, or how AI output is displayed.
+4. **Touches Open Banking** — anything around GoCardless requisitions, scopes,
+   token storage, or how transaction data is fetched, cached, or matched.
+   Clara is **read-only** on bank accounts: any change that even *looks* like
+   it could initiate a payment is blocked.
+5. **Changes signup, login, or consent flows** — Google sign-in, email/pass,
+   token issuance, deny-by-default rules, MCP PAT lifecycle.
+6. **Updates marketing copy** — landing, FAQ, privacy, changelog, llms.txt,
+   especially claims about security, data handling, "open source", or
+   self-hostability.
+7. **Modifies cookies / sessions** — adding cookies, changing JWT lifetime,
+   adding client-side storage, broadening CORS.
+8. **Changes data export or deletion** — account deletion, full data dump,
+   per-resource delete cascade, retention rules.
+9. **Modifies middleware or security headers** — `src/proxy.ts`, CSP, CSRF,
+   rate limiting, signed-webhook verification.
+10. **Adds a new MCP tool to `/api/mcp/user`** — every authenticated tool
+    expands the surface accessible to a third-party AI client.
+
+## Quick Checks (No Full Review Needed)
+
+If the change is purely cosmetic (styling, layout) or internal (refactor
+without behaviour change), no legal review is needed. But verify:
+
+- No new data fields are being persisted.
+- No new third-party requests are being made.
+- Privacy claims in `marketing-content.ts` (no telemetry, MIT, self-hosted)
+  remain accurate.
+- The `CHANGELOG` doesn't promise something the code doesn't deliver.
+
+## Key Legal-adjacent Documents
+
+- Privacy: `PRIVACY_SECTIONS` in [`src/lib/marketing-content.ts`](../../src/lib/marketing-content.ts)
+  and `src/app/(marketing)/[lang]/privacy/...`
+- Public claims: `HERO_PITCH`, `ELEVATOR_PITCH`, `FEATURES` in
+  `src/lib/marketing-content.ts`
+- License: [`LICENSE`](../../LICENSE) (MIT)
+- Security policy: `src/app/.well-known/security.txt/route.ts`

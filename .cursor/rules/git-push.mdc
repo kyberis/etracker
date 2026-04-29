@@ -1,0 +1,34 @@
+---
+description: Git push and commit conventions for the etracker (Clara) repo, complementing git-author
+globs:
+alwaysApply: true
+---
+
+# Git Push & Commit
+
+This is a personal / open-source repo, **not** an Uber project. Author
+identity is enforced by [`git-author.mdc`](git-author.mdc); this rule covers
+the corporate hook + GPG bypass that goes alongside it.
+
+When pushing or committing to this repository, always:
+
+- **Commit:**
+
+  ```bash
+  GIT_AUTHOR_NAME="Marcos Suarez" GIT_AUTHOR_EMAIL="suarez84@gmail.com" \
+  GIT_COMMITTER_NAME="Marcos Suarez" GIT_COMMITTER_EMAIL="suarez84@gmail.com" \
+    git -c commit.gpgsign=false commit --no-verify -m "..."
+  ```
+
+- **Push:**
+
+  ```bash
+  git push --no-verify origin <branch>
+  ```
+
+Never run `ussh` or attempt to fix the corporate hook — just bypass it.
+
+`origin/main` is wired to a Vercel production deploy. Run `npm run lint &&
+npx tsc --noEmit && npm test && npm run build` before pushing to `main`.
+Production deploys run `prisma migrate deploy` automatically; preview deploys
+do not touch the database.

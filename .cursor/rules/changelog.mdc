@@ -1,0 +1,76 @@
+---
+description: Keep the user-visible CHANGELOG in src/lib/marketing-content.ts up to date in both Spanish (rioplatense) and English when shipping user-visible changes
+globs: "src/**/*.ts,src/**/*.tsx,prisma/**"
+alwaysApply: true
+---
+
+# Changelog
+
+The user-visible changelog is **not** a separate file. It lives in
+[`src/lib/marketing-content.ts`](../../src/lib/marketing-content.ts) under the
+`CHANGELOG` field of both the `ES` and `EN` content objects, and it feeds:
+
+- `/[lang]/changelog` public page (`src/app/(marketing)/[lang]/changelog/page.tsx`)
+- JSON-LD `Article` markup that AI crawlers index
+- `llms.txt` / `llms-full.txt` summaries
+
+## When to add an entry
+
+Add a CHANGELOG entry whenever you ship a user-visible change. That includes:
+
+- New feature, capability, or surface (UI page, MCP tool, agent tool).
+- Notable improvement (faster sync, smarter classifier, redesigned screen).
+- Bug fix that users would have felt.
+
+Skip entries for: pure refactors, dependency bumps without behaviour change,
+internal tooling, knowledge-base edits.
+
+## How to add an entry
+
+1. Decide the version. **Semver:**
+   - Patch (`0.x.y` → `0.x.y+1`) for fixes and small tweaks.
+   - Minor (`0.x.0` → `0.(x+1).0`) for new features and noticeable improvements.
+   - Major (`0.x.y` → `1.0.0`) reserved for breaking changes or the 1.0
+     positioning moment.
+   - Pre-1.0 the project uses `0.x.y` and bumps minor liberally.
+2. Add a new entry **at the top** of `CHANGELOG` in **both** `ES` and `EN`
+   blocks of `marketing-content.ts`. Keep them in lockstep — same `version`,
+   same `date`, parallel `highlights` translated faithfully.
+3. ES entries are written in **rioplatense** (voseo, sin tuteo, sin inglés
+   corporativo). See [`.cursor/skills/ux-writer/SKILL.md`](../skills/ux-writer/SKILL.md).
+4. EN entries are concise, factual, no marketing fluff.
+5. The `title` is one short noun-phrase. The `highlights` are 1-4 bullets
+   describing what changed for the user.
+6. Don't bump the `version` in `package.json` for every shipped change — the
+   marketing CHANGELOG is the user-facing version number; `package.json`
+   stays at `0.1.0` until a deliberate release moment.
+
+## Example
+
+```ts
+{
+  version: "0.2.0",
+  date: "2026-05-12",
+  title: "Importación por foto del banco",
+  highlights: [
+    "Tirale una captura del banco al chat y Clara extrae los movimientos.",
+    "Sugiere categorías y siempre pregunta antes de tocar nada.",
+    "Soporta capturas en castellano e inglés.",
+  ],
+},
+```
+
+And in EN:
+
+```ts
+{
+  version: "0.2.0",
+  date: "2026-05-12",
+  title: "Import by bank screenshot",
+  highlights: [
+    "Drop a screenshot in chat and Clara extracts the movements.",
+    "Suggests categories and always asks before changing anything.",
+    "Works with Spanish and English screenshots.",
+  ],
+},
+```
