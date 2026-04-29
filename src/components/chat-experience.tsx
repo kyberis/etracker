@@ -731,8 +731,8 @@ export function ChatExperience({
         onSubmit={handleSubmit}
         className={cn(
           fullscreen
-            ? "bg-background/95 supports-[backdrop-filter]:bg-background/80 mt-auto border-t border-foreground/5 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:px-6"
-            : "mt-3",
+            ? "bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 z-20 mt-auto border-t border-foreground/5 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:px-6"
+            : "sticky bottom-0 z-20 mt-3",
         )}
       >
         <div className="mx-auto w-full max-w-3xl">
