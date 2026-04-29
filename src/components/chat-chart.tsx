@@ -19,6 +19,9 @@ import {
 } from "recharts";
 
 import type { ChartSpec } from "@/lib/ai/chart-spec";
+import { intlLocale } from "@/lib/i18n/format";
+import { useLocale } from "@/lib/i18n/client";
+import type { Locale } from "@/lib/i18n/locale";
 
 /**
  * Render an in-chat chart from the `renderChart` tool spec.
@@ -43,20 +46,21 @@ function paletteColor(index: number): string {
   return PALETTE[index % PALETTE.length];
 }
 
-function formatCurrency(value: number, currency?: string): string {
+function formatChartCurrency(value: number, currency: string | undefined, locale: Locale): string {
+  const loc = intlLocale(locale);
   if (!currency) {
-    return value.toLocaleString("es-AR", {
+    return value.toLocaleString(loc, {
       maximumFractionDigits: 2,
     });
   }
   try {
-    return value.toLocaleString("es-AR", {
+    return value.toLocaleString(loc, {
       style: "currency",
       currency,
       maximumFractionDigits: 2,
     });
   } catch {
-    return `${currency} ${value.toLocaleString("es-AR", {
+    return `${currency} ${value.toLocaleString(loc, {
       maximumFractionDigits: 2,
     })}`;
   }
@@ -75,6 +79,7 @@ function buildXYRows(spec: ChartSpec) {
 }
 
 export function ChatChart({ spec }: { spec: ChartSpec }) {
+  const locale = useLocale();
   return (
     <figure className="bg-background text-foreground my-1 w-full max-w-[420px] rounded-xl border p-3 shadow-sm">
       <figcaption className="mb-2 space-y-0.5">
@@ -87,41 +92,41 @@ export function ChatChart({ spec }: { spec: ChartSpec }) {
       </figcaption>
       <div className="h-[220px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          {renderChart(spec)}
+          {renderChart(spec, locale)}
         </ResponsiveContainer>
       </div>
     </figure>
   );
 }
 
-function renderChart(spec: ChartSpec) {
+function renderChart(spec: ChartSpec, locale: Locale) {
   switch (spec.kind) {
     case "pie":
-      return renderPie(spec);
+      return renderPie(spec, locale);
     case "line":
-      return renderLine(spec);
+      return renderLine(spec, locale);
     case "area":
-      return renderArea(spec);
+      return renderArea(spec, locale);
     case "bar":
     default:
-      return renderBar(spec);
+      return renderBar(spec, locale);
   }
 }
 
-function tooltipFormatter(currency?: string) {
+function tooltipFormatter(currency: string | undefined, locale: Locale) {
   return (value: unknown) => {
-    if (typeof value === "number") return formatCurrency(value, currency);
+    if (typeof value === "number") return formatChartCurrency(value, currency, locale);
     if (typeof value === "string") return value;
     return "";
   };
 }
 
-function renderBar(spec: ChartSpec) {
+function renderBar(spec: ChartSpec, locale: Locale) {
   const data = buildXYRows(spec);
   const series = spec.series ?? [];
   const horizontal = spec.horizontal ?? false;
   const stackId = spec.stacked ? "stack" : undefined;
-  const tickFormatter = (v: number) => formatCurrency(v, spec.currency);
+  const tickFormatter = (v: number) => formatChartCurrency(v, spec.currency, locale);
 
   return (
     <BarChart
@@ -155,7 +160,7 @@ function renderBar(spec: ChartSpec) {
         </>
       )}
       <Tooltip
-        formatter={tooltipFormatter(spec.currency)}
+        formatter={tooltipFormatter(spec.currency, locale)}
         contentStyle={{ fontSize: 12 }}
       />
       {series.length > 1 ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
@@ -172,10 +177,10 @@ function renderBar(spec: ChartSpec) {
   );
 }
 
-function renderLine(spec: ChartSpec) {
+function renderLine(spec: ChartSpec, locale: Locale) {
   const data = buildXYRows(spec);
   const series = spec.series ?? [];
-  const tickFormatter = (v: number) => formatCurrency(v, spec.currency);
+  const tickFormatter = (v: number) => formatChartCurrency(v, spec.currency, locale);
 
   return (
     <LineChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
@@ -187,7 +192,7 @@ function renderLine(spec: ChartSpec) {
       />
       <YAxis tickFormatter={tickFormatter} tick={{ fontSize: 11 }} />
       <Tooltip
-        formatter={tooltipFormatter(spec.currency)}
+        formatter={tooltipFormatter(spec.currency, locale)}
         contentStyle={{ fontSize: 12 }}
       />
       {series.length > 1 ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
@@ -206,11 +211,11 @@ function renderLine(spec: ChartSpec) {
   );
 }
 
-function renderArea(spec: ChartSpec) {
+function renderArea(spec: ChartSpec, locale: Locale) {
   const data = buildXYRows(spec);
   const series = spec.series ?? [];
   const stackId = spec.stacked ? "stack" : undefined;
-  const tickFormatter = (v: number) => formatCurrency(v, spec.currency);
+  const tickFormatter = (v: number) => formatChartCurrency(v, spec.currency, locale);
 
   return (
     <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
@@ -222,7 +227,7 @@ function renderArea(spec: ChartSpec) {
       />
       <YAxis tickFormatter={tickFormatter} tick={{ fontSize: 11 }} />
       <Tooltip
-        formatter={tooltipFormatter(spec.currency)}
+        formatter={tooltipFormatter(spec.currency, locale)}
         contentStyle={{ fontSize: 12 }}
       />
       {series.length > 1 ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
@@ -245,7 +250,7 @@ function renderArea(spec: ChartSpec) {
   );
 }
 
-function renderPie(spec: ChartSpec) {
+function renderPie(spec: ChartSpec, locale: Locale) {
   const slices = spec.slices ?? [];
   return (
     <PieChart margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
@@ -269,7 +274,7 @@ function renderPie(spec: ChartSpec) {
         ))}
       </Pie>
       <Tooltip
-        formatter={tooltipFormatter(spec.currency)}
+        formatter={tooltipFormatter(spec.currency, locale)}
         contentStyle={{ fontSize: 12 }}
       />
       <Legend wrapperStyle={{ fontSize: 12 }} />

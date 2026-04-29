@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { expenseCategoryOptions } from "@/lib/validators";
+import { pick, useLocale, useT, useTx } from "@/lib/i18n/client";
 
 type Bank = { id: string; name: string };
 
@@ -70,6 +71,10 @@ export function MonthAddLineDialog({
   onChangeFxRateDraft,
   onSubmit,
 }: Props) {
+  const t = useT();
+  const tx = useTx();
+  const locale = useLocale();
+
   const isForeignCurrency =
     currency.length === 3 && currency.toUpperCase() !== primaryCurrency.toUpperCase();
 
@@ -102,7 +107,10 @@ export function MonthAddLineDialog({
         }
         const body = (await res.json()) as { fxRate: string };
         const rate = Number(body.fxRate);
-        if (!Number.isFinite(rate)) throw new Error("Tipo de cambio inválido.");
+        if (!Number.isFinite(rate))
+          throw new Error(
+            pick(locale, { es: "Tipo de cambio inválido.", en: "Invalid exchange rate." }),
+          );
         setFetchedRate({ pair, rate });
         setPreviewError(null);
       })
@@ -110,11 +118,16 @@ export function MonthAddLineDialog({
         if ((err as { name?: string }).name === "AbortError") return;
         setFetchedRate(null);
         setPreviewError(
-          err instanceof Error ? err.message : "No pudimos obtener el tipo de cambio.",
+          err instanceof Error
+            ? err.message
+            : pick(locale, {
+                es: "No pudimos obtener el tipo de cambio.",
+                en: "Could not fetch the exchange rate.",
+              }),
         );
       });
     return () => controller.abort();
-  }, [open, isForeignCurrency, trimmedFx.length, currency, primaryCurrency]);
+  }, [open, isForeignCurrency, trimmedFx.length, currency, primaryCurrency, locale]);
 
   // Derived value: prefer the manual override; otherwise use the latest
   // fetched rate (only when the pair actually matches the current inputs).
@@ -144,28 +157,34 @@ export function MonthAddLineDialog({
         showCloseButton
       >
         <DialogHeader>
-          <DialogTitle>Nuevo gasto (este mes)</DialogTitle>
+          <DialogTitle>
+            {t.month.addLineDialogTitle}
+            {tx({ es: " (este mes)", en: " (this month)" })}
+          </DialogTitle>
           <DialogDescription>
-            Solo aplica al mes en curso. No modifica las definiciones.
+            {tx({
+              es: "Solo aplica al mes en curso. No modifica las definiciones.",
+              en: "Only applies to the current month. Does not change templates.",
+            })}
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-3" onSubmit={onSubmit}>
           <div className="space-y-1">
             <label className="text-muted-foreground text-xs" htmlFor="add-name">
-              Nombre
+              {t.common.name}
             </label>
             <Input
               id="add-name"
               value={name}
               onChange={(ev) => onChangeName(ev.target.value)}
               required
-              placeholder="Ej. Regalo, extra…"
+              placeholder={t.month.addLinePlaceholderName}
             />
           </div>
           <div className="grid grid-cols-[1fr_5rem] gap-2">
             <div className="space-y-1">
               <label className="text-muted-foreground text-xs" htmlFor="add-amount">
-                Monto
+                {t.common.amount}
               </label>
               <Input
                 id="add-amount"
@@ -179,7 +198,7 @@ export function MonthAddLineDialog({
             </div>
             <div className="space-y-1">
               <label className="text-muted-foreground text-xs" htmlFor="add-currency">
-                Moneda
+                {t.common.currency}
               </label>
               <CurrencyPicker
                 id="add-currency"
@@ -191,12 +210,24 @@ export function MonthAddLineDialog({
           {isForeignCurrency ? (
             <div className="bg-muted/40 space-y-2 rounded-md border p-2 text-xs">
               <p className="text-muted-foreground">
-                Convertimos a <strong>{primaryCurrency}</strong> con el tipo de cambio del
-                momento. Lo guardamos junto al gasto, así los totales no se mueven después.
+                {tx({
+                  es: (
+                    <>
+                      Convertimos a <strong>{primaryCurrency}</strong> con el tipo de cambio del
+                      momento. Lo guardamos junto al gasto, así los totales no se mueven después.
+                    </>
+                  ),
+                  en: (
+                    <>
+                      We convert to <strong>{primaryCurrency}</strong> at the current rate. It is
+                      stored with the expense so totals do not shift later.
+                    </>
+                  ),
+                })}
               </p>
               <div className="flex items-center gap-2">
                 <label className="text-muted-foreground" htmlFor="add-fx-rate">
-                  Rate (opcional)
+                  {tx({ es: "Tipo de cambio (opcional)", en: "FX rate (optional)" })}
                 </label>
                 <Input
                   id="add-fx-rate"
@@ -212,13 +243,16 @@ export function MonthAddLineDialog({
                   1 {currency.toUpperCase()} →
                 </span>
               </div>
-              {livePreview ? (
+                  {livePreview ? (
                 <p className="text-muted-foreground">
                   ≈{" "}
                   <strong className="text-foreground tabular-nums">
                     {livePreview.converted.toFixed(2)} {primaryCurrency}
                   </strong>{" "}
-                  (rate {livePreview.rate.toFixed(4)}).
+                  {tx({
+                    es: `(tipo ${livePreview.rate.toFixed(4)}).`,
+                    en: `(rate ${livePreview.rate.toFixed(4)}).`,
+                  })}
                 </p>
               ) : null}
               {previewError ? (
@@ -227,13 +261,13 @@ export function MonthAddLineDialog({
             </div>
           ) : null}
           <div className="space-y-1">
-            <span className="text-muted-foreground text-xs">Banco</span>
+            <span className="text-muted-foreground text-xs">{t.common.bank}</span>
             <Select value={bankId} onValueChange={(v) => onChangeBankId(v ?? "")} required>
               <SelectTrigger className="w-full">
                 <SelectValue>
                   {bankId
-                    ? (banks.find((b) => b.id === bankId)?.name ?? "Banco")
-                    : "Elegir banco"}
+                    ? (banks.find((b) => b.id === bankId)?.name ?? t.common.bank)
+                    : tx({ es: "Elegir banco", en: "Choose bank" })}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -246,10 +280,12 @@ export function MonthAddLineDialog({
             </Select>
           </div>
           <div className="space-y-1">
-            <span className="text-muted-foreground text-xs">Categoría</span>
+            <span className="text-muted-foreground text-xs">{t.common.category}</span>
             <Select value={category} onValueChange={(v) => onChangeCategory(v ?? "OTROS")}>
               <SelectTrigger className="w-full">
-                <SelectValue>{category ? category.toLowerCase() : "Categoría"}</SelectValue>
+                <SelectValue>
+                  {category ? category.toLowerCase() : t.common.category}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {expenseCategoryOptions.map((c) => (
@@ -263,10 +299,10 @@ export function MonthAddLineDialog({
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {t.common.cancel}
             </Button>
             <Button type="submit" disabled={adding}>
-              {adding ? "Agregando…" : "Agregar"}
+              {adding ? tx({ es: "Agregando…", en: "Adding…" }) : t.common.add}
             </Button>
           </DialogFooter>
         </form>

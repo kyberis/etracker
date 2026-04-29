@@ -1,15 +1,20 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { FormEvent, useState, useTransition } from "react";
 
 import { ApiTokensCard } from "@/components/api-tokens-card";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { RevolutConnectionCard } from "@/components/revolut-connection-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CurrencyPicker } from "@/components/ui/currency-picker";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n/client";
+import { intlLocale } from "@/lib/i18n/format";
+import { useLocale } from "@/lib/i18n/client";
 
 type UserSettings = {
   email: string;
@@ -17,6 +22,7 @@ type UserSettings = {
   hasPassword: boolean;
   primaryCurrency: string;
   primaryCurrencyConfirmedAt: string | null;
+  locale: string;
   linkedProviders: string[];
 };
 
@@ -67,6 +73,8 @@ export function SettingsManager({
   initialApiTokens,
   googleAuthConfigured,
 }: SettingsManagerProps) {
+  const t = useT();
+  const locale = useLocale();
   const [settings, setSettings] = useState<UserSettings | null>(initialUser);
   const [importInstructions, setImportInstructions] = useState(
     initialUser.expenseImportInstructions ?? "",
@@ -97,7 +105,7 @@ export function SettingsManager({
     setCurrencyMessage(null);
     const next = currencyDraft.trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(next)) {
-      setCurrencyError("Ingresá un código ISO 4217 de 3 letras (USD, ARS, EUR, …).");
+      setCurrencyError(t.settings.currencyInvalid);
       return;
     }
     setCurrencySaving(true);
@@ -109,12 +117,10 @@ export function SettingsManager({
       });
       if (!response.ok) {
         const data = (await response.json()) as { error?: string };
-        setCurrencyError(data.error ?? "No se pudo guardar la moneda.");
+        setCurrencyError(data.error ?? t.settings.currencyError);
         return;
       }
-      setCurrencyMessage(
-        "Moneda principal actualizada. Las líneas existentes mantienen su tipo de cambio original.",
-      );
+      setCurrencyMessage(t.settings.currencyUpdated);
       await loadSettings();
     } finally {
       setCurrencySaving(false);
@@ -131,15 +137,17 @@ export function SettingsManager({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          expenseImportInstructions: importInstructions.trim() ? importInstructions.trim() : null,
+          expenseImportInstructions: importInstructions.trim()
+            ? importInstructions.trim()
+            : null,
         }),
       });
       if (!response.ok) {
         const data = (await response.json()) as { error?: string };
-        setInstructionsError(data.error ?? "No se pudo guardar.");
+        setInstructionsError(data.error ?? t.settings.instructionsError);
         return;
       }
-      setInstructionsMessage("Instrucciones guardadas.");
+      setInstructionsMessage(t.settings.instructionsSaved);
       await loadSettings();
     } finally {
       setInstructionsSaving(false);
@@ -168,13 +176,13 @@ export function SettingsManager({
 
     if (!response.ok) {
       const data = (await response.json()) as { error?: string };
-      setError(data.error ?? "No se pudieron guardar los cambios.");
+      setError(data.error ?? t.settings.cannotSave);
       return;
     }
 
     setCurrentPassword("");
     setNewPassword("");
-    setMessage("Cambios guardados.");
+    setMessage(t.settings.saved);
     await loadSettings();
   }
 
@@ -183,24 +191,30 @@ export function SettingsManager({
     "google",
   );
 
+  const formattedCurrencyConfirmedAt = settings?.primaryCurrencyConfirmedAt
+    ? new Date(settings.primaryCurrencyConfirmedAt).toLocaleDateString(intlLocale(locale))
+    : null;
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Perfil</CardTitle>
+          <CardTitle>{t.settings.profileTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-2">
-              <p className="text-muted-foreground text-sm">Correo electrónico</p>
+              <p className="text-muted-foreground text-sm">{t.settings.emailLabel}</p>
               <p className="font-medium">{settings?.email ?? "..."}</p>
             </div>
 
             {hasPassword ? (
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="currentPassword">
-                  Contraseña actual{" "}
-                  {newPassword ? "(obligatoria para cambiarla)" : "(opcional)"}
+                  {t.settings.currentPassword}{" "}
+                  {newPassword
+                    ? t.settings.currentPasswordHintRequired
+                    : t.settings.currentPasswordHintOptional}
                 </label>
                 <Input
                   id="currentPassword"
@@ -214,7 +228,7 @@ export function SettingsManager({
 
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="newPassword">
-                {hasPassword ? "Nueva contraseña" : "Definir contraseña (opcional)"}
+                {hasPassword ? t.settings.newPassword : t.settings.setPassword}
               </label>
               <Input
                 id="newPassword"
@@ -225,37 +239,33 @@ export function SettingsManager({
                 minLength={8}
               />
               {!hasPassword ? (
-                <p className="text-muted-foreground text-xs">
-                  Entraste con Google. Podés agregar una contraseña si también querés iniciar sesión
-                  con correo y contraseña.
-                </p>
+                <p className="text-muted-foreground text-xs">{t.settings.googleHint}</p>
               ) : null}
             </div>
 
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
             {message ? <p className="text-sm text-green-600">{message}</p> : null}
 
-            <Button type="submit">Guardar</Button>
+            <Button type="submit">{t.settings.save}</Button>
           </form>
         </CardContent>
       </Card>
 
+      <LanguageCard />
+
       {googleAuthConfigured ? (
         <Card>
           <CardHeader>
-            <CardTitle>Formas de acceso</CardTitle>
+            <CardTitle>{t.settings.accessTitle}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-muted-foreground text-sm">
-              Vinculá Google para entrar con un clic. Usá el mismo correo que esta cuenta para
-              unificar tu perfil.
-            </p>
+            <p className="text-muted-foreground text-sm">{t.settings.accessDescription}</p>
             {googleLinked ? (
               <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                Google está vinculado a esta cuenta.
+                {t.settings.googleLinked}
               </p>
             ) : (
-              <GoogleSignInButton callbackUrl="/settings" label="Conectar Google" />
+              <GoogleSignInButton callbackUrl="/settings" label={t.settings.connectGoogle} />
             )}
           </CardContent>
         </Card>
@@ -263,22 +273,18 @@ export function SettingsManager({
 
       <Card>
         <CardHeader>
-          <CardTitle>Moneda principal</CardTitle>
+          <CardTitle>{t.settings.currencyTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-3" onSubmit={onSaveCurrency}>
-            <p className="text-muted-foreground text-sm">
-              Definí la moneda en la que querés ver totales, saldo, ingresos y balance. Podés
-              registrar gastos en cualquier moneda: los convertimos a esta usando el tipo de
-              cambio del momento (queda guardado por gasto, no se mueve después).
-            </p>
+            <p className="text-muted-foreground text-sm">{t.settings.currencyDescription}</p>
             <div className="flex items-end gap-2">
               <div className="space-y-1">
                 <label
                   className="text-muted-foreground text-xs"
                   htmlFor="primary-currency"
                 >
-                  Código ISO 4217
+                  {t.settings.currencyIsoLabel}
                 </label>
                 <CurrencyPicker
                   id="primary-currency"
@@ -288,23 +294,23 @@ export function SettingsManager({
                 />
               </div>
               <Button type="submit" disabled={currencySaving}>
-                {currencySaving ? "Guardando…" : "Guardar moneda"}
+                {currencySaving ? t.common.saving : t.settings.currencySave}
               </Button>
             </div>
-            {settings?.primaryCurrencyConfirmedAt ? (
+            {formattedCurrencyConfirmedAt ? (
               <p className="text-muted-foreground text-xs">
-                Confirmada el{" "}
-                {new Date(settings.primaryCurrencyConfirmedAt).toLocaleDateString("es-AR")}.
+                {t.settings.currencyConfirmed(formattedCurrencyConfirmedAt)}
               </p>
             ) : (
-              <p className="text-warn text-xs">
-                Todavía no confirmaste la moneda. El asistente puede preguntarte la próxima vez
-                que charlen.
-              </p>
+              <p className="text-warn text-xs">{t.settings.currencyNotConfirmed}</p>
             )}
-            {currencyError ? <p className="text-destructive text-sm">{currencyError}</p> : null}
+            {currencyError ? (
+              <p className="text-destructive text-sm">{currencyError}</p>
+            ) : null}
             {currencyMessage ? (
-              <p className="text-green-600 text-sm dark:text-green-400">{currencyMessage}</p>
+              <p className="text-green-600 text-sm dark:text-green-400">
+                {currencyMessage}
+              </p>
             ) : null}
           </form>
         </CardContent>
@@ -312,38 +318,35 @@ export function SettingsManager({
 
       <Card>
         <CardHeader>
-          <CardTitle>Instrucciones para el asistente e importaciones</CardTitle>
+          <CardTitle>{t.settings.instructionsTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSaveInstructions}>
-            <p className="text-muted-foreground text-sm">
-              Definí reglas en lenguaje natural: qué movimientos <strong>no</strong> importar desde
-              Revolut (transferencias entre cuentas, recargas, etc.), cómo categorizar ciertos
-              comercios, o convenciones que use el asistente en el chat y con fotos del banco. Podés
-              pedirle al asistente en el chat que guarde una preferencia para más adelante; se
-              escribe acá mismo.
-            </p>
+            <p className="text-muted-foreground text-sm">{t.settings.instructionsDescription}</p>
             <Textarea
               id="expenseImportInstructions"
               value={importInstructions}
               onChange={(e) => setImportInstructions(e.target.value)}
-              placeholder='Ej.: No importar transferencias a mi cuenta USD ni movimientos con "Top up". Supermercados siempre ALIMENTACION. Spotify y Netflix → SUSCRIPCIONES.'
+              placeholder={t.settings.instructionsPlaceholder}
               rows={8}
               maxLength={12000}
               className="min-h-[140px] resize-y font-mono text-sm"
             />
             <p className="text-muted-foreground text-xs">
-              Máximo 12.000 caracteres. Requiere <code className="text-foreground">OPENAI_API_KEY</code>{" "}
-              en el servidor para aplicar reglas al sincronizar Revolut.
+              {t.settings.instructionsHint}{" "}
+              <code className="text-foreground">OPENAI_API_KEY</code>{" "}
+              {t.settings.instructionsHintEnvSuffix}
             </p>
             {instructionsError ? (
               <p className="text-destructive text-sm">{instructionsError}</p>
             ) : null}
             {instructionsMessage ? (
-              <p className="text-green-600 text-sm dark:text-green-400">{instructionsMessage}</p>
+              <p className="text-green-600 text-sm dark:text-green-400">
+                {instructionsMessage}
+              </p>
             ) : null}
             <Button type="submit" disabled={instructionsSaving}>
-              {instructionsSaving ? "Guardando…" : "Guardar instrucciones"}
+              {instructionsSaving ? t.common.saving : t.settings.instructionsSaveBtn}
             </Button>
           </form>
         </CardContent>
@@ -358,7 +361,40 @@ export function SettingsManager({
   );
 }
 
+function LanguageCard() {
+  const t = useT();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t.settings.languageTitle}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-muted-foreground text-sm">{t.settings.languageDescription}</p>
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher
+            variant="app"
+            // After the switcher persists the locale, force a refresh so all
+            // server-rendered chrome (header, dictionary copy, html lang)
+            // re-renders.
+            className=""
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => startTransition(() => router.refresh())}
+          >
+            {t.common.update}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
+  const t = useT();
   const [status, setStatus] = useState<WhatsappStatus>(initial);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -386,12 +422,10 @@ function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        setError(data.error ?? "No se pudo iniciar la vinculación.");
+        setError(data.error ?? t.settings.whatsappStartError);
         return;
       }
-      setFeedback(
-        "Te generamos un código. Mandalo por WhatsApp al asistente para terminar la vinculación.",
-      );
+      setFeedback(t.settings.whatsappCodeGenerated);
       await refresh();
     } finally {
       setBusy(false);
@@ -399,11 +433,11 @@ function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
   }
 
   async function unlink() {
-    if (!confirm("¿Desvincular el número de WhatsApp?")) return;
+    if (!confirm(t.settings.whatsappUnlinkConfirm)) return;
     setBusy(true);
     try {
       await fetch("/api/settings/whatsapp", { method: "DELETE" });
-      setFeedback("Número desvinculado.");
+      setFeedback(t.settings.whatsappUnlinkDone);
       setPhone("");
       await refresh();
     } finally {
@@ -416,29 +450,23 @@ function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>WhatsApp Assistant</CardTitle>
+        <CardTitle>{t.settings.whatsappTitle}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-muted-foreground text-sm">
-          Vinculá tu número para usar el asistente de Clara en WhatsApp:
-          consultá tu mes, agregá gastos y mandá fotos de movimientos para que
-          los registremos automáticamente.
-        </p>
+        <p className="text-muted-foreground text-sm">{t.settings.whatsappDescription}</p>
 
         {linked ? (
           <div className="space-y-2">
-            <p className="text-sm">
-              Vinculado a <span className="font-medium">{status.phone}</span>
-            </p>
+            <p className="text-sm">{t.settings.whatsappLinkedTo(status.phone ?? "")}</p>
             <Button variant="destructive" onClick={unlink} disabled={busy}>
-              Desvincular
+              {t.settings.whatsappUnlinkBtn}
             </Button>
           </div>
         ) : (
           <form className="space-y-3" onSubmit={startLink}>
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="whatsappPhone">
-                Número de WhatsApp (formato internacional, p. ej. +5491112345678)
+                {t.settings.whatsappPhoneLabel}
               </label>
               <Input
                 id="whatsappPhone"
@@ -450,18 +478,16 @@ function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
               />
             </div>
             <Button type="submit" disabled={busy}>
-              Generar código
+              {t.settings.whatsappGenerateCode}
             </Button>
           </form>
         )}
 
         {status.pendingCode ? (
           <div className="bg-muted/50 rounded-md border p-3 text-sm">
-            <p className="font-medium">Tu código: {status.pendingCode}</p>
+            <p className="font-medium">{t.settings.whatsappPendingTitle(status.pendingCode)}</p>
             <p className="text-muted-foreground mt-1">
-              Abrí WhatsApp y mandale al asistente:{" "}
-              <span className="font-mono">LINK {status.pendingCode}</span>. El
-              código expira en unos minutos.
+              {t.settings.whatsappPendingHelp(status.pendingCode)}
             </p>
           </div>
         ) : null}

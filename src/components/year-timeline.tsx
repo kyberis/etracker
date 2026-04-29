@@ -1,11 +1,12 @@
 "use client";
 
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { formatCurrencyCompact } from "@/lib/format";
+import { dateLocale } from "@/lib/i18n/format";
+import { useLocale, useTx } from "@/lib/i18n/client";
 import type { YearMonthSlot } from "@/lib/year-timeline-data";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +28,9 @@ function yearScaleMax(months: YearMonthSlot[]) {
 }
 
 export function YearTimeline({ year, activeMonth, months, currency }: YearTimelineProps) {
-  const fmt = (value: number) => formatCurrencyCompact(value, currency);
+  const locale = useLocale();
+  const tx = useTx();
+  const fmt = (value: number) => formatCurrencyCompact(value, currency, locale);
   const scaleMax = yearScaleMax(months);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeId = `yt-${activeMonth}`;
@@ -49,8 +52,12 @@ export function YearTimeline({ year, activeMonth, months, currency }: YearTimeli
         {/* Header */}
         <div className="mb-4 flex items-end justify-between">
           <div>
-            <h2 className="text-foreground text-lg font-semibold tracking-tight">Flujo anual</h2>
-            <p className="text-muted-foreground mt-0.5 text-sm">Ingreso vs gasto mensual</p>
+            <h2 className="text-foreground text-lg font-semibold tracking-tight">
+              {tx({ es: "Flujo anual", en: "Annual flow" })}
+            </h2>
+            <p className="text-muted-foreground mt-0.5 text-sm">
+              {tx({ es: "Ingreso vs gasto mensual", en: "Monthly income vs spending" })}
+            </p>
           </div>
           <p className="text-muted-foreground text-sm font-medium tabular-nums">{year}</p>
         </div>
@@ -59,11 +66,11 @@ export function YearTimeline({ year, activeMonth, months, currency }: YearTimeli
         <div className="text-muted-foreground mb-4 flex items-center gap-5 text-xs">
           <span className="inline-flex items-center gap-2">
             <span className="h-3 w-3 rounded-sm bg-emerald-600 dark:bg-emerald-500" />
-            Ingreso
+            {tx({ es: "Ingreso", en: "Income" })}
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-3 w-3 rounded-sm bg-amber-500 dark:bg-amber-400" />
-            Gasto
+            {tx({ es: "Gasto", en: "Spending" })}
           </span>
         </div>
 
@@ -144,7 +151,7 @@ export function YearTimeline({ year, activeMonth, months, currency }: YearTimeli
                   const monthLabel = format(
                     new Date(Date.UTC(year, slot.month - 1, 1)),
                     "MMM",
-                    { locale: es },
+                    { locale: dateLocale(locale) },
                   );
                   return (
                     <div
@@ -161,12 +168,14 @@ export function YearTimeline({ year, activeMonth, months, currency }: YearTimeli
                         )}
                         aria-label={
                           hasData
-                            ? `${monthLabel} ${year}, ingreso ${fmt(
-                                slot.income,
-                              )}, gasto ${fmt(
-                                slot.totalExpense,
-                              )}, saldo ${fmt(bal!)}. Ir al mes.`
-                            : `${monthLabel} ${year}, sin planificación. Ir al mes.`
+                            ? tx({
+                                es: `${monthLabel} ${year}, ingreso ${fmt(slot.income)}, gasto ${fmt(slot.totalExpense)}, saldo ${fmt(bal!)}. Ir al mes.`,
+                                en: `${monthLabel} ${year}, income ${fmt(slot.income)}, spending ${fmt(slot.totalExpense)}, balance ${fmt(bal!)}. Go to month.`,
+                              })
+                            : tx({
+                                es: `${monthLabel} ${year}, sin planificación. Ir al mes.`,
+                                en: `${monthLabel} ${year}, no plan yet. Go to month.`,
+                              })
                         }
                       >
                         {slot.isCurrent && (

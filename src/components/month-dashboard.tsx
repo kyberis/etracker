@@ -14,6 +14,8 @@ import { RevolutImportDialog } from "@/components/month/revolut-import-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
+import { dateLocale } from "@/lib/i18n/format";
+import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import type { MonthLinePayload, MonthPageDataWithRecord } from "@/lib/month-page-types";
 import type { ImportableTransaction } from "@/lib/revolut/types";
 import { expenseCategorySchema, isInvestmentCategory } from "@/lib/validators";
@@ -29,6 +31,9 @@ type MonthDashboardProps = {
  */
 export function MonthDashboard({ data }: MonthDashboardProps) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useT();
+  const tx = useTx();
   const balanceCtx = useBalance();
   // Keep the sticky balance header in sync with the month being shown here.
   // We use a ref-like state guard so we only call setMonth on changes.
@@ -165,7 +170,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   async function saveIncomeWithAmount(amount: number) {
     const parsedIncome = Number(amount);
     if (Number.isNaN(parsedIncome) || parsedIncome < 0) {
-      setIncomeError("Ingreso debe ser 0 o positivo.");
+      setIncomeError(tx({ es: "Ingreso debe ser 0 o positivo.", en: "Income must be zero or positive." }));
       return;
     }
     setSavingIncome(true);
@@ -178,7 +183,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     setSavingIncome(false);
     if (!response.ok) {
       const payload = (await response.json()) as { error?: string };
-      setIncomeError(payload.error ?? "No se pudo guardar.");
+      setIncomeError(payload.error ?? tx({ es: "No se pudo guardar.", en: "Could not save." }));
       return;
     }
     setIncome(parsedIncome);
@@ -193,7 +198,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   async function onAddExpense(e: FormEvent) {
     e.preventDefault();
     if (!addBankId) {
-      setAddError("Elegí un banco.");
+      setAddError(tx({ es: "Elegí un banco.", en: "Choose a bank." }));
       return;
     }
     setAddError(null);
@@ -214,7 +219,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     setAdding(false);
     if (!res.ok) {
       const p = (await res.json()) as { error?: string };
-      setAddError(p.error ?? "No se pudo agregar.");
+      setAddError(p.error ?? tx({ es: "No se pudo agregar.", en: "Could not add." }));
       return;
     }
     setAddName("");
@@ -243,7 +248,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         importable?: ImportableTransaction[];
       };
       if (!res.ok) {
-        setRevolutError(payload.error ?? "No se pudo sincronizar.");
+        setRevolutError(payload.error ?? tx({ es: "No se pudo sincronizar.", en: "Could not sync." }));
         return;
       }
       const matched = payload.matched ?? [];
@@ -257,13 +262,29 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         setRevolutDialogOpen(true);
         setRevolutFeedback(
           matched.length > 0
-            ? `${matched.length} gasto(s) marcado(s) como pagado(s). Revisá importaciones abajo.`
-            : "No hubo coincidencias automáticas. Podés importar o ignorar movimientos.",
+            ? tx({
+                es: `${matched.length} gasto(s) marcado(s) como pagado(s). Revisá importaciones abajo.`,
+                en: `${matched.length} expense(s) marked paid. Review imports below.`,
+              })
+            : tx({
+                es: "No hubo coincidencias automáticas. Podés importar o ignorar movimientos.",
+                en: "No automatic matches. You can import or ignore transactions.",
+              }),
         );
       } else if (matched.length > 0) {
-        setRevolutFeedback(`${matched.length} gasto(s) marcado(s) como pagado(s).`);
+        setRevolutFeedback(
+          tx({
+            es: `${matched.length} gasto(s) marcado(s) como pagado(s).`,
+            en: `${matched.length} expense(s) marked paid.`,
+          }),
+        );
       } else {
-        setRevolutFeedback("Sincronizado: no hay movimientos nuevos para importar.");
+        setRevolutFeedback(
+          tx({
+            es: "Sincronizado: no hay movimientos nuevos para importar.",
+            en: "Synced: no new transactions to import.",
+          }),
+        );
       }
       refreshBalance();
       router.refresh();
@@ -281,28 +302,33 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     });
     if (!res.ok) {
       const p = (await res.json()) as { error?: string };
-      setRevolutError(p.error ?? "No se pudo ignorar.");
+      setRevolutError(p.error ?? tx({ es: "No se pudo ignorar.", en: "Could not ignore." }));
       return;
     }
     const idSet = new Set(ids);
     setRevolutImportable((cur) => cur.filter((t) => !idSet.has(t.transactionId)));
   }
 
-  async function onRevolutImport(tx: ImportableTransaction) {
+  async function onRevolutImport(importRow: ImportableTransaction) {
     const bankId = data.revolut.defaultImportBankId;
     if (!bankId) {
-      setRevolutError("Elegí un banco de importación en Ajustes → Revolut.");
+      setRevolutError(
+        tx({
+          es: "Elegí un banco de importación en Ajustes → Revolut.",
+          en: "Choose an import bank under Settings → Revolut.",
+        }),
+      );
       return;
     }
-    setRevolutRowBusy(tx.transactionId);
+    setRevolutRowBusy(importRow.transactionId);
     setRevolutError(null);
     try {
-      const amount = Math.abs(Number(tx.amount));
+      const amount = Math.abs(Number(importRow.amount));
       if (!Number.isFinite(amount) || amount <= 0) {
-        setRevolutError("Monto inválido en el movimiento.");
+        setRevolutError(tx({ es: "Monto inválido en el movimiento.", en: "Invalid amount on this transaction." }));
         return;
       }
-      const categoryParsed = expenseCategorySchema.safeParse(tx.suggestedCategory);
+      const categoryParsed = expenseCategorySchema.safeParse(importRow.suggestedCategory);
       const category = categoryParsed.success ? categoryParsed.data : "OTROS";
       // Pass through the transaction currency so the server applies an FX
       // lookup when it differs from the user's primary; if the bank reports
@@ -311,20 +337,20 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: tx.description.slice(0, 120),
+          name: importRow.description.slice(0, 120),
           amount,
           bankId,
           category,
-          ...(tx.currency ? { currency: tx.currency } : {}),
+          ...(importRow.currency ? { currency: importRow.currency } : {}),
         }),
       });
       if (!res.ok) {
         const p = (await res.json()) as { error?: string };
-        setRevolutError(p.error ?? "No se pudo importar.");
+        setRevolutError(p.error ?? tx({ es: "No se pudo importar.", en: "Could not import." }));
         return;
       }
       setRevolutImportable((cur) =>
-        cur.filter((t) => t.transactionId !== tx.transactionId),
+        cur.filter((t) => t.transactionId !== importRow.transactionId),
       );
       refreshBalance();
       router.refresh();
@@ -345,7 +371,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     setCarryoverBusy(null);
     if (!res.ok) {
       const p = (await res.json()) as { error?: string };
-      setCarryoverError(p.error ?? "No se pudo guardar la decisión.");
+      setCarryoverError(p.error ?? tx({ es: "No se pudo guardar la decisión.", en: "Could not save your choice." }));
       return;
     }
     setCarryoverPrompt(null);
@@ -363,7 +389,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     setMergingPending(false);
     if (!res.ok) {
       const p = (await res.json()) as { error?: string };
-      setMergeError(p.error ?? "No se pudo agregar.");
+      setMergeError(p.error ?? tx({ es: "No se pudo agregar.", en: "Could not add." }));
       return;
     }
     refreshBalance();
@@ -378,19 +404,16 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       {carryoverPrompt ? (
         <Card className="border-good/40 bg-lime/15">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">
-              ¡Bien ahí! Te sobró plata del mes pasado
-            </CardTitle>
+            <CardTitle className="text-base">{t.month.carryoverTitle}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p>
-              Cerraste{" "}
-              <strong className="text-good tabular-nums">
-                {formatCurrency(carryoverPrompt.amount, data.primaryCurrency)}
-              </strong>{" "}
-              sin gastar en{" "}
-              {format(parse(carryoverPrompt.prevMonth, "yyyy-MM", new Date()), "MMMM yyyy")}.
-              ¿Qué querés hacer con eso?
+              {t.month.carryoverBody(
+                formatCurrency(carryoverPrompt.amount, data.primaryCurrency, locale),
+                format(parse(carryoverPrompt.prevMonth, "yyyy-MM", new Date()), "MMMM yyyy", {
+                  locale: dateLocale(locale),
+                }),
+              )}
             </p>
             {carryoverError ? (
               <p className="text-destructive text-sm">{carryoverError}</p>
@@ -401,7 +424,9 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                 onClick={() => void onCarryoverDecision("addToIncome")}
                 disabled={carryoverBusy !== null}
               >
-                {carryoverBusy === "addToIncome" ? "Sumando…" : "Sumar al ingreso"}
+                {carryoverBusy === "addToIncome"
+                  ? tx({ es: "Sumando…", en: "Adding…" })
+                  : t.month.carryoverAdd}
               </Button>
               <Button
                 type="button"
@@ -409,7 +434,9 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                 onClick={() => void onCarryoverDecision("setAside")}
                 disabled={carryoverBusy !== null}
               >
-                {carryoverBusy === "setAside" ? "Guardando…" : "Dejar aparte (ahorros)"}
+                {carryoverBusy === "setAside"
+                  ? tx({ es: "Guardando…", en: "Saving…" })
+                  : t.month.carryoverAside}
               </Button>
             </div>
           </CardContent>
@@ -419,26 +446,32 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       {showPendingBanner ? (
         <Card className="border-warn/40 bg-peach/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Gastos nuevos en definiciones</CardTitle>
+            <CardTitle className="text-base">
+              {tx({
+                es: "Gastos nuevos en definiciones",
+                en: "New expenses in templates",
+              })}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p>
-              Hay{" "}
-              <strong>
-                {data.pendingFromTemplates.length} gasto
-                {data.pendingFromTemplates.length === 1 ? "" : "s"}
-              </strong>{" "}
-              {data.pendingFromTemplates.length === 1
-                ? "que aplica a este mes y todavía no está en el mes. "
-                : "que aplican a este mes y todavía no están en el mes. "}
-              Revisalos y agregalos si querés que figuren con el resto.
+              {tx({
+                es:
+                  data.pendingFromTemplates.length === 1
+                    ? `Hay un gasto que aplica a este mes y todavía no está en el mes. Revisalo y agregalo si querés que figure con el resto.`
+                    : `Hay ${data.pendingFromTemplates.length} gastos que aplican a este mes y todavía no están en el mes. Revisalos y agregalos si querés que figuren con el resto.`,
+                en:
+                  data.pendingFromTemplates.length === 1
+                    ? `There is one expense that applies to this month but is not in the month yet. Review it and add it if you want it with the rest.`
+                    : `There are ${data.pendingFromTemplates.length} expenses that apply to this month but are not in the month yet. Review and add them if you want them listed.`,
+              })}
             </p>
             <ul className="text-muted-foreground list-inside list-disc text-xs">
               {data.pendingFromTemplates.map((p) => (
                 <li key={p.templateId}>
                   {p.name}{" "}
                   <span className="text-bad tabular-nums">
-                    {formatCurrency(Number(p.amount), data.primaryCurrency)}
+                    {formatCurrency(Number(p.amount), data.primaryCurrency, locale)}
                   </span>{" "}
                   · {p.bankName}
                 </li>
@@ -451,7 +484,9 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                 onClick={() => void onMergePendingTemplates()}
                 disabled={mergingPending}
               >
-                {mergingPending ? "Agregando…" : "Agregar al mes"}
+                {mergingPending
+                  ? tx({ es: "Agregando…", en: "Adding…" })
+                  : tx({ es: "Agregar al mes", en: "Add to month" })}
               </Button>
               <Button
                 type="button"
@@ -459,7 +494,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                 onClick={() => setDismissedPending(true)}
                 disabled={mergingPending}
               >
-                Ahora no
+                {tx({ es: "Ahora no", en: "Not now" })}
               </Button>
             </div>
           </CardContent>
@@ -473,17 +508,33 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p className="text-muted-foreground">
-              Sincronizá movimientos del mes para marcar gastos como pagados e importar lo que
-              falte. Con instrucciones en Ajustes, se filtran y categorizan movimientos con el
-              asistente (requiere OpenAI).
+              {tx({
+                es: "Sincronizá movimientos del mes para marcar gastos como pagados e importar lo que falte. Con instrucciones en Ajustes, se filtran y categorizan movimientos con el asistente (requiere OpenAI).",
+                en: "Sync this month’s transactions to mark expenses paid and import what’s missing. With instructions in Settings, movements are filtered and categorized by the assistant (requires OpenAI).",
+              })}
             </p>
             {!data.revolut.defaultImportBankId ? (
               <p className="text-warn">
-                Elegí un banco local para importar en{" "}
-                <a href="/settings" className="underline">
-                  Ajustes → Revolut
-                </a>
-                .
+                {tx({
+                  es: (
+                    <>
+                      Elegí un banco local para importar en{" "}
+                      <a href="/settings" className="underline">
+                        Ajustes → Revolut
+                      </a>
+                      .
+                    </>
+                  ),
+                  en: (
+                    <>
+                      Choose a local bank for imports under{" "}
+                      <a href="/settings" className="underline">
+                        Settings → Revolut
+                      </a>
+                      .
+                    </>
+                  ),
+                })}
               </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
@@ -495,7 +546,9 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                 onClick={() => void onRevolutSync()}
               >
                 <RefreshCw className={revolutSyncing ? "size-4 animate-spin" : "size-4"} />
-                {revolutSyncing ? "Sincronizando…" : "Sincronizar Revolut"}
+                {revolutSyncing
+                  ? tx({ es: "Sincronizando…", en: "Syncing…" })
+                  : tx({ es: "Sincronizar Revolut", en: "Sync Revolut" })}
               </Button>
             </div>
             {revolutError ? <p className="text-destructive text-sm">{revolutError}</p> : null}
@@ -518,7 +571,10 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
 
       {data.isCurrentMonth && data.banks.length === 0 ? (
         <p className="text-muted-foreground text-sm">
-          Creá al menos un banco para agregar gastos a este mes.
+          {tx({
+            es: "Creá al menos un banco para agregar gastos a este mes.",
+            en: "Create at least one bank to add expenses to this month.",
+          })}
         </p>
       ) : null}
 
@@ -553,7 +609,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
             }}
             className="gradient-lime text-ink fixed right-4 bottom-4 z-30 size-14 rounded-full shadow-[0_18px_40px_-16px_oklch(0.74_0.18_156/0.55)] sm:right-6 sm:bottom-6"
             size="icon"
-            aria-label="Nuevo gasto en este mes"
+            aria-label={tx({ es: "Nuevo gasto en este mes", en: "New expense this month" })}
           >
             <Plus className="size-7" />
           </Button>
@@ -577,17 +633,27 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Ingreso en otros meses (reciente)</CardTitle>
+          <CardTitle className="text-sm">
+            {tx({
+              es: "Ingreso en otros meses (reciente)",
+              en: "Income in other months (recent)",
+            })}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="text-muted-foreground text-sm">
-            Ingreso por defecto (meses nuevos):{" "}
+            {tx({
+              es: "Ingreso por defecto (meses nuevos):",
+              en: "Default income (new months):",
+            })}{" "}
             <span className="text-good font-bold">
-              {formatCurrency(data.defaultIncome, data.primaryCurrency)}
+              {formatCurrency(data.defaultIncome, data.primaryCurrency, locale)}
             </span>
           </div>
           {data.incomeHistory.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Nada más aún.</p>
+            <p className="text-muted-foreground text-sm">
+              {tx({ es: "Nada más aún.", en: "Nothing else yet." })}
+            </p>
           ) : (
             <div className="space-y-2">
               {data.incomeHistory.map((entry) => (
@@ -596,11 +662,13 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                   className="flex items-center justify-between rounded-md border px-3 py-2"
                 >
                   <span className="text-sm">
-                    {format(parse(entry.month, "yyyy-MM", new Date()), "MMMM yyyy")}
+                    {format(parse(entry.month, "yyyy-MM", new Date()), "MMMM yyyy", {
+                      locale: dateLocale(locale),
+                    })}
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-good font-bold">
-                      {formatCurrency(entry.amount, data.primaryCurrency)}
+                      {formatCurrency(entry.amount, data.primaryCurrency, locale)}
                     </span>
                     <button
                       type="button"
@@ -610,7 +678,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                       }}
                       className="border-input hover:bg-muted h-7 rounded-md border px-2 text-xs"
                     >
-                      Usar en este mes
+                      {tx({ es: "Usar en este mes", en: "Use for this month" })}
                     </button>
                   </div>
                 </div>

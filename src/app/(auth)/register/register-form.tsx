@@ -7,15 +7,23 @@ import { FormEvent, useState } from "react";
 
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/i18n/client";
 
 type RegisterFormProps = {
   googleEnabled: boolean;
 };
 
 export function RegisterForm({ googleEnabled }: RegisterFormProps) {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -28,7 +36,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden.");
+      setError(t.auth.errorPasswordMismatch);
       return;
     }
 
@@ -44,7 +52,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
 
     if (!response.ok) {
       const data = (await response.json()) as { error?: string };
-      setError(data.error ?? "No se pudo crear la cuenta.");
+      setError(data.error ?? t.auth.errorRegisterFailed);
       setLoading(false);
       return;
     }
@@ -58,32 +66,30 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
     setLoading(false);
 
     if (signInResult?.error) {
-      setError("La cuenta se creó pero no pudimos iniciar sesión. Probá entrar manualmente.");
+      setError(t.auth.errorLoginFailed);
       return;
     }
 
-    router.push("/app");
+    router.push("/onboarding");
     router.refresh();
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Crear cuenta</CardTitle>
-        <CardDescription>
-          Empezá a planificar tus gastos fijos y puntuales mes a mes.
-        </CardDescription>
+        <CardTitle>{t.auth.registerTitle}</CardTitle>
+        <CardDescription>{t.auth.registerSubtitle}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {googleEnabled ? (
           <div className="space-y-3">
-            <GoogleSignInButton callbackUrl="/app" label="Registrarse con Google" />
+            <GoogleSignInButton callbackUrl="/onboarding" label={t.auth.googleContinue} />
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="border-border w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card text-muted-foreground px-2">o</span>
+                <span className="bg-card text-muted-foreground px-2">{t.auth.or}</span>
               </div>
             </div>
           </div>
@@ -91,7 +97,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
 
         <form className="space-y-4" onSubmit={onSubmit} noValidate>
           <div className="space-y-2">
-            <Label htmlFor="email">Correo electrónico</Label>
+            <Label htmlFor="email">{t.auth.email}</Label>
             <Input
               id="email"
               type="email"
@@ -103,7 +109,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Contraseña</Label>
+            <Label htmlFor="password">{t.auth.password}</Label>
             <Input
               id="password"
               type="password"
@@ -116,7 +122,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
+            <Label htmlFor="confirmPassword">{t.auth.confirmPassword}</Label>
             <Input
               id="confirmPassword"
               type="password"
@@ -131,13 +137,16 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creando cuenta…" : "Crear cuenta"}
+            {loading ? t.auth.submittingRegister : t.auth.submitRegister}
           </Button>
 
           <p className="text-muted-foreground text-center text-sm">
-            ¿Ya tenés cuenta?{" "}
-            <Link href="/login" className="text-primary underline-offset-4 hover:underline">
-              Iniciá sesión
+            {t.auth.haveAccount}{" "}
+            <Link
+              href="/login"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              {t.auth.goToLogin}
             </Link>
           </p>
         </form>

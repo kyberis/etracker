@@ -1,17 +1,25 @@
 import type { Metadata } from "next";
 
 import { ChatExperience } from "@/components/chat-experience";
+import { getDict } from "@/lib/i18n";
+import { getLocaleFromRequest } from "@/lib/i18n/server";
 
 type PageProps = {
   searchParams: Promise<{ month?: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "Tu asistente",
-  description:
-    "Chateá con Clara para registrar gastos, planificar el mes y conectar tu banco.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocaleFromRequest();
+  const t = getDict(locale);
+  return {
+    title: t.chat.metaTitle,
+    description:
+      locale === "en"
+        ? "Chat with Clara to log expenses, plan the month and connect your bank."
+        : "Chateá con Clara para registrar gastos, planificar el mes y conectar tu banco.",
+    robots: { index: false, follow: false },
+  };
+}
 
 /**
  * Chat-first authenticated home. Marketing lives at `/`; this is the actual

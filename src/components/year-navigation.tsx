@@ -4,6 +4,7 @@ import { addYears, format, parse } from "date-fns";
 import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
+import { useTx } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 type YearNavigationProps = {
@@ -12,6 +13,7 @@ type YearNavigationProps = {
 };
 
 export function YearNavigation({ monthKey, className }: YearNavigationProps) {
+  const tx = useTx();
   const current = parse(monthKey, "yyyy-MM", new Date());
   const year = Number(format(current, "yyyy"));
   const prev = format(addYears(current, -1), "yyyy-MM");
@@ -22,7 +24,7 @@ export function YearNavigation({ monthKey, className }: YearNavigationProps) {
       <Link
         href={`/m/${prev}`}
         className={buttonVariants({ variant: "ghost", size: "sm" })}
-        aria-label="Año anterior"
+        aria-label={tx({ es: "Año anterior", en: "Previous year" })}
       >
         {year - 1}
       </Link>
@@ -30,7 +32,7 @@ export function YearNavigation({ monthKey, className }: YearNavigationProps) {
       <Link
         href={`/m/${next}`}
         className={buttonVariants({ variant: "ghost", size: "sm" })}
-        aria-label="Año siguiente"
+        aria-label={tx({ es: "Año siguiente", en: "Next year" })}
       >
         {year + 1}
       </Link>

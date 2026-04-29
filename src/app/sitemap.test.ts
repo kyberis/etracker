@@ -7,16 +7,18 @@ describe("sitemap.ts", () => {
   const entries = sitemap();
   const paths = entries.map((e) => new URL(e.url).pathname || "/");
 
-  it("includes every public marketing route", () => {
-    for (const expected of [
-      "/",
-      "/about",
-      "/features",
-      "/faq",
-      "/changelog",
-      "/privacy",
-    ]) {
-      expect(paths).toContain(expected);
+  it("includes every public marketing route under /es and /en", () => {
+    for (const locale of ["es", "en"] as const) {
+      for (const expected of [
+        `/${locale}`,
+        `/${locale}/about`,
+        `/${locale}/features`,
+        `/${locale}/faq`,
+        `/${locale}/changelog`,
+        `/${locale}/privacy`,
+      ]) {
+        expect(paths).toContain(expected);
+      }
     }
   });
 
@@ -30,10 +32,11 @@ describe("sitemap.ts", () => {
     }
   });
 
-  it("declares es-AR / es language alternates for each entry", () => {
+  it("declares es-AR / en-US / x-default hreflang alternates for each entry", () => {
     for (const entry of entries) {
       expect(entry.alternates?.languages?.["es-AR"]).toBeDefined();
-      expect(entry.alternates?.languages?.es).toBeDefined();
+      expect(entry.alternates?.languages?.["en-US"]).toBeDefined();
+      expect(entry.alternates?.languages?.["x-default"]).toBeDefined();
     }
   });
 });

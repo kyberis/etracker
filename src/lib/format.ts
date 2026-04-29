@@ -2,15 +2,20 @@
  * Money formatting helpers.
  *
  * The primary currency lives on `User.primaryCurrency` and is threaded down
- * from server components into UI props. A few legacy spots still rely on the
- * USD default — that's safe (purely cosmetic) and we override them at the
- * call site as we go.
+ * from server components into UI props. Locale-sensitive: we resolve a
+ * BCP-47 string from the active i18n locale ("es-AR" / "en-US") so that
+ * grouping and decimal separators match the rest of the UI.
  */
 
-const DEFAULT_LOCALE = "en-US";
+import { intlLocale } from "@/lib/i18n/format";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locale";
 
-export function formatCurrency(value: number, currency: string = "USD"): string {
-  return new Intl.NumberFormat(DEFAULT_LOCALE, {
+export function formatCurrency(
+  value: number,
+  currency: string = "USD",
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return new Intl.NumberFormat(intlLocale(locale), {
     style: "currency",
     currency,
     minimumFractionDigits: 2,
@@ -19,8 +24,12 @@ export function formatCurrency(value: number, currency: string = "USD"): string 
 }
 
 /** Shorter amounts for tight UI (e.g. timeline). */
-export function formatCurrencyCompact(value: number, currency: string = "USD"): string {
-  return new Intl.NumberFormat(DEFAULT_LOCALE, {
+export function formatCurrencyCompact(
+  value: number,
+  currency: string = "USD",
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return new Intl.NumberFormat(intlLocale(locale), {
     style: "currency",
     currency,
     maximumFractionDigits: 1,
@@ -37,11 +46,16 @@ export function formatCurrencyCompact(value: number, currency: string = "USD"): 
 export function formatLineAmount(
   line: { amount: string | number; currency: string; amountConverted: string | number },
   primaryCurrency: string,
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
-  const original = formatCurrency(Number(line.amount), line.currency);
+  const original = formatCurrency(Number(line.amount), line.currency, locale);
   if (line.currency.toUpperCase() === primaryCurrency.toUpperCase()) {
     return original;
   }
-  const converted = formatCurrency(Number(line.amountConverted), primaryCurrency);
+  const converted = formatCurrency(
+    Number(line.amountConverted),
+    primaryCurrency,
+    locale,
+  );
   return `${original} (~ ${converted})`;
 }

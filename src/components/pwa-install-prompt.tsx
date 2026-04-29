@@ -4,6 +4,7 @@ import { Download, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useT, useTx } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "ada_pwa_install_dismissed_at";
@@ -52,6 +53,8 @@ function shouldShowIosHint(): boolean {
 }
 
 export function PwaInstallPrompt() {
+  const t = useT();
+  const tx = useTx();
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [iosHint, setIosHint] = useState(false);
@@ -112,7 +115,7 @@ export function PwaInstallPrompt() {
         "border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg",
       )}
       role="region"
-      aria-label="Instalar aplicación"
+      aria-label={tx({ es: "Instalar aplicación", en: "Install app" })}
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="text-muted-foreground flex min-w-0 flex-1 items-start gap-2 text-sm sm:items-center">
@@ -120,13 +123,30 @@ export function PwaInstallPrompt() {
           <p className="min-w-0">
             {deferred ? (
               <>
-                <span className="text-foreground font-medium">Instalá Clara</span> — acceso rápido
-                desde la pantalla de inicio, como una app.
+                <span className="text-foreground font-medium">{t.pwa.installTitle}</span>{" "}
+                {tx({
+                  es: "— acceso rápido desde la pantalla de inicio, como una app.",
+                  en: "— quick access from your home screen, like an app.",
+                })}
               </>
             ) : iosHint ? (
               <>
-                <span className="text-foreground font-medium">Añadí Clara a Inicio</span>: tocá{" "}
-                <span className="text-foreground">Compartir</span> y elegí &quot;Añadir a inicio&quot;.
+                {tx({
+                  es: (
+                    <>
+                      <span className="text-foreground font-medium">Añadí Clara a Inicio</span>: tocá{" "}
+                      <span className="text-foreground">Compartir</span> y elegí &quot;Añadir a
+                      inicio&quot;.
+                    </>
+                  ),
+                  en: (
+                    <>
+                      <span className="text-foreground font-medium">Add Clara to Home</span>: tap{" "}
+                      <span className="text-foreground">Share</span> and choose &quot;Add to Home
+                      Screen&quot;.
+                    </>
+                  ),
+                })}
               </>
             ) : null}
           </p>
@@ -134,7 +154,7 @@ export function PwaInstallPrompt() {
         <div className="flex shrink-0 items-center justify-end gap-2">
           {deferred ? (
             <Button type="button" size="sm" onClick={onInstall}>
-              Instalar
+              {t.pwa.install}
             </Button>
           ) : null}
           <Button
@@ -142,7 +162,7 @@ export function PwaInstallPrompt() {
             variant="ghost"
             size="icon-sm"
             onClick={dismiss}
-            aria-label="Cerrar sugerencia"
+            aria-label={tx({ es: "Cerrar sugerencia", en: "Dismiss suggestion" })}
           >
             <X className="size-4" />
           </Button>

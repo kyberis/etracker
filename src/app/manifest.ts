@@ -7,16 +7,18 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Clara",
     description:
       "Asistente financiera con IA. Planificá gastos, seguí tu balance mes a mes y chateá con tu plata.",
-    start_url: "/app",
+    start_url: "/app?source=pwa",
     scope: "/",
     display: "standalone",
-    display_override: ["window-controls-overlay", "standalone"],
+    display_override: ["window-controls-overlay", "standalone", "minimal-ui"],
     orientation: "portrait",
     background_color: "#FBEFD3",
     theme_color: "#1B0F3A",
     lang: "es-AR",
     dir: "ltr",
     categories: ["finance", "productivity", "lifestyle"],
+    prefer_related_applications: false,
+    launch_handler: { client_mode: ["focus-existing", "auto"] },
     icons: [
       {
         src: "/clara-icon-192.png",

@@ -61,6 +61,23 @@ model User {
   expenseImportInstructions String?
   /// Marca cuándo se mostró por primera vez el mensaje de bienvenida del asistente. Null = todavía no se saludó.
   welcomedAt               DateTime?
+  /// ISO-3166 alpha-2 (2 letras, mayúsculas) del país de residencia capturado
+  /// en el wizard de onboarding. Lo usamos para sugerir la moneda principal y,
+  /// más adelante, para semillar las instituciones de Revolut por país.
+  country                  String?             @db.Char(2)
+  /// Motivos por los que el usuario abre Clara (chips multi-select del wizard).
+  /// Valores: `personal`, `couple_family`, `freelance`, `business`, `other`.
+  /// Puro hint para el agente; no gating de features.
+  usageReasons             String[]            @default([])
+  /// Marca cuándo el usuario terminó (o saltó) el wizard de onboarding. Null
+  /// = pendiente; el layout de `/app` redirige a `/onboarding` mientras sea
+  /// null para nuevos registros y usuarios viejos que nunca lo completaron.
+  onboardingCompletedAt    DateTime?
+  /// Idioma preferido del usuario para la UI y el agente Clara. Valores
+  /// soportados: "es" (rioplatense, default), "en" (English neutral). Lo
+  /// escribe la herramienta `setUserLocale` del agente, el endpoint
+  /// /api/settings/locale (selector del menú) y el formulario de Settings.
+  locale                   String              @default("es")
   banks                    Bank[]
   expenses                 Expense[]
   monthRecords             MonthRecord[]

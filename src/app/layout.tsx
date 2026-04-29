@@ -4,6 +4,8 @@ import { Bricolage_Grotesque, Geist_Mono, Schibsted_Grotesk } from "next/font/go
 import "./globals.css";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { intlLocale } from "@/lib/i18n/format";
+import { getLocale } from "@/lib/i18n/server";
 import {
   SITE_DESCRIPTION,
   SITE_KEYWORDS,
@@ -52,9 +54,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
     languages: {
-      "es-AR": "/",
-      es: "/",
-      "x-default": "/",
+      "es-AR": "/es",
+      "en-US": "/en",
+      "x-default": "/es",
     },
     types: {
       "text/plain": "/llms.txt",
@@ -63,6 +65,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "es_AR",
+    alternateLocale: ["en_US"],
     url: SITE_URL,
     siteName: SITE_NAME,
     title: `${SITE_NAME} — ${SITE_TAGLINE}`,
@@ -110,18 +113,29 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
   return (
     <html
-      lang="es-AR"
+      lang={intlLocale(locale)}
       className={`${schibsted.variable} ${geistMono.variable} ${bricolage.variable} h-full antialiased`}
     >
       <head>
         <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+        <link
+          rel="alternate"
+          type="text/plain"
+          hrefLang="en"
+          href="/en/llms.txt"
+          title="llms.txt (en)"
+        />
+        <link rel="alternate" hrefLang="es-AR" href="/es" />
+        <link rel="alternate" hrefLang="en-US" href="/en" />
+        <link rel="alternate" hrefLang="x-default" href="/es" />
         <link
           rel="alternate"
           type="application/json"

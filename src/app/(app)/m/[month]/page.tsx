@@ -8,6 +8,8 @@ import { PageContainer } from "@/components/page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { YearNavigation } from "@/components/year-navigation";
 import { YearTimeline } from "@/components/year-timeline";
+import { dateLocale } from "@/lib/i18n/format";
+import { getLocale } from "@/lib/i18n/server";
 import { findPreviousMonthWithRecord } from "@/lib/month-bucket";
 import { loadMonthPageData } from "@/lib/month-page-data";
 import { formatMonthKey, parseMonthKey } from "@/lib/months";
@@ -34,19 +36,28 @@ export default async function MonthPage({ params }: PageProps) {
   const userId = await requireUserId();
   const year = monthStart.getUTCFullYear();
 
-  const [data, previousRecord, yearTimeline] = await Promise.all([
+  const [data, previousRecord, yearTimeline, locale] = await Promise.all([
     loadMonthPageData(userId, month),
     findPreviousMonthWithRecord(userId, monthStart),
     getYearTimelineData(userId, year),
+    getLocale(),
   ]);
   const suggestedCopyFrom = previousRecord ? formatMonthKey(previousRecord.month) : null;
+  const yearLinkedLabel =
+    locale === "en" ? "Year linked to month" : "Año vinculado al mes";
+  const monthDescription =
+    locale === "en"
+      ? "Tick which expenses you paid this month. Changes apply only here."
+      : "Marca qué gastos del mes pagaste. Los cambios solo aplican a este mes.";
 
   return (
     <PageContainer className="space-y-6">
       <div className="space-y-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <YearNavigation monthKey={month} />
-          <p className="text-muted-foreground text-center text-sm sm:text-left">Año vinculado al mes</p>
+          <p className="text-muted-foreground text-center text-sm sm:text-left">
+            {yearLinkedLabel}
+          </p>
         </div>
         <YearTimeline
           year={year}
@@ -58,11 +69,13 @@ export default async function MonthPage({ params }: PageProps) {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{format(monthStart, "MMMM yyyy")}</CardTitle>
+          <CardTitle>
+            {format(monthStart, "MMMM yyyy", { locale: dateLocale(locale) })}
+          </CardTitle>
           <MonthPicker month={month} />
         </CardHeader>
         <CardContent className="text-muted-foreground text-sm">
-          Marca qué gastos del mes pagaste. Los cambios solo aplican a este mes.
+          {monthDescription}
         </CardContent>
       </Card>
       {data.hasRecord ? (

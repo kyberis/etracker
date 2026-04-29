@@ -8,6 +8,7 @@ import { transcribeAudioOpenAI } from "@/lib/ai/transcribe-audio";
 import { consumeAgentQuota, recordAgentTokens } from "@/lib/agent-quota";
 import { uploadTtsAudioToBlob } from "@/lib/blob/tts";
 import { db } from "@/lib/db";
+import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { log } from "@/lib/log";
 import { findUserByLinkCode, normalizePhone } from "@/lib/whatsapp/link";
 import {
@@ -29,8 +30,71 @@ function isWhatsappVoiceReplyEnabled(): boolean {
   const v = process.env.WHATSAPP_VOICE_REPLY?.trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes";
 }
+// Bilingual hint for unlinked numbers: we don't know the user's locale yet,
+// so we show both languages stacked.
 const UNLINKED_HINT =
-  "No tengo este número vinculado a una cuenta de Clara todavía. Iniciá la vinculación en Ajustes → Clara Assistant y mandame el código (LINK 123456) por acá.";
+  "No tengo este número vinculado a una cuenta de Clara todavía. Iniciá la vinculación en Ajustes → Clara Assistant y mandame el código (LINK 123456) por acá.\n\n" +
+  "I don't have this number linked to a Clara account yet. Start the link flow in Settings → Clara Assistant and send me the code (LINK 123456) here.";
+
+type WhatsappStringKey =
+  | "noFile"
+  | "imageDownloadFailed"
+  | "audioDownloadFailed"
+  | "processThisCapture"
+  | "voiceNotePrefix"
+  | "unsupportedMedia"
+  | "linkSuccess"
+  | "accountDisabled"
+  | "imagePlaceholder"
+  | "agentError";
+
+const WHATSAPP_STRINGS: Record<Locale, Record<WhatsappStringKey, string>> = {
+  es: {
+    noFile: "No recibí el archivo. ¿Lo mandás de nuevo?",
+    imageDownloadFailed: "No pude descargar la imagen, ¿la mandás de nuevo?",
+    audioDownloadFailed: "No pude descargar el audio, ¿lo mandás de nuevo?",
+    processThisCapture: "Procesá esta captura.",
+    voiceNotePrefix: "Nota de voz",
+    unsupportedMedia:
+      "Por ahora proceso texto, fotos y mensajes de voz. Este tipo de archivo no lo puedo usar.",
+    linkSuccess:
+      "Listo, vinculé este número a tu cuenta de Clara. Decime qué querés saber del mes, mandame una captura del banco o un mensaje de voz.",
+    accountDisabled:
+      "Tu cuenta de Clara está desactivada. Contactá al administrador para reactivarla.",
+    imagePlaceholder: "[imagen]",
+    agentError:
+      "Tuve un problema procesando tu mensaje. Probá de nuevo en un momento.",
+  },
+  en: {
+    noFile: "I didn't get the file. Can you send it again?",
+    imageDownloadFailed: "I couldn't download the image. Can you send it again?",
+    audioDownloadFailed: "I couldn't download the audio. Can you send it again?",
+    processThisCapture: "Process this screenshot.",
+    voiceNotePrefix: "Voice note",
+    unsupportedMedia:
+      "For now I can only process text, photos and voice messages. I can't use this file type.",
+    linkSuccess:
+      "Done, this number is now linked to your Clara account. Ask me anything about the month, send me a bank screenshot or a voice message.",
+    accountDisabled:
+      "Your Clara account is disabled. Contact the administrator to reactivate it.",
+    imagePlaceholder: "[image]",
+    agentError:
+      "I had a problem processing your message. Try again in a moment.",
+  },
+};
+
+function quotaLimitMessage(locale: Locale, limit: number): string {
+  return locale === "en"
+    ? `You've reached the daily limit of ${limit} assistant messages. It resets at 00:00 UTC.`
+    : `Llegaste al límite diario de ${limit} mensajes con el asistente. Se reinicia a las 00:00 UTC.`;
+}
+
+function lowQuotaHint(locale: Locale, remaining: number): string {
+  if (locale === "en") {
+    return `_(You have ${remaining} assistant ${remaining === 1 ? "message" : "messages"} left today.)_`;
+  }
+  return `_(Te quedan ${remaining} ${remaining === 1 ? "mensaje" : "mensajes"} con el asistente hoy.)_`;
+}
 
 const TWIML_OK = '<?xml version="1.0" encoding="UTF-8"?><Response/>';
 
@@ -150,6 +214,14 @@ function serializeError(error: unknown): unknown {
   return error;
 }
 
+async function getUserLocale(userId: string): Promise<Locale> {
+  const u = await db.user.findUnique({
+    where: { id: userId },
+    select: { locale: true },
+  });
+  return isLocale(u?.locale) ? (u!.locale as Locale) : "es";
+}
+
 async function handleLinkedUser(
   userId: string,
   phone: string,
@@ -157,27 +229,24 @@ async function handleLinkedUser(
   numMedia: number,
   params: Record<string, string>,
 ) {
+  const locale = await getUserLocale(userId);
+  const t = WHATSAPP_STRINGS[locale];
+
   if (numMedia > 0) {
     const mediaUrl = params.MediaUrl0;
     const mediaType = params.MediaContentType0 ?? "";
     if (!mediaUrl) {
-      await sendTwilioWhatsapp(
-        phone,
-        "No recibí el archivo. ¿Lo mandás de nuevo?",
-      );
+      await sendTwilioWhatsapp(phone, t.noFile);
       return;
     }
 
     if (mediaType.startsWith("image/")) {
       const media = await fetchTwilioMedia(mediaUrl);
       if (!media) {
-        await sendTwilioWhatsapp(
-          phone,
-          "No pude descargar la imagen, ¿la mandás de nuevo?",
-        );
+        await sendTwilioWhatsapp(phone, t.imageDownloadFailed);
         return;
       }
-      await respondToUser(userId, phone, text || "Procesá esta captura.", {
+      await respondToUser(userId, phone, text || t.processThisCapture, {
         mediaType: media.mediaType,
         buffer: media.buffer,
       });
@@ -187,15 +256,13 @@ async function handleLinkedUser(
     if (mediaType.startsWith("audio/")) {
       const media = await fetchTwilioMedia(mediaUrl);
       if (!media) {
-        await sendTwilioWhatsapp(
-          phone,
-          "No pude descargar el audio, ¿lo mandás de nuevo?",
-        );
+        await sendTwilioWhatsapp(phone, t.audioDownloadFailed);
         return;
       }
       const transcription = await transcribeAudioOpenAI({
         buffer: media.buffer,
         mediaType: media.mediaType || mediaType,
+        locale,
       });
       if (!transcription.ok) {
         await sendTwilioWhatsapp(phone, transcription.message);
@@ -204,16 +271,13 @@ async function handleLinkedUser(
       const caption = text.trim();
       const combined =
         caption ?
-          `${caption}\n\n(Nota de voz: ${transcription.text})`
+          `${caption}\n\n(${t.voiceNotePrefix}: ${transcription.text})`
         : transcription.text;
       await respondToUser(userId, phone, combined);
       return;
     }
 
-    await sendTwilioWhatsapp(
-      phone,
-      "Por ahora proceso texto, fotos y mensajes de voz. Este tipo de archivo no lo puedo usar.",
-    );
+    await sendTwilioWhatsapp(phone, t.unsupportedMedia);
     return;
   }
 
@@ -239,10 +303,8 @@ async function tryCompleteLink(phone: string, text: string) {
     },
   });
   log.info("twilio.link_ok", { userId: match.user.id, phone });
-  await sendTwilioWhatsapp(
-    phone,
-    "Listo, vinculé este número a tu cuenta de Clara. Decime qué querés saber del mes, mandame una captura del banco o un mensaje de voz.",
-  );
+  const locale = await getUserLocale(match.user.id);
+  await sendTwilioWhatsapp(phone, WHATSAPP_STRINGS[locale].linkSuccess);
 }
 
 async function respondToUser(
@@ -251,21 +313,18 @@ async function respondToUser(
   text: string,
   image?: { mediaType: string; buffer: Buffer },
 ) {
+  const locale = await getUserLocale(userId);
+  const t = WHATSAPP_STRINGS[locale];
+
   // Per-user daily cap shared with the web chat. Increment before invoking
   // the model so a crash mid-flight doesn't grant a free retry.
   const quota = await consumeAgentQuota(userId);
   if (!quota.ok) {
     if (quota.reason === "disabled") {
-      await sendTwilioWhatsapp(
-        phone,
-        "Tu cuenta de Clara está desactivada. Contactá al administrador para reactivarla.",
-      );
+      await sendTwilioWhatsapp(phone, t.accountDisabled);
       return;
     }
-    await sendTwilioWhatsapp(
-      phone,
-      `Llegaste al límite diario de ${quota.limit} mensajes con el asistente. Se reinicia a las 00:00 UTC.`,
-    );
+    await sendTwilioWhatsapp(phone, quotaLimitMessage(locale, quota.limit));
     return;
   }
 
@@ -274,7 +333,7 @@ async function respondToUser(
     ? {
         role: "user",
         content: [
-          { type: "text", text: text || "Procesá esta captura." },
+          { type: "text", text: text || t.processThisCapture },
           {
             type: "image",
             image: image.buffer,
@@ -284,7 +343,7 @@ async function respondToUser(
       }
     : { role: "user", content: text };
 
-  await persistMessage(userId, "user", text || "[imagen]");
+  await persistMessage(userId, "user", text || t.imagePlaceholder);
 
   let reply = "";
   try {
@@ -296,12 +355,12 @@ async function respondToUser(
     await recordAgentTokens(userId, result.usage);
   } catch (error) {
     log.error("twilio.agent_error", { error: serializeError(error) });
-    reply = "Tuve un problema procesando tu mensaje. Probá de nuevo en un momento.";
+    reply = t.agentError;
   }
 
   // Discreet "low quota" hint when the user is close to running out.
   if (quota.remaining > 0 && quota.remaining <= 3 && reply) {
-    reply = `${reply}\n\n_(Te quedan ${quota.remaining} ${quota.remaining === 1 ? "mensaje" : "mensajes"} con el asistente hoy.)_`;
+    reply = `${reply}\n\n${lowQuotaHint(locale, quota.remaining)}`;
   }
 
   await persistMessage(userId, "assistant", reply);
@@ -317,7 +376,7 @@ async function respondToUser(
     reply.length > 0 &&
     reply.length <= WHATSAPP_TTS_MAX_CHARS
   ) {
-    const mp3 = await synthesizeSpeechMp3(reply);
+    const mp3 = await synthesizeSpeechMp3(reply, locale);
     if (mp3) {
       const uploaded = await uploadTtsAudioToBlob(Buffer.from(mp3));
       if (uploaded) {

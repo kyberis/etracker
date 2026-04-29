@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Clara · chat WhatsApp-style mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ['"Bricolage Grotesque"', "system-ui", "sans-serif"],
+              sans: ['"Schibsted Grotesk"', "system-ui", "sans-serif"],
+            },
+            colors: {
+              cream: { 50: "#FFF7E8", 100: "#FBEFD3", 200: "#F5E5C0" },
+              ink:   { 900: "#0E0833", 800: "#1B0F3A", 700: "#2A1A4A", 500: "#5A4982", 300: "#8C7DB0" },
+              lime:  { 300: "#C8FF7B", 400: "#A5FFD0", 500: "#5EF2B0", 600: "#22D67F", 700: "#0FA864" },
+              hotpink: { 300: "#FFD4DF", 500: "#FF7AA2", 600: "#F23F7A" },
+              peach: { 400: "#FFD1A4", 500: "#FFB07A" },
+              violet: { 400: "#C8B6FF", 500: "#A38EFF", 600: "#7C5BFF" },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root { color-scheme: light; }
+      html, body {
+        background: #FBEFD3;
+        background-image:
+          radial-gradient(720px 380px at 0% -8%, rgba(195,168,255,0.45), transparent 60%),
+          radial-gradient(820px 400px at 102% -2%, rgba(255,195,161,0.45), transparent 65%),
+          radial-gradient(900px 460px at 50% 102%, rgba(110,230,165,0.18), transparent 65%);
+        background-attachment: fixed;
+        font-family: "Schibsted Grotesk", system-ui, sans-serif;
+        color: #1B0F3A;
+      }
+      .display { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+
+      /* Phone frame */
+      .phone {
+        width: 380px;
+        height: 780px;
+        border-radius: 56px;
+        background: #0E0833;
+        padding: 14px;
+        box-shadow:
+          0 50px 80px -30px rgba(14,8,51,0.45),
+          0 20px 40px -20px rgba(124,91,255,0.25),
+          inset 0 0 0 2px rgba(255,255,255,0.04);
+        position: relative;
+      }
+      .phone::before {
+        content: "";
+        position: absolute;
+        top: 22px; left: 50%;
+        transform: translateX(-50%);
+        width: 130px; height: 28px;
+        background: #0E0833;
+        border-radius: 18px;
+        z-index: 5;
+      }
+      .screen {
+        width: 100%;
+        height: 100%;
+        border-radius: 44px;
+        background: #FBEFD3;
+        background-image:
+          radial-gradient(420px 220px at 0% 0%, rgba(195,168,255,0.35), transparent 60%),
+          radial-gradient(420px 220px at 100% 0%, rgba(255,195,161,0.35), transparent 65%);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Status bar */
+      .status-bar {
+        height: 44px;
+        padding: 14px 28px 0 28px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1B0F3A;
+        flex-shrink: 0;
+      }
+
+      /* Chat header */
+      .chat-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px 12px 16px;
+        border-bottom: 1px solid rgba(27,15,58,0.06);
+        flex-shrink: 0;
+      }
+      .header-avatar {
+        width: 38px; height: 38px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #C8FF7B, #5EF2B0);
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 800; color: #0E0833;
+        font-family: "Bricolage Grotesque", sans-serif;
+        box-shadow: 0 6px 14px -6px rgba(34,214,127,0.5);
+      }
+
+      /* Messages list */
+      .messages {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 14px 14px 8px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        scrollbar-width: thin;
+      }
+      .messages::-webkit-scrollbar { width: 4px; }
+      .messages::-webkit-scrollbar-thumb { background: rgba(27,15,58,0.15); border-radius: 99px; }
+
+      .bubble {
+        max-width: 82%;
+        padding: 10px 14px;
+        border-radius: 22px;
+        font-size: 14px;
+        line-height: 1.4;
+        word-wrap: break-word;
+      }
+      .bubble-user {
+        align-self: flex-end;
+        background: #1B0F3A;
+        color: #FBEFD3;
+        border-bottom-right-radius: 6px;
+      }
+      .bubble-clara {
+        align-self: flex-start;
+        background: #ffffff;
+        color: #1B0F3A;
+        border-bottom-left-radius: 6px;
+        box-shadow: 0 4px 12px -8px rgba(14,8,51,0.2);
+      }
+      .bubble-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+      }
+      .bubble-row .mini-avatar {
+        width: 26px; height: 26px; flex-shrink: 0;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #C8FF7B, #5EF2B0);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 800; color: #0E0833;
+        font-family: "Bricolage Grotesque", sans-serif;
+      }
+      .day-divider {
+        align-self: center;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #5A4982;
+        background: rgba(255,255,255,0.7);
+        padding: 4px 10px;
+        border-radius: 999px;
+        margin: 4px 0;
+      }
+      .load-more {
+        align-self: center;
+        font-size: 12px;
+        font-weight: 600;
+        color: #7C5BFF;
+        background: rgba(124,91,255,0.1);
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(124,91,255,0.2);
+        display: inline-flex; align-items: center; gap: 6px;
+        margin-bottom: 4px;
+      }
+
+      /* Composer */
+      .composer-wrap {
+        flex-shrink: 0;
+        padding: 8px 12px 10px 12px;
+        background: linear-gradient(to top, rgba(251,239,211,0.98) 60%, rgba(251,239,211,0));
+      }
+      .composer {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #ffffff;
+        border-radius: 999px;
+        padding: 6px 6px 6px 10px;
+        box-shadow: 0 18px 50px -28px rgba(14,8,51,0.4);
+        border: 1px solid rgba(27,15,58,0.05);
+      }
+      .icon-btn {
+        width: 38px; height: 38px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        color: #5A4982;
+        flex-shrink: 0;
+      }
+      .icon-btn.send {
+        background: linear-gradient(135deg, #C8FF7B, #5EF2B0);
+        color: #0E0833;
+        box-shadow: 0 12px 24px -10px rgba(34,214,127,0.55);
+      }
+      .composer .field {
+        flex: 1;
+        min-width: 0;
+        font-size: 14px;
+        color: #1B0F3A;
+        padding: 6px 4px;
+        outline: none;
+        border: 0;
+        background: transparent;
+      }
+      .composer .field.focused {
+        position: relative;
+      }
+      .composer .field.focused::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 1.5px;
+        height: 14px;
+        background: #1B0F3A;
+        animation: blink 1s steps(2) infinite;
+      }
+      @keyframes blink { 50% { opacity: 0; } }
+
+      /* iOS-style keyboard */
+      .keyboard {
+        background: linear-gradient(180deg, #D6D2DA 0%, #BFBBC6 100%);
+        padding: 8px 4px 28px 4px;
+        flex-shrink: 0;
+      }
+      .kb-row {
+        display: flex;
+        gap: 4px;
+        padding: 0 4px;
+        margin-bottom: 6px;
+        justify-content: center;
+      }
+      .kb-key {
+        flex: 1;
+        height: 36px;
+        background: #fff;
+        border-radius: 5px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 16px;
+        font-weight: 400;
+        color: #1B0F3A;
+        box-shadow: 0 1px 0 rgba(0,0,0,0.25);
+      }
+      .kb-key.gray { background: #ABA8B2; color: #1B0F3A; flex: 1.4; font-size: 12px; }
+      .kb-key.space { flex: 5; }
+      .kb-key.return { background: #1B0F3A; color: #fff; flex: 1.4; font-size: 12px; }
+      .kb-bar {
+        width: 130px; height: 4px; background: #1B0F3A; border-radius: 4px;
+        margin: 4px auto 0 auto;
+      }
+
+      /* Annotation pills */
+      .annot {
+        position: absolute;
+        background: #1B0F3A;
+        color: #FBEFD3;
+        border-radius: 14px;
+        padding: 10px 14px;
+        font-size: 12px;
+        line-height: 1.4;
+        max-width: 240px;
+        box-shadow: 0 18px 30px -16px rgba(14,8,51,0.5);
+        z-index: 20;
+      }
+      .annot strong { color: #C8FF7B; font-weight: 700; }
+      .annot::after {
+        content: "";
+        position: absolute;
+        width: 12px; height: 12px;
+        background: #1B0F3A;
+        transform: rotate(45deg);
+      }
+      .annot.left::after  { right: -5px; top: 50%; margin-top: -6px; }
+      .annot.right::after { left: -5px; top: 50%; margin-top: -6px; }
+      .annot.up::after    { bottom: -5px; left: 24px; }
+      .annot.down::after  { top: -5px; left: 24px; }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255,255,255,0.7);
+        border: 1px solid rgba(27,15,58,0.08);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #5A4982;
+      }
+      .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #22D67F; }
+    </style>
+  </head>
+  <body class="min-h-screen pb-20">
+    <header class="px-8 pt-10 pb-6 max-w-7xl mx-auto">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="badge"><span class="badge-dot"></span>mockup</span>
+        <span class="text-xs text-ink-500 font-semibold uppercase tracking-[0.18em]">/app · chat</span>
+      </div>
+      <h1 class="display text-4xl sm:text-5xl text-ink-900 leading-tight">
+        chat WhatsApp-style:<br/>
+        <span class="text-violet-600">teclado que no roba la conversación</span>
+      </h1>
+      <p class="text-ink-500 mt-3 max-w-2xl text-sm">
+        Composer pegado al teclado, foco que no se pierde al enviar, e historial persistido por usuario que se hidrata al volver.
+      </p>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-8">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 place-items-center">
+
+        <!-- Phone 1: keyboard OPEN, composer pegado arriba del teclado -->
+        <div class="relative">
+          <p class="text-center mb-6 font-semibold text-ink-700">
+            1 · Escribiendo (teclado abierto)
+          </p>
+          <div class="phone">
+            <div class="screen">
+              <!-- status bar -->
+              <div class="status-bar">
+                <span>9:41</span>
+                <span>● ● ●</span>
+              </div>
+
+              <!-- chat header -->
+              <div class="chat-header">
+                <div class="header-avatar">C</div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-bold text-sm text-ink-900">Clara</div>
+                  <div class="text-[11px] text-ink-500 flex items-center gap-1">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-lime-600"></span>
+                    en línea · escribiendo…
+                  </div>
+                </div>
+                <div class="text-ink-500 text-lg">⋯</div>
+              </div>
+
+              <!-- messages (compactos para que entren con el teclado) -->
+              <div class="messages">
+                <div class="day-divider">hoy</div>
+
+                <div class="bubble-row" style="justify-content:flex-end;">
+                  <div class="bubble bubble-user">¿cuánto me queda este mes?</div>
+                </div>
+                <div class="bubble-row">
+                  <div class="mini-avatar">C</div>
+                  <div class="bubble bubble-clara">
+                    Te quedan <strong>USD 412</strong> 💸<br/>
+                    Vas <span style="color:#0FA864;font-weight:600;">+8%</span> mejor que el mes pasado.
+                  </div>
+                </div>
+                <div class="bubble-row" style="justify-content:flex-end;">
+                  <div class="bubble bubble-user">anotá USD 12 de café con visa</div>
+                </div>
+                <div class="bubble-row">
+                  <div class="mini-avatar">C</div>
+                  <div class="bubble bubble-clara">
+                    Listo, lo cargué en <strong>Alimentación</strong> 🧾
+                  </div>
+                </div>
+              </div>
+
+              <!-- composer (sticky, pegado al teclado) -->
+              <div class="composer-wrap">
+                <div class="composer">
+                  <div class="icon-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 15-5-5L5 21"/><path d="M21 8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3Z"/></svg>
+                  </div>
+                  <div class="field focused">y mostrame la torta del mes</div>
+                  <div class="icon-btn send">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                  </div>
+                </div>
+              </div>
+
+              <!-- iOS keyboard -->
+              <div class="keyboard">
+                <div class="kb-row">
+                  <div class="kb-key">q</div><div class="kb-key">w</div><div class="kb-key">e</div><div class="kb-key">r</div><div class="kb-key">t</div><div class="kb-key">y</div><div class="kb-key">u</div><div class="kb-key">i</div><div class="kb-key">o</div><div class="kb-key">p</div>
+                </div>
+                <div class="kb-row" style="padding: 0 18px;">
+                  <div class="kb-key">a</div><div class="kb-key">s</div><div class="kb-key">d</div><div class="kb-key">f</div><div class="kb-key">g</div><div class="kb-key">h</div><div class="kb-key">j</div><div class="kb-key">k</div><div class="kb-key">l</div>
+                </div>
+                <div class="kb-row">
+                  <div class="kb-key gray">⇧</div>
+                  <div class="kb-key">z</div><div class="kb-key">x</div><div class="kb-key">c</div><div class="kb-key">v</div><div class="kb-key">b</div><div class="kb-key">n</div><div class="kb-key">m</div>
+                  <div class="kb-key gray">⌫</div>
+                </div>
+                <div class="kb-row">
+                  <div class="kb-key gray">123</div>
+                  <div class="kb-key gray" style="flex:1;">🌐</div>
+                  <div class="kb-key space">space</div>
+                  <div class="kb-key return">enviar</div>
+                </div>
+                <div class="kb-bar"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- annotations -->
+          <div class="annot left" style="top: 360px; right: -250px;">
+            <strong>composer pegado al teclado</strong><br/>
+            <code class="font-mono text-[11px]">100dvh</code> + <code class="font-mono text-[11px]">interactive-widget=resizes-content</code> hacen que el viewport encoja con el teclado.
+          </div>
+          <div class="annot left" style="top: 540px; right: -250px;">
+            <strong>foco no se pierde</strong><br/>
+            quitamos <code class="font-mono text-[11px]">disabled</code> al streamear y refocamos tras <code class="font-mono text-[11px]">sendMessage()</code>.
+          </div>
+        </div>
+
+        <!-- Phone 2: history hydrated, no keyboard, scroll up to load older -->
+        <div class="relative">
+          <p class="text-center mb-6 font-semibold text-ink-700">
+            2 · Volviste a la app (historial cargado)
+          </p>
+          <div class="phone">
+            <div class="screen">
+              <!-- status bar -->
+              <div class="status-bar">
+                <span>14:08</span>
+                <span>● ● ●</span>
+              </div>
+
+              <!-- chat header -->
+              <div class="chat-header">
+                <div class="header-avatar">C</div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-bold text-sm text-ink-900">Clara</div>
+                  <div class="text-[11px] text-ink-500">tu coach financiera</div>
+                </div>
+                <div class="text-ink-500 text-lg">⋯</div>
+              </div>
+
+              <!-- messages: load more + history -->
+              <div class="messages">
+                <button class="load-more">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                  cargar mensajes anteriores
+                </button>
+
+                <div class="day-divider">ayer</div>
+
+                <div class="bubble-row" style="justify-content:flex-end;">
+                  <div class="bubble bubble-user">roastéame mis gastos</div>
+                </div>
+                <div class="bubble-row">
+                  <div class="mini-avatar">C</div>
+                  <div class="bubble bubble-clara">
+                    Gastaste <strong>USD 87</strong> en delivery 🍔.<br/>
+                    Esa es plata que se va caminando, no corriendo.
+                  </div>
+                </div>
+                <div class="bubble-row" style="justify-content:flex-end;">
+                  <div class="bubble bubble-user">jaja okok 😅</div>
+                </div>
+
+                <div class="day-divider">hoy</div>
+
+                <div class="bubble-row" style="justify-content:flex-end;">
+                  <div class="bubble bubble-user">anotá USD 12 de café con visa</div>
+                </div>
+                <div class="bubble-row">
+                  <div class="mini-avatar">C</div>
+                  <div class="bubble bubble-clara">
+                    Listo, lo cargué en <strong>Alimentación</strong> 🧾<br/>
+                    Te quedan <strong>USD 400</strong> este mes.
+                  </div>
+                </div>
+                <div class="bubble-row" style="justify-content:flex-end;">
+                  <div class="bubble bubble-user">y la torta?</div>
+                </div>
+                <div class="bubble-row">
+                  <div class="mini-avatar">C</div>
+                  <div class="bubble bubble-clara" style="padding:10px;max-width:90%;">
+                    <div style="background:linear-gradient(135deg,#FFD4DF,#C8B6FF,#A5FFD0);height:120px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#1B0F3A;font-weight:700;font-family:'Bricolage Grotesque',sans-serif;">
+                      📊 distribución mes
+                    </div>
+                    <p class="text-[12px] mt-2 text-ink-500">tap para ver detalle</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- composer sin teclado -->
+              <div class="composer-wrap" style="padding-bottom:24px;">
+                <div class="composer">
+                  <div class="icon-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 15-5-5L5 21"/><path d="M21 8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3Z"/></svg>
+                  </div>
+                  <div class="field" style="color:#8C7DB0;">decime algo… o adjuntá un PDF 📎</div>
+                  <div class="icon-btn send" style="background:#E5DDF7;color:#7C5BFF;box-shadow:none;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- annotations -->
+          <div class="annot right" style="top: 220px; left: -260px;">
+            <strong>historial hidratado</strong><br/>
+            al montar: <code class="font-mono text-[11px]">GET /api/chat/history?limit=50</code> desde <code class="font-mono text-[11px]">WebChatMessage</code>.
+          </div>
+          <div class="annot right" style="top: 360px; left: -260px;">
+            <strong>cargar más</strong><br/>
+            cursor <code class="font-mono text-[11px]">?before=&lt;oldestId&gt;</code>; conserva <code class="font-mono text-[11px]">scrollTop</code> al prependear.
+          </div>
+        </div>
+      </div>
+
+      <!-- Spec / changelog -->
+      <section class="mt-24 grid md:grid-cols-3 gap-6">
+        <div class="bg-white/70 rounded-3xl p-6 border border-ink-900/5 shadow-[0_18px_40px_-30px_rgba(14,8,51,0.3)]">
+          <div class="text-3xl mb-2">📐</div>
+          <h3 class="display text-lg mb-2">Layout</h3>
+          <ul class="text-sm text-ink-700 space-y-2">
+            <li>• <code class="bg-cream-200 px-1.5 rounded text-xs">min-h-dvh</code> en <code class="bg-cream-200 px-1.5 rounded text-xs">AppShell</code></li>
+            <li>• Composer como hermano flex (sin <code class="bg-cream-200 px-1.5 rounded text-xs">pb-44</code>)</li>
+            <li>• <code class="bg-cream-200 px-1.5 rounded text-xs">interactiveWidget: "resizes-content"</code> en viewport</li>
+          </ul>
+        </div>
+        <div class="bg-white/70 rounded-3xl p-6 border border-ink-900/5 shadow-[0_18px_40px_-30px_rgba(14,8,51,0.3)]">
+          <div class="text-3xl mb-2">🎯</div>
+          <h3 class="display text-lg mb-2">Foco</h3>
+          <ul class="text-sm text-ink-700 space-y-2">
+            <li>• Sin <code class="bg-cream-200 px-1.5 rounded text-xs">disabled</code> al streamear</li>
+            <li>• <code class="bg-cream-200 px-1.5 rounded text-xs">textareaRef.focus()</code> tras <code class="bg-cream-200 px-1.5 rounded text-xs">sendMessage()</code></li>
+            <li>• Sin <code class="bg-cream-200 px-1.5 rounded text-xs">autoFocus</code> al entrar (no roba teclado)</li>
+          </ul>
+        </div>
+        <div class="bg-white/70 rounded-3xl p-6 border border-ink-900/5 shadow-[0_18px_40px_-30px_rgba(14,8,51,0.3)]">
+          <div class="text-3xl mb-2">💾</div>
+          <h3 class="display text-lg mb-2">Historial</h3>
+          <ul class="text-sm text-ink-700 space-y-2">
+            <li>• Tabla <code class="bg-cream-200 px-1.5 rounded text-xs">WebChatMessage</code> (parts JSON)</li>
+            <li>• <code class="bg-cream-200 px-1.5 rounded text-xs">GET /api/chat/history</code> con cursor</li>
+            <li>• Persiste user msg + assistant msg en <code class="bg-cream-200 px-1.5 rounded text-xs">onFinish</code></li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

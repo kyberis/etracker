@@ -2,6 +2,8 @@
  * Speech-to-text for WhatsApp voice notes via OpenAI Whisper (same API key as chat).
  */
 
+import type { Locale } from "@/lib/i18n/locale";
+
 const TRANSCRIPTION_MODEL =
   process.env.OPENAI_TRANSCRIPTION_MODEL ?? "whisper-1";
 
@@ -23,13 +25,35 @@ export type TranscribeResult =
   | { ok: true; text: string }
   | { ok: false; message: string };
 
+const TRANSCRIBE_MESSAGES: Record<
+  Locale,
+  { missingKey: string; failure: string; empty: string }
+> = {
+  es: {
+    missingKey: "OPENAI_API_KEY no configurada.",
+    failure:
+      "No pude convertir el audio en texto (formato no soportado o error del servicio). Probá grabar de nuevo más corto o mandá texto.",
+    empty: "El audio no tenía contenido reconocible. ¿Podés repetir o escribir el mensaje?",
+  },
+  en: {
+    missingKey: "OPENAI_API_KEY is not configured.",
+    failure:
+      "I couldn't convert the audio to text (unsupported format or service error). Try recording a shorter clip or send text.",
+    empty: "The audio had no recognizable content. Can you repeat or type the message?",
+  },
+};
+
 export async function transcribeAudioOpenAI(opts: {
   buffer: Buffer;
   mediaType: string;
+  locale?: Locale;
 }): Promise<TranscribeResult> {
+  const locale: Locale = opts.locale ?? "es";
+  const messages = TRANSCRIBE_MESSAGES[locale];
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey?.trim()) {
-    return { ok: false, message: "OPENAI_API_KEY no configurada." };
+    return { ok: false, message: messages.missingKey };
   }
 
   const filename = guessAudioFilename(opts.mediaType);
@@ -40,7 +64,7 @@ export async function transcribeAudioOpenAI(opts: {
   const form = new FormData();
   form.append("file", blob, filename);
   form.append("model", TRANSCRIPTION_MODEL);
-  form.append("language", "es");
+  form.append("language", locale);
 
   const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
@@ -57,21 +81,13 @@ export async function transcribeAudioOpenAI(opts: {
       /* ignore */
     }
     console.error("[etracker.whisper] transcription_failed", res.status, detail);
-    return {
-      ok: false,
-      message:
-        "No pude convertir el audio en texto (formato no soportado o error del servicio). Probá grabar de nuevo más corto o mandá texto.",
-    };
+    return { ok: false, message: messages.failure };
   }
 
   const data = (await res.json()) as { text?: string };
   const raw = typeof data.text === "string" ? data.text.trim() : "";
   if (!raw) {
-    return {
-      ok: false,
-      message:
-        "El audio no tenía contenido reconocible. ¿Podés repetir o escribir el mensaje?",
-    };
+    return { ok: false, message: messages.empty };
   }
 
   return { ok: true, text: raw };

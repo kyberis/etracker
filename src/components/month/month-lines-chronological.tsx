@@ -1,15 +1,18 @@
 "use client";
 
 import { format, isSameDay, isToday, isYesterday } from "date-fns";
-import { es } from "date-fns/locale";
 import { TrendingUp } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatLineAmount } from "@/lib/format";
+import { dateLocale } from "@/lib/i18n/format";
+import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import type { MonthLinePayload } from "@/lib/month-page-types";
 import { cn } from "@/lib/utils";
 import { isInvestmentCategory } from "@/lib/validators";
+
+import type { Locale } from "@/lib/i18n/locale";
 
 type Props = {
   /** Pre-ordered desc por `createdAt` desde el backend. */
@@ -19,15 +22,23 @@ type Props = {
 };
 
 /** Etiqueta amigable de un grupo: "hoy", "ayer" o "26 abr". */
-function dayLabel(date: Date): string {
-  if (isToday(date)) return "hoy";
-  if (isYesterday(date)) return "ayer";
-  return format(date, "d MMM", { locale: es });
+function dayLabel(
+  date: Date,
+  locale: Locale,
+  tx: ReturnType<typeof useTx>,
+): string {
+  if (isToday(date)) return tx({ es: "hoy", en: "today" });
+  if (isYesterday(date)) return tx({ es: "ayer", en: "yesterday" });
+  return format(date, "d MMM", { locale: dateLocale(locale) });
 }
 
 type DayGroup = { key: string; label: string; lines: MonthLinePayload[] };
 
-function groupByDay(expenses: MonthLinePayload[]): DayGroup[] {
+function groupByDay(
+  expenses: MonthLinePayload[],
+  locale: Locale,
+  tx: ReturnType<typeof useTx>,
+): DayGroup[] {
   const groups: DayGroup[] = [];
   let current: DayGroup | null = null;
   for (const expense of expenses) {
@@ -35,7 +46,7 @@ function groupByDay(expenses: MonthLinePayload[]): DayGroup[] {
     if (!current || !isSameDay(new Date(current.lines[0].createdAt), created)) {
       current = {
         key: format(created, "yyyy-MM-dd"),
-        label: dayLabel(created),
+        label: dayLabel(created, locale, tx),
         lines: [],
       };
       groups.push(current);
@@ -46,23 +57,31 @@ function groupByDay(expenses: MonthLinePayload[]): DayGroup[] {
 }
 
 export function MonthLinesChronological({ expenses, primaryCurrency, onTogglePaid }: Props) {
-  const groups = groupByDay(expenses);
+  const locale = useLocale();
+  const t = useT();
+  const tx = useTx();
+  const groups = groupByDay(expenses, locale, tx);
   const pending = expenses.filter((e) => !e.paid).length;
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div className="space-y-0.5">
-          <CardTitle className="text-sm">Gastos del mes</CardTitle>
-          <p className="text-muted-foreground text-xs">orden cronológico · más nuevo primero</p>
+          <CardTitle className="text-sm">{t.month.chronoTitle}</CardTitle>
+          <p className="text-muted-foreground text-xs">
+            {tx({ es: "orden cronológico · más nuevo primero", en: "chronological · newest first" })}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-1 text-[11px] font-medium tabular-nums">
-            {expenses.length} gasto{expenses.length === 1 ? "" : "s"}
+            {expenses.length}{" "}
+            {expenses.length === 1
+              ? tx({ es: "gasto", en: "expense" })
+              : tx({ es: "gastos", en: "expenses" })}
           </span>
           {pending > 0 ? (
             <span className="bg-warn/15 text-warn rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums">
-              {pending} sin pagar
+              {pending} {tx({ es: "sin pagar", en: "unpaid" })}
             </span>
           ) : null}
         </div>
@@ -70,7 +89,7 @@ export function MonthLinesChronological({ expenses, primaryCurrency, onTogglePai
       <CardContent className="pb-4">
         {expenses.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
-            Todavía no hay gastos en este mes.
+            {tx({ es: "Todavía no hay gastos en este mes.", en: "No expenses in this month yet." })}
           </p>
         ) : (
           <div className="space-y-1">
@@ -108,7 +127,7 @@ export function MonthLinesChronological({ expenses, primaryCurrency, onTogglePai
                               {isInvestment ? (
                                 <span className="bg-cleo-violet/30 text-foreground inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-bold">
                                   <TrendingUp className="size-2.5" />
-                                  inversión
+                                  {tx({ es: "inversión", en: "investment" })}
                                 </span>
                               ) : null}
                             </p>
@@ -128,7 +147,7 @@ export function MonthLinesChronological({ expenses, primaryCurrency, onTogglePai
                                   : "text-bad",
                             )}
                           >
-                            {formatLineAmount(expense, primaryCurrency)}
+                            {formatLineAmount(expense, primaryCurrency, locale)}
                           </p>
                         </label>
                       </li>

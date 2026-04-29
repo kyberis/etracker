@@ -3,12 +3,15 @@
 import { useEffect } from "react";
 
 /**
- * Registers the PWA service worker once on mount. Kept out of the dev
- * environment because Next's HMR fights with cached SW responses.
+ * Registra el service worker de la PWA y se ocupa de los updates.
  *
- * The worker itself is a stub today (see `public/sw.js`) — it satisfies
- * the Chromium installability check and gives us a hook for future
- * offline support without changing the rest of the app.
+ * En cuanto detectamos un worker `installed` en `waiting` (porque hubo deploy),
+ * lo activamos sin pedirle nada al usuario para que la próxima navegación
+ * use la versión nueva. No recargamos automáticamente: dejamos que la app
+ * tome el control en el siguiente `controllerchange`.
+ *
+ * Solo activo en producción: con HMR de Next, el SW pelea con las respuestas
+ * cacheadas y rompe el dev loop.
  */
 export function ServiceWorkerRegister() {
   useEffect(() => {
@@ -16,11 +19,55 @@ export function ServiceWorkerRegister() {
     if (!("serviceWorker" in navigator)) return;
     if (process.env.NODE_ENV !== "production") return;
 
+    let cancelled = false;
+    let detachVisibility: (() => void) | null = null;
+
+    const promoteWaiting = (registration: ServiceWorkerRegistration) => {
+      const waiting = registration.waiting;
+      if (waiting) {
+        waiting.postMessage("skipWaiting");
+      }
+    };
+
+    const watchForUpdates = (registration: ServiceWorkerRegistration) => {
+      registration.addEventListener("updatefound", () => {
+        const installing = registration.installing;
+        if (!installing) return;
+        installing.addEventListener("statechange", () => {
+          if (installing.state === "installed" && navigator.serviceWorker.controller) {
+            promoteWaiting(registration);
+          }
+        });
+      });
+    };
+
     navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
+      .then((registration) => {
+        if (cancelled) return;
+        if (registration.waiting) promoteWaiting(registration);
+        watchForUpdates(registration);
+
+        // Chequeo de updates cuando la pestaña vuelve a estar visible:
+        // captura nuevas versiones sin esperar a un refresh manual.
+        const onVisibility = () => {
+          if (document.visibilityState === "visible") {
+            registration.update().catch(() => {
+              /* noop */
+            });
+          }
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+        detachVisibility = () => document.removeEventListener("visibilitychange", onVisibility);
+      })
       .catch((err) => {
         console.warn("[pwa] service worker registration failed", err);
       });
+
+    return () => {
+      cancelled = true;
+      detachVisibility?.();
+    };
   }, []);
 
   return null;

@@ -1,13 +1,15 @@
 "use client";
 
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import { Copy, KeyRound, ShieldCheck, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { dateLocale } from "@/lib/i18n/format";
+import { useLocale, useTx } from "@/lib/i18n/client";
+import type { Locale } from "@/lib/i18n/locale";
 
 type Token = {
   id: string;
@@ -26,16 +28,18 @@ type CreateResponse = {
 
 const MCP_URL_HINT = "/api/mcp/user";
 
-function formatDate(value: string | null): string {
+function formatTokenDate(value: string | null, locale: Locale): string {
   if (!value) return "—";
   try {
-    return format(new Date(value), "d 'de' MMM yyyy, HH:mm", { locale: es });
+    return format(new Date(value), "PPp", { locale: dateLocale(locale) });
   } catch {
     return value;
   }
 }
 
 export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
+  const locale = useLocale();
+  const tr = useTx();
   const [tokens, setTokens] = useState<Token[]>(initialTokens);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -70,7 +74,7 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        setError(data.error ?? "No se pudo crear el token.");
+        setError(data.error ?? tr({ es: "No se pudo crear el token.", en: "Could not create the token." }));
         return;
       }
       const data = (await res.json()) as CreateResponse;
@@ -83,7 +87,14 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
   }
 
   async function revoke(token: Token) {
-    if (!confirm(`Revocar el token "${token.name}"? Esta acción no se puede deshacer.`)) {
+    if (
+      !confirm(
+        tr({
+          es: `¿Revocar el token "${token.name}"? Esta acción no se puede deshacer.`,
+          en: `Revoke token "${token.name}"? This cannot be undone.`,
+        }),
+      )
+    ) {
       return;
     }
     const res = await fetch(`/api/settings/api-tokens/${token.id}`, { method: "DELETE" });
@@ -97,7 +108,7 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
       await navigator.clipboard.writeText(value);
       setCopied(true);
     } catch {
-      setError("No se pudo copiar al portapapeles.");
+      setError(tr({ es: "No se pudo copiar al portapapeles.", en: "Could not copy to clipboard." }));
     }
   }
 
@@ -109,22 +120,23 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="text-primary size-5" />
-          Acceso para AI (MCP)
+          {tr({ es: "Acceso para AI (MCP)", en: "AI access (MCP)" })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="text-muted-foreground space-y-2 text-sm leading-relaxed">
           <p>
-            Generá un token para que tu propio AI assistant (Claude Desktop, Cursor, ChatGPT
-            custom GPT, cualquier cliente MCP) pueda consultar y modificar tus finanzas en Clara
-            con tu permiso.
+            {tr({
+              es: "Generá un token para que tu propio AI assistant (Claude Desktop, Cursor, ChatGPT custom GPT, cualquier cliente MCP) pueda consultar y modificar tus finanzas en Clara con tu permiso.",
+              en: "Create a token so your own AI assistant (Claude Desktop, Cursor, a custom ChatGPT GPT, any MCP client) can read and update your finances in Clara with your permission.",
+            })}
           </p>
           <p>
-            El servidor MCP autenticado vive en{" "}
+            {tr({ es: "El servidor MCP autenticado vive en", en: "The authenticated MCP server lives at" })}{" "}
             <code className="bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-xs">
               {MCP_URL_HINT}
             </code>
-            . Usá el token como header{" "}
+            . {tr({ es: "Usá el token como header", en: "Use the token as header" })}{" "}
             <code className="bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-xs">
               Authorization: Bearer ada_pat_…
             </code>
@@ -135,11 +147,14 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
         <form className="flex flex-wrap items-end gap-3" onSubmit={onCreate}>
           <div className="flex-1 space-y-1.5">
             <label htmlFor="tokenName" className="text-sm font-medium">
-              Nombre del token
+              {tr({ es: "Nombre del token", en: "Token name" })}
             </label>
             <Input
               id="tokenName"
-              placeholder='Ej.: "Claude Desktop", "Cursor", "iPhone"'
+              placeholder={tr({
+                es: "Ej.: «Claude Desktop», «Cursor», «iPhone»",
+                en: 'e.g. "Claude Desktop", "Cursor", "iPhone"',
+              })}
               value={name}
               onChange={(event) => setName(event.target.value)}
               maxLength={60}
@@ -148,7 +163,7 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
           </div>
           <Button type="submit" disabled={busy || !name.trim()}>
             <KeyRound className="size-4" />
-            {busy ? "Generando…" : "Crear token"}
+            {busy ? tr({ es: "Generando…", en: "Generating…" }) : tr({ es: "Crear token", en: "Create token" })}
           </Button>
         </form>
 
@@ -160,11 +175,13 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
               <ShieldCheck className="text-primary mt-0.5 size-4 shrink-0" />
               <div className="space-y-1">
                 <p className="text-sm font-semibold">
-                  Token generado: {freshToken.name}
+                  {tr({ es: "Token generado:", en: "Token created:" })} {freshToken.name}
                 </p>
                 <p className="text-muted-foreground text-xs">
-                  Copialo ahora — no lo vamos a mostrar de nuevo. Si lo perdés, revocá este token y
-                  creá uno nuevo.
+                  {tr({
+                    es: "Copialo ahora — no lo vamos a mostrar de nuevo. Si lo perdés, revocá este token y creá uno nuevo.",
+                    en: "Copy it now — we will not show it again. If you lose it, revoke this token and create a new one.",
+                  })}
                 </p>
               </div>
             </div>
@@ -179,12 +196,15 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
                 onClick={() => copyToClipboard(freshToken.plaintext)}
               >
                 <Copy className="size-3.5" />
-                {copied ? "Copiado" : "Copiar"}
+                {copied ? tr({ es: "Copiado", en: "Copied" }) : tr({ es: "Copiar", en: "Copy" })}
               </Button>
             </div>
             <details className="text-xs">
               <summary className="text-muted-foreground hover:text-foreground cursor-pointer">
-                Ver configuración para Claude Desktop / Cursor
+                {tr({
+                  es: "Ver configuración para Claude Desktop / Cursor",
+                  en: "View Claude Desktop / Cursor configuration",
+                })}
               </summary>
               <pre className="bg-background border-border mt-2 overflow-x-auto rounded border p-3 font-mono">
 {`{
@@ -204,7 +224,7 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
               onClick={() => setFreshToken(null)}
               className="text-muted-foreground"
             >
-              Ya lo guardé
+              {tr({ es: "Ya lo guardé", en: "I have saved it" })}
             </Button>
           </div>
         ) : null}
@@ -212,7 +232,7 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
         {activeTokens.length > 0 ? (
           <div className="space-y-2">
             <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
-              Tokens activos ({activeTokens.length})
+              {tr({ es: "Tokens activos", en: "Active tokens" })} ({activeTokens.length})
             </p>
             <ul className="divide-border divide-y rounded-lg border">
               {activeTokens.map((token) => (
@@ -223,10 +243,11 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
                       {token.prefix}…
                     </p>
                     <p className="text-muted-foreground text-xs">
-                      Creado {formatDate(token.createdAt)} · Último uso{" "}
-                      {formatDate(token.lastUsedAt)}
+                      {tr({ es: "Creado", en: "Created" })}{" "}
+                      {formatTokenDate(token.createdAt, locale)} · {tr({ es: "Último uso", en: "Last used" })}{" "}
+                      {formatTokenDate(token.lastUsedAt, locale)}
                       {token.expiresAt
-                        ? ` · Expira ${formatDate(token.expiresAt)}`
+                        ? ` · ${tr({ es: "Expira", en: "Expires" })} ${formatTokenDate(token.expiresAt, locale)}`
                         : ""}
                     </p>
                   </div>
@@ -238,7 +259,7 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
                     className="text-destructive hover:text-destructive shrink-0"
                   >
                     <Trash2 className="size-4" />
-                    <span className="sr-only">Revocar</span>
+                    <span className="sr-only">{tr({ es: "Revocar", en: "Revoke" })}</span>
                   </Button>
                 </li>
               ))}
@@ -246,20 +267,20 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
           </div>
         ) : (
           <p className="text-muted-foreground text-xs">
-            Todavía no creaste ningún token.
+            {tr({ es: "Todavía no creaste ningún token.", en: "You have not created any tokens yet." })}
           </p>
         )}
 
         {revokedTokens.length > 0 ? (
           <details className="text-xs">
             <summary className="text-muted-foreground hover:text-foreground cursor-pointer">
-              Tokens revocados ({revokedTokens.length})
+              {tr({ es: "Tokens revocados", en: "Revoked tokens" })} ({revokedTokens.length})
             </summary>
             <ul className="text-muted-foreground mt-2 space-y-1">
               {revokedTokens.map((token) => (
                 <li key={token.id} className="font-mono">
-                  {token.name} · {token.prefix}… (revocado{" "}
-                  {formatDate(token.revokedAt)})
+                  {token.name} · {token.prefix}… ({tr({ es: "revocado", en: "revoked" })}{" "}
+                  {formatTokenDate(token.revokedAt, locale)})
                 </li>
               ))}
             </ul>

@@ -15,6 +15,9 @@ import {
 import { useBalance } from "@/components/balance-provider";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
+import { dateLocale } from "@/lib/i18n/format";
+import { useLocale, useT, useTx } from "@/lib/i18n/client";
+import type { Locale } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 
 type MonthDrawerContextValue = {
@@ -79,10 +82,16 @@ export function useMonthDrawer(): MonthDrawerContextValue {
 function MonthDrawerSheet() {
   const { open, setOpen } = useMonthDrawer();
   const balance = useBalance();
+  const locale = useLocale();
+  const t = useT();
+  const tx = useTx();
   const monthKey = balance.month;
   const monthLabel = useMemo(
-    () => format(parse(monthKey, "yyyy-MM", new Date()), "MMMM yyyy"),
-    [monthKey],
+    () =>
+      format(parse(monthKey, "yyyy-MM", new Date()), "MMMM yyyy", {
+        locale: dateLocale(locale),
+      }),
+    [monthKey, locale],
   );
 
   return (
@@ -90,7 +99,7 @@ function MonthDrawerSheet() {
       {/* Backdrop */}
       <button
         type="button"
-        aria-label="Cerrar"
+        aria-label={t.common.close}
         onClick={() => setOpen(false)}
         className={cn(
           "fixed inset-0 z-40 bg-ink/30 backdrop-blur-sm transition-opacity duration-200",
@@ -102,7 +111,7 @@ function MonthDrawerSheet() {
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label={`Mes ${monthLabel}`}
+        aria-label={t.month.monthFor(monthLabel)}
         className={cn(
           "bg-background text-foreground fixed z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-out",
           // Mobile: bottom sheet
@@ -117,7 +126,9 @@ function MonthDrawerSheet() {
 
         <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-4 sm:px-6">
           <div className="flex flex-col gap-1.5">
-            <span className="sticker sticker-lime self-start">tu mes</span>
+            <span className="sticker sticker-lime self-start">
+              {tx({ es: "tu mes", en: "your month" })}
+            </span>
             <h2 className="display text-2xl capitalize">{monthLabel}</h2>
           </div>
           <div className="flex items-center gap-1.5">
@@ -126,7 +137,7 @@ function MonthDrawerSheet() {
               size="icon-sm"
               variant="outline"
               className="bg-card rounded-full border-transparent shadow-sm hover:bg-card"
-              aria-label="Mes anterior"
+              aria-label={tx({ es: "Mes anterior", en: "Previous month" })}
               onClick={() => balance.setMonth(shiftMonth(monthKey, -1))}
             >
               <ChevronLeft />
@@ -136,7 +147,7 @@ function MonthDrawerSheet() {
               size="icon-sm"
               variant="outline"
               className="bg-card rounded-full border-transparent shadow-sm hover:bg-card"
-              aria-label="Mes siguiente"
+              aria-label={tx({ es: "Mes siguiente", en: "Next month" })}
               onClick={() => balance.setMonth(shiftMonth(monthKey, 1))}
             >
               <ChevronRight />
@@ -146,7 +157,7 @@ function MonthDrawerSheet() {
               size="icon-sm"
               variant="outline"
               className="bg-card rounded-full border-transparent shadow-sm hover:bg-card"
-              aria-label="Cerrar"
+              aria-label={t.common.close}
               onClick={() => setOpen(false)}
             >
               <X />
@@ -157,7 +168,7 @@ function MonthDrawerSheet() {
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-2 sm:px-6">
           <div className="ink-card ink-glow relative px-5 py-5">
             <p className="text-lime text-[10px] font-bold uppercase tracking-[0.22em]">
-              Balance del mes
+              {tx({ es: "Balance del mes", en: "Month balance" })}
             </p>
             <p
               className={cn(
@@ -165,50 +176,71 @@ function MonthDrawerSheet() {
                 balance.balance >= 0 ? "text-lime" : "text-hotpink",
               )}
             >
-              {formatCurrency(balance.balance, balance.primaryCurrency)}
+              {formatCurrency(balance.balance, balance.primaryCurrency, locale)}
             </p>
             <p className="mt-1 text-xs text-white/65">
-              Ingreso − planificado, en {monthLabel}.
+              {tx({
+                es: `Ingreso − planificado, en ${monthLabel}.`,
+                en: `Income − planned, in ${monthLabel}.`,
+              })}
             </p>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-2.5">
             <Stat
-              label="Ingreso"
+              label={t.month.summaryIncome}
               value={balance.income}
               tone="good"
               emoji="💰"
               currency={balance.primaryCurrency}
+              locale={locale}
             />
             <Stat
-              label="Planificado"
+              label={t.month.summaryPlanned}
               value={balance.planned}
               tone="bad"
               emoji="🧾"
               currency={balance.primaryCurrency}
+              locale={locale}
             />
             <Stat
-              label="Pagado"
+              label={t.month.summaryPaid}
               value={balance.paid}
               emoji="✅"
               currency={balance.primaryCurrency}
+              locale={locale}
             />
             <Stat
-              label="Pendiente"
+              label={t.month.summaryRemaining}
               value={balance.remaining}
               tone="warn"
               emoji="⏳"
               currency={balance.primaryCurrency}
+              locale={locale}
             />
           </div>
 
           <div className="bg-lilac/30 ring-lilac/30 mt-5 rounded-3xl px-4 py-4 text-xs leading-relaxed ring-1">
-            <span className="sticker sticker-violet">la regla</span>
+            <span className="sticker sticker-violet">{tx({ es: "la regla", en: "the rule" })}</span>
             <p className="text-foreground/80 mt-2">
-              Solo las plantillas{" "}
-              <strong className="text-foreground">recurrentes</strong> al materializar un
-              mes generan líneas pendientes. Lo que cargues vos o el asistente durante el mes
-              nace <strong className="text-foreground">pagado</strong>, salvo aclaración.
+              {tx({
+                es: (
+                  <>
+                    Solo las plantillas{" "}
+                    <strong className="text-foreground">recurrentes</strong> al materializar un mes
+                    generan líneas pendientes. Lo que cargues vos o el asistente durante el mes nace{" "}
+                    <strong className="text-foreground">pagado</strong>, salvo aclaración.
+                  </>
+                ),
+                en: (
+                  <>
+                    Only <strong className="text-foreground">recurring</strong> templates create
+                    pending lines when a month is materialized. What you or the assistant add during
+                    the month starts as <strong className="text-foreground">paid</strong> unless you
+                    say otherwise.
+                  </>
+                ),
+              })}
             </p>
           </div>
 
@@ -218,14 +250,14 @@ function MonthDrawerSheet() {
               onClick={() => setOpen(false)}
               className="gradient-lime text-ink inline-flex h-12 items-center justify-center rounded-full px-5 text-sm font-bold transition-transform hover:-translate-y-0.5"
             >
-              Abrir mes completo →
+              {tx({ es: "Abrir mes completo →", en: "Open full month →" })}
             </Link>
             <button
               type="button"
               onClick={() => setOpen(false)}
               className="text-muted-foreground hover:text-foreground inline-flex h-10 items-center justify-center rounded-full text-sm transition-colors"
             >
-              Volver al chat con Clara
+              {tx({ es: "Volver al chat con Clara", en: "Back to chat with Clara" })}
             </button>
           </div>
         </div>
@@ -240,12 +272,14 @@ function Stat({
   tone,
   emoji,
   currency,
+  locale,
 }: {
   label: string;
   value: number;
   tone?: "good" | "bad" | "warn";
   emoji?: string;
   currency: string;
+  locale: Locale;
 }) {
   const toneClass =
     tone === "good"
@@ -263,7 +297,7 @@ function Stat({
         </p>
         {emoji ? <span aria-hidden>{emoji}</span> : null}
       </div>
-      <p className={cn("num mt-0.5 text-xl", toneClass)}>{formatCurrency(value, currency)}</p>
+      <p className={cn("num mt-0.5 text-xl", toneClass)}>{formatCurrency(value, currency, locale)}</p>
     </div>
   );
 }

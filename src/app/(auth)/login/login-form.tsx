@@ -7,9 +7,16 @@ import { FormEvent, Suspense, useState } from "react";
 
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useLocale, useT } from "@/lib/i18n/client";
 import { loginErrorMessage } from "@/lib/login-errors";
 
 type LoginFormProps = {
@@ -17,13 +24,15 @@ type LoginFormProps = {
 };
 
 function LoginFormInner({ googleEnabled }: LoginFormProps) {
+  const t = useT();
+  const locale = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryError = loginErrorMessage(searchParams.get("error"));
+  const queryError = loginErrorMessage(searchParams.get("error"), locale);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -39,9 +48,7 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
     setLoading(false);
 
     if (result?.error) {
-      setError(
-        "Correo o contraseña incorrectos. Si entraste con Google antes, usá «Continuar con Google».",
-      );
+      setError(t.auth.errorInvalid);
       return;
     }
 
@@ -54,8 +61,8 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Iniciar sesión</CardTitle>
-        <CardDescription>Planificá tus gastos mensuales por banco.</CardDescription>
+        <CardTitle>{t.auth.loginTitle}</CardTitle>
+        <CardDescription>{t.auth.loginSubtitle}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {googleEnabled ? (
@@ -66,7 +73,9 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
                 <span className="border-border w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card text-muted-foreground px-2">o</span>
+                <span className="bg-card text-muted-foreground px-2">
+                  {t.auth.or}
+                </span>
               </div>
             </div>
           </div>
@@ -74,7 +83,7 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
 
         <form className="space-y-4" onSubmit={onSubmit} noValidate>
           <div className="space-y-2">
-            <Label htmlFor="email">Correo electrónico</Label>
+            <Label htmlFor="email">{t.auth.email}</Label>
             <Input
               id="email"
               type="email"
@@ -87,12 +96,12 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="password">Contraseña</Label>
+              <Label htmlFor="password">{t.auth.password}</Label>
               <Link
                 href="/register"
                 className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
               >
-                ¿Primera vez?
+                {t.auth.noAccount}
               </Link>
             </div>
             <Input
@@ -109,13 +118,16 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Iniciando sesión…" : "Iniciar sesión"}
+            {loading ? t.auth.submittingLogin : t.auth.submitLogin}
           </Button>
 
           <p className="text-muted-foreground text-center text-sm">
-            ¿No tenés cuenta?{" "}
-            <Link href="/register" className="text-primary underline-offset-4 hover:underline">
-              Creá una
+            {t.auth.noAccount}{" "}
+            <Link
+              href="/register"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              {t.auth.goToRegister}
             </Link>
           </p>
         </form>
@@ -126,16 +138,7 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
 
 export function LoginForm(props: LoginFormProps) {
   return (
-    <Suspense
-      fallback={
-        <Card>
-          <CardHeader>
-            <CardTitle>Iniciar sesión</CardTitle>
-            <CardDescription>Cargando…</CardDescription>
-          </CardHeader>
-        </Card>
-      }
-    >
+    <Suspense fallback={null}>
       <LoginFormInner {...props} />
     </Suspense>
   );

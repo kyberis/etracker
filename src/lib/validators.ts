@@ -183,6 +183,8 @@ export const settingsSchema = z.object({
   expenseImportInstructions: z.union([z.string().max(12000), z.null()]).optional(),
   /** Primary currency in which all aggregations are reported. ISO 4217. */
   primaryCurrency: currencySchema.optional(),
+  /** Preferred UI/agent language. Mirrored into the NEXT_LOCALE cookie. */
+  locale: z.enum(["es", "en"]).optional(),
 });
 
 export const monthlyIncomeSchema = z.object({
@@ -192,6 +194,57 @@ export const monthlyIncomeSchema = z.object({
 export const carryoverDecisionSchema = z.object({
   mode: z.enum(["addToIncome", "setAside"]),
 });
+
+/**
+ * Closed enum of usage reasons captured by the onboarding wizard. Stored as a
+ * string array on `User.usageReasons`; the agent can read them as a hint but
+ * we don't gate any feature on the value.
+ */
+export const usageReasonValues = [
+  "personal",
+  "couple_family",
+  "freelance",
+  "business",
+  "other",
+] as const;
+export type UsageReason = (typeof usageReasonValues)[number];
+export const usageReasonSchema = z.enum(usageReasonValues);
+
+/** ISO-3166 alpha-2, normalised to upper-case. */
+const onboardingCountrySchema = z
+  .string()
+  .trim()
+  .length(2, "Country must be a 2-letter ISO code.")
+  .regex(/^[a-zA-Z]{2}$/, "Country must be a 2-letter ISO code.")
+  .transform((value) => value.toUpperCase());
+
+/**
+ * Body of `PATCH /api/onboarding`. Every field is optional so each step of the
+ * wizard can persist what it has and bail; `complete: true` stamps
+ * `onboardingCompletedAt` so the redirect gate stops sending the user back.
+ */
+export const onboardingSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, "El nombre no puede estar vacío.")
+      .max(80, "El nombre es demasiado largo.")
+      .optional(),
+    usageReasons: z.array(usageReasonSchema).max(usageReasonValues.length).optional(),
+    country: onboardingCountrySchema.optional(),
+    primaryCurrency: currencySchema.optional(),
+    complete: z.boolean().optional(),
+  })
+  .refine(
+    (data) =>
+      data.name !== undefined ||
+      data.usageReasons !== undefined ||
+      data.country !== undefined ||
+      data.primaryCurrency !== undefined ||
+      data.complete !== undefined,
+    { message: "Nada para actualizar." },
+  );
 
 const phoneRegex = /^\+[1-9]\d{6,14}$/;
 

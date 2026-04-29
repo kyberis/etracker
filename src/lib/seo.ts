@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { type Locale, toBcp47 } from "@/lib/i18n/locale";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 
 /**
@@ -14,11 +15,26 @@ export function getSiteUrl(): string {
 }
 
 export const SITE_NAME = "Clara";
-export const SITE_TAGLINE = "Tu asistente financiera con IA";
-export const SITE_DESCRIPTION =
-  "Clara es una asistente financiera con IA: planificá gastos, mirá tu balance mes a mes, mandá notas de voz por WhatsApp, importá extractos PDF y conectá tu banco vía Open Banking. Open source, MIT, self-hostable.";
 
-export const SITE_KEYWORDS: string[] = [
+export const SITE_TAGLINE_ES = "Tu asistente financiera con IA";
+export const SITE_TAGLINE_EN = "Your AI financial assistant";
+export const SITE_TAGLINE = SITE_TAGLINE_ES;
+
+export const SITE_DESCRIPTION_ES =
+  "Clara es una asistente financiera con IA: planificá gastos, mirá tu balance mes a mes, mandá notas de voz por WhatsApp, importá extractos PDF y conectá tu banco vía Open Banking. Open source, MIT, self-hostable.";
+export const SITE_DESCRIPTION_EN =
+  "Clara is an AI financial assistant: plan expenses, check your monthly balance, send voice notes over WhatsApp, import PDF statements and connect your bank via Open Banking. Open source, MIT, self-hostable.";
+export const SITE_DESCRIPTION = SITE_DESCRIPTION_ES;
+
+export function siteTagline(locale: Locale): string {
+  return locale === "en" ? SITE_TAGLINE_EN : SITE_TAGLINE_ES;
+}
+
+export function siteDescription(locale: Locale): string {
+  return locale === "en" ? SITE_DESCRIPTION_EN : SITE_DESCRIPTION_ES;
+}
+
+const KEYWORDS_ES = [
   "asistente financiera",
   "asistente financiera con IA",
   "expense tracker",
@@ -35,6 +51,30 @@ export const SITE_KEYWORDS: string[] = [
   "MCP Claude finanzas",
   "AI agent finanzas",
 ];
+
+const KEYWORDS_EN = [
+  "financial assistant",
+  "AI financial assistant",
+  "expense tracker",
+  "AI expense tracker",
+  "monthly budget",
+  "spending tracker",
+  "open banking",
+  "Revolut",
+  "WhatsApp finance",
+  "bank PDF statements",
+  "self-hosted finance",
+  "Next.js finance",
+  "MCP finance",
+  "MCP Claude finance",
+  "AI agent finance",
+];
+
+export function siteKeywords(locale: Locale): string[] {
+  return locale === "en" ? KEYWORDS_EN : KEYWORDS_ES;
+}
+
+export const SITE_KEYWORDS: string[] = KEYWORDS_ES;
 
 export const ORG_LEGAL_NAME = "Trefolio";
 export const ORG_URL = "https://trefolio.com";
@@ -57,6 +97,16 @@ type BuildMetadataInput = {
     section?: string;
     tags?: string[];
   };
+  /**
+   * Active locale for the page. Drives `og:locale`, the language alternates
+   * (hreflang) and the canonical link.
+   */
+  locale?: Locale;
+  /**
+   * Locale-aware paths used to emit `alternates.languages` (hreflang). When
+   * provided, the canonical link uses the entry matching `locale`.
+   */
+  pathByLocale?: Partial<Record<Locale, string>>;
 };
 
 /**
@@ -66,37 +116,47 @@ type BuildMetadataInput = {
  */
 export function buildMetadata({
   title,
-  description = SITE_DESCRIPTION,
+  description,
   path = "/",
   image,
   ogType = "website",
   index = true,
   article,
+  locale = "es",
+  pathByLocale,
 }: BuildMetadataInput): Metadata {
+  const resolvedDescription = description ?? siteDescription(locale);
   const url = path.startsWith("http") ? path : path;
-  const canonical = path === "/" ? "/" : path;
+  const canonicalPath = pathByLocale?.[locale] ?? (path === "/" ? "/" : path);
 
   const ogImages = image
     ? [{ url: image, width: 1200, height: 630, alt: `${SITE_NAME} — ${title}` }]
     : undefined;
 
+  // hreflang map: prefer per-locale paths when provided; otherwise default
+  // to the same path for both locales (legacy behaviour).
+  const esPath = pathByLocale?.es ?? canonicalPath;
+  const enPath = pathByLocale?.en ?? canonicalPath;
+
   return {
     title,
-    description,
+    description: resolvedDescription,
     alternates: {
-      canonical,
+      canonical: canonicalPath,
       languages: {
-        "es-AR": canonical,
-        es: canonical,
-        "x-default": canonical,
+        "es-AR": esPath,
+        es: esPath,
+        "en-US": enPath,
+        en: enPath,
+        "x-default": esPath,
       },
     },
     openGraph: {
       type: ogType,
       title: `${title} · ${SITE_NAME}`,
-      description,
+      description: resolvedDescription,
       siteName: SITE_NAME,
-      locale: "es_AR",
+      locale: locale === "en" ? "en_US" : "es_AR",
       url,
       images: ogImages,
       ...(article ? { ...article } : {}),
@@ -104,7 +164,7 @@ export function buildMetadata({
     twitter: {
       card: "summary_large_image",
       title: `${title} · ${SITE_NAME}`,
-      description,
+      description: resolvedDescription,
       images: image ? [image] : undefined,
     },
     robots: index
@@ -116,6 +176,9 @@ export function buildMetadata({
       : { index: false, follow: false },
   };
 }
+
+/** Re-export so callers can write `<html lang={htmlLang(locale)} />`. */
+export const htmlLang = toBcp47;
 
 /**
  * JSON-LD `Organization` describing Trefolio (the team behind Clara).
@@ -143,7 +206,7 @@ export function websiteJsonLd() {
     name: SITE_NAME,
     alternateName: SITE_TAGLINE,
     url: site,
-    inLanguage: ["es-AR", "es"],
+    inLanguage: ["es-AR", "en-US"],
     publisher: { "@type": "Organization", name: ORG_LEGAL_NAME, url: ORG_URL },
     potentialAction: {
       "@type": "SearchAction",
@@ -167,7 +230,7 @@ export function softwareApplicationJsonLd() {
     operatingSystem: "Web, iOS (PWA), Android (PWA)",
     url: site,
     description: SITE_DESCRIPTION,
-    inLanguage: ["es-AR", "es"],
+    inLanguage: ["es-AR", "en-US"],
     softwareVersion: "0.1.0",
     license: "https://opensource.org/licenses/MIT",
     isAccessibleForFree: true,

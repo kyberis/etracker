@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { CHANGELOG } from "@/lib/marketing-content";
+import { marketingContent } from "@/lib/marketing-content";
+import { changelogCopy } from "@/lib/marketing-pages";
+import { isLocale, type Locale } from "@/lib/i18n/locale";
 import {
   breadcrumbJsonLd,
   buildMetadata,
@@ -10,14 +13,34 @@ import {
   ORG_URL,
 } from "@/lib/seo";
 
-export const metadata: Metadata = buildMetadata({
-  title: "Changelog",
-  description:
-    "Historial de cambios de Clara: nuevas features, mejoras, fixes. Versionado siguiendo SemVer.",
-  path: "/changelog",
-});
+type PageProps = {
+  params: Promise<{ lang: string }>;
+};
 
-export default function ChangelogPage() {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { lang } = await params;
+  if (!isLocale(lang)) return {};
+  const copy = changelogCopy(lang);
+  return buildMetadata({
+    title: copy.metaTitle,
+    description: copy.metaDescription,
+    path: `/${lang}/changelog`,
+    locale: lang,
+    pathByLocale: { es: "/es/changelog", en: "/en/changelog" },
+  });
+}
+
+export function generateStaticParams() {
+  return [{ lang: "es" }, { lang: "en" }];
+}
+
+export default async function ChangelogPage({ params }: PageProps) {
+  const { lang } = await params;
+  if (!isLocale(lang)) notFound();
+  const locale: Locale = lang;
+  const copy = changelogCopy(locale);
+  const { CHANGELOG } = marketingContent(locale);
+
   const site = getSiteUrl();
   const articles = CHANGELOG.map((entry) => ({
     "@context": "https://schema.org",
@@ -27,7 +50,7 @@ export default function ChangelogPage() {
     dateModified: entry.date,
     author: { "@type": "Organization", name: ORG_LEGAL_NAME, url: ORG_URL },
     publisher: { "@type": "Organization", name: ORG_LEGAL_NAME, url: ORG_URL },
-    mainEntityOfPage: { "@type": "WebPage", "@id": `${site}/changelog` },
+    mainEntityOfPage: { "@type": "WebPage", "@id": `${site}/${locale}/changelog` },
     description: entry.highlights.join(" "),
   }));
 
@@ -36,22 +59,20 @@ export default function ChangelogPage() {
       <script
         {...jsonLdScript([
           breadcrumbJsonLd([
-            { name: "Inicio", path: "/" },
-            { name: "Changelog", path: "/changelog" },
+            { name: locale === "en" ? "Home" : "Inicio", path: `/${locale}` },
+            { name: copy.metaTitle, path: `/${locale}/changelog` },
           ]),
           ...articles,
         ])}
       />
 
       <header className="mb-10 space-y-3">
-        <span className="sticker sticker-lime">Changelog</span>
+        <span className="sticker sticker-lime">{copy.chip}</span>
         <h1 className="font-display text-4xl font-bold leading-tight sm:text-5xl">
-          Historia de Clara
+          {copy.title1}
+          <span className="hl">{copy.titleHighlight}</span>
         </h1>
-        <p className="text-muted-foreground text-lg leading-relaxed">
-          Releases públicas con SemVer. Sin marketing-fluff: qué se agregó, qué cambió, qué se
-          arregló.
-        </p>
+        <p className="text-muted-foreground text-lg leading-relaxed">{copy.intro}</p>
       </header>
 
       <ol className="space-y-8">
@@ -68,7 +89,7 @@ export default function ChangelogPage() {
                 dateTime={entry.date}
                 className="text-muted-foreground text-xs font-mono"
               >
-                {entry.date}
+                {copy.publishedOn(entry.date)}
               </time>
             </header>
             <ul className="text-muted-foreground list-disc space-y-1.5 pl-5 text-sm leading-relaxed">

@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n/client";
 
 type Bank = {
   id: string;
@@ -17,6 +18,7 @@ type BanksManagerProps = {
 };
 
 export function BanksManager({ initialBanks }: BanksManagerProps) {
+  const t = useT();
   const [banks, setBanks] = useState<Bank[]>(initialBanks);
   const [name, setName] = useState("");
   const [color, setColor] = useState("");
@@ -39,7 +41,7 @@ export function BanksManager({ initialBanks }: BanksManagerProps) {
 
     if (!response.ok) {
       const data = (await response.json()) as { error?: string };
-      setError(data.error ?? "Unable to create bank.");
+      setError(data.error ?? t.banks.saveError);
       return;
     }
 
@@ -49,9 +51,9 @@ export function BanksManager({ initialBanks }: BanksManagerProps) {
   }
 
   async function editBank(bank: Bank) {
-    const newName = window.prompt("Bank name", bank.name);
+    const newName = window.prompt(t.banks.nameLabel, bank.name);
     if (!newName) return;
-    const newColor = window.prompt("Hex color (optional)", bank.color ?? "") ?? "";
+    const newColor = window.prompt(t.banks.colorHint, bank.color ?? "") ?? "";
 
     const response = await fetch(`/api/banks/${bank.id}`, {
       method: "PATCH",
@@ -64,14 +66,14 @@ export function BanksManager({ initialBanks }: BanksManagerProps) {
     }
   }
 
-  async function removeBank(bankId: string) {
-    const confirmed = window.confirm("Delete this bank?");
+  async function removeBank(bank: Bank) {
+    const confirmed = window.confirm(t.banks.deleteConfirm(bank.name));
     if (!confirmed) return;
 
-    const response = await fetch(`/api/banks/${bankId}`, { method: "DELETE" });
+    const response = await fetch(`/api/banks/${bank.id}`, { method: "DELETE" });
     if (!response.ok) {
       const data = (await response.json()) as { error?: string };
-      setError(data.error ?? "Unable to delete bank.");
+      setError(data.error ?? t.banks.deleteError);
       return;
     }
     await loadBanks();
@@ -81,22 +83,22 @@ export function BanksManager({ initialBanks }: BanksManagerProps) {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Add bank</CardTitle>
+          <CardTitle>{t.banks.addBank}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="grid gap-3 md:grid-cols-3" onSubmit={createBank}>
             <Input
-              placeholder="Bank name"
+              placeholder={t.banks.namePlaceholder}
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
             />
             <Input
-              placeholder="#AABBCC (optional)"
+              placeholder="#AABBCC"
               value={color}
               onChange={(event) => setColor(event.target.value)}
             />
-            <Button type="submit">Create bank</Button>
+            <Button type="submit">{t.banks.save}</Button>
           </form>
           {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
         </CardContent>
@@ -104,11 +106,11 @@ export function BanksManager({ initialBanks }: BanksManagerProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Your banks</CardTitle>
+          <CardTitle>{t.banks.pageTitle}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {banks.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No banks yet.</p>
+            <p className="text-muted-foreground text-sm">{t.banks.empty}</p>
           ) : (
             banks.map((bank) => (
               <div
@@ -126,10 +128,10 @@ export function BanksManager({ initialBanks }: BanksManagerProps) {
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => editBank(bank)}>
-                    Edit
+                    {t.banks.edit}
                   </Button>
-                  <Button size="sm" variant="destructive" onClick={() => removeBank(bank.id)}>
-                    Delete
+                  <Button size="sm" variant="destructive" onClick={() => removeBank(bank)}>
+                    {t.banks.delete}
                   </Button>
                 </div>
               </div>

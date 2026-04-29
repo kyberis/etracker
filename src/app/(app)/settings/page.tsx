@@ -2,6 +2,9 @@ import { PageContainer } from "@/components/page-container";
 import { SettingsManager } from "@/components/settings-manager";
 import { isGoogleAuthConfigured } from "@/lib/auth-providers";
 import { db } from "@/lib/db";
+import { getDict } from "@/lib/i18n";
+import { isLocale } from "@/lib/i18n/locale";
+import { getLocale } from "@/lib/i18n/server";
 import { requireUserId } from "@/lib/session";
 
 async function loadSettingsData() {
@@ -16,6 +19,7 @@ async function loadSettingsData() {
         passwordHash: true,
         primaryCurrency: true,
         primaryCurrencyConfirmedAt: true,
+        locale: true,
         whatsappPhone: true,
         whatsappVerifiedAt: true,
         whatsappLinkCode: true,
@@ -71,6 +75,7 @@ async function loadSettingsData() {
       hasPassword: user.passwordHash != null,
       primaryCurrency: user.primaryCurrency,
       primaryCurrencyConfirmedAt: user.primaryCurrencyConfirmedAt?.toISOString() ?? null,
+      locale: isLocale(user.locale) ? user.locale : "es",
       linkedProviders: user.accounts.map((a) => a.provider),
     },
     initialWhatsapp: {
@@ -107,11 +112,12 @@ async function loadSettingsData() {
 }
 
 export default async function SettingsPage() {
-  const data = await loadSettingsData();
+  const [data, locale] = await Promise.all([loadSettingsData(), getLocale()]);
+  const t = getDict(locale);
 
   return (
     <PageContainer className="space-y-4">
-      <h1 className="font-display text-2xl font-semibold">Configuración</h1>
+      <h1 className="font-display text-2xl font-semibold">{t.settings.pageTitle}</h1>
       <SettingsManager
         initialUser={data.initialUser}
         initialWhatsapp={data.initialWhatsapp}

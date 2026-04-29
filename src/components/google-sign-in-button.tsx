@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/lib/i18n/client";
 
 type GoogleSignInButtonProps = {
   callbackUrl?: string;
@@ -12,9 +13,13 @@ type GoogleSignInButtonProps = {
 
 export function GoogleSignInButton({
   callbackUrl = "/",
-  label = "Continuar con Google",
+  label,
 }: GoogleSignInButtonProps) {
   const [loading, setLoading] = useState(false);
+  const locale = useLocale();
+  const defaultLabel =
+    locale === "en" ? "Continue with Google" : "Continuar con Google";
+  const loadingLabel = locale === "en" ? "Redirecting…" : "Redirigiendo…";
 
   return (
     <Button
@@ -28,7 +33,7 @@ export function GoogleSignInButton({
       }}
     >
       <GoogleGlyph className="size-4 shrink-0" aria-hidden />
-      {loading ? "Redirigiendo…" : label}
+      {loading ? loadingLabel : (label ?? defaultLabel)}
     </Button>
   );
 }

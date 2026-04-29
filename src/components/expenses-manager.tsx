@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import { formatCurrency } from "@/lib/format";
+import { useLocale, useT } from "@/lib/i18n/client";
 import { expenseCategoryOptions, isInvestmentCategory } from "@/lib/validators";
 
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,31 @@ export function ExpensesManager({
   initialExpenses,
   primaryCurrency,
 }: ExpensesManagerProps) {
+  const t = useT();
+  const locale = useLocale();
+  const allBanksLabel = locale === "en" ? "All banks" : "Todos los bancos";
+  const allTypesLabel = locale === "en" ? "All types" : "Todos los tipos";
+  const recurringLabel = locale === "en" ? "Recurring" : "Recurrente";
+  const oneOffLabel = locale === "en" ? "One-off" : "Puntual";
+  const noExpensesLabel = locale === "en" ? "No expenses found." : "No se encontraron plantillas.";
+  const filterByBankPlaceholder =
+    locale === "en" ? "Filter by bank" : "Filtrar por banco";
+  const recurringFilterPlaceholder =
+    locale === "en" ? "Recurring filter" : "Filtro recurrente";
+  const investmentBadge = locale === "en" ? "investment" : "inversión";
+  const noBanksWarning =
+    locale === "en"
+      ? "Create at least one bank before adding expenses."
+      : "Creá al menos un banco antes de agregar plantillas.";
+  const newExpenseTitle = locale === "en" ? "New expense template" : "Nueva plantilla";
+  const expensesTitle = locale === "en" ? "Templates" : "Plantillas";
+  const searchPlaceholder = locale === "en" ? "Search template" : "Buscar plantilla";
+  const selectBankPlaceholder = locale === "en" ? "Select bank" : "Elegí un banco";
+  const optionalEndPlaceholder =
+    locale === "en" ? "Optional end month" : "Mes final (opcional)";
+  const recurringSwitchLabel =
+    locale === "en" ? "Recurring expense" : "Gasto recurrente";
+
   const [banks, setBanks] = useState<Bank[]>(initialBanks);
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [error, setError] = useState<string | null>(null);
@@ -90,9 +116,9 @@ export function ExpensesManager({
   );
 
   const selectedFilterBankName = useMemo(() => {
-    if (bankFilter === "all") return "All banks";
-    return banks.find((bank) => bank.id === bankFilter)?.name ?? "All banks";
-  }, [bankFilter, banks]);
+    if (bankFilter === "all") return allBanksLabel;
+    return banks.find((bank) => bank.id === bankFilter)?.name ?? allBanksLabel;
+  }, [bankFilter, banks, allBanksLabel]);
 
   async function createExpense(event: FormEvent) {
     event.preventDefault();
@@ -113,7 +139,7 @@ export function ExpensesManager({
 
     if (!response.ok) {
       const data = (await response.json()) as { error?: string };
-      setError(data.error ?? "Unable to create expense.");
+      setError(data.error ?? t.expenses.saveError);
       return;
     }
 
@@ -127,9 +153,9 @@ export function ExpensesManager({
   }
 
   async function editExpense(expense: Expense) {
-    const newName = window.prompt("Expense name", expense.name);
+    const newName = window.prompt(t.expenses.name, expense.name);
     if (!newName) return;
-    const newAmount = window.prompt("Amount", String(expense.amount));
+    const newAmount = window.prompt(t.expenses.amount, String(expense.amount));
     if (!newAmount) return;
 
     const response = await fetch(`/api/expenses/${expense.id}`, {
@@ -151,9 +177,9 @@ export function ExpensesManager({
     }
   }
 
-  async function removeExpense(expenseId: string) {
-    if (!window.confirm("Delete this expense?")) return;
-    const response = await fetch(`/api/expenses/${expenseId}`, {
+  async function removeExpense(expense: Expense) {
+    if (!window.confirm(t.expenses.deleteConfirm(expense.name))) return;
+    const response = await fetch(`/api/expenses/${expense.id}`, {
       method: "DELETE",
     });
 
@@ -163,31 +189,29 @@ export function ExpensesManager({
     }
 
     const data = (await response.json()) as { error?: string };
-    setError(data.error ?? "Unable to delete expense.");
+    setError(data.error ?? t.expenses.deleteError);
   }
 
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>New expense</CardTitle>
+          <CardTitle>{newExpenseTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           {banks.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              Create at least one bank before adding expenses.
-            </p>
+            <p className="text-muted-foreground text-sm">{noBanksWarning}</p>
           ) : (
             <form className="space-y-3" onSubmit={createExpense}>
               <div className="grid gap-3 md:grid-cols-2">
                 <Input
-                  placeholder="Expense name"
+                  placeholder={t.expenses.name}
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   required
                 />
                 <Input
-                  placeholder="Amount"
+                  placeholder={t.expenses.amount}
                   type="number"
                   min="0"
                   step="0.01"
@@ -197,7 +221,7 @@ export function ExpensesManager({
                 />
                 <Select value={bankId} onValueChange={(value) => setBankId(value ?? "")}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select bank">
+                    <SelectValue placeholder={selectBankPlaceholder}>
                       {selectedBankName || undefined}
                     </SelectValue>
                   </SelectTrigger>
@@ -217,7 +241,7 @@ export function ExpensesManager({
                 />
                 <Select value={category} onValueChange={(v) => setCategory(v ?? "OTROS")}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Categoría" />
+                    <SelectValue placeholder={t.expenses.category} />
                   </SelectTrigger>
                   <SelectContent>
                     {expenseCategoryOptions.map((c) => (
@@ -230,17 +254,17 @@ export function ExpensesManager({
               </div>
               <div className="flex items-center gap-3">
                 <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
-                <span className="text-sm">Recurring expense</span>
+                <span className="text-sm">{recurringSwitchLabel}</span>
               </div>
               {isRecurring ? (
                 <Input
                   type="month"
                   value={endMonth}
                   onChange={(event) => setEndMonth(event.target.value)}
-                  placeholder="Optional end month"
+                  placeholder={optionalEndPlaceholder}
                 />
               ) : null}
-              <Button type="submit">Create expense</Button>
+              <Button type="submit">{t.expenses.save}</Button>
             </form>
           )}
           {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
@@ -249,23 +273,26 @@ export function ExpensesManager({
 
       <Card>
         <CardHeader>
-          <CardTitle>Expenses</CardTitle>
+          <CardTitle>{expensesTitle}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-3">
             <Input
-              placeholder="Search expense"
+              placeholder={searchPlaceholder}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <Select value={bankFilter} onValueChange={(value) => setBankFilter(value ?? "all")}>
+            <Select
+              value={bankFilter}
+              onValueChange={(value) => setBankFilter(value ?? "all")}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Filter by bank">
+                <SelectValue placeholder={filterByBankPlaceholder}>
                   {selectedFilterBankName}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All banks</SelectItem>
+                <SelectItem value="all">{allBanksLabel}</SelectItem>
                 {banks.map((bank) => (
                   <SelectItem key={bank.id} value={bank.id}>
                     {bank.name}
@@ -278,12 +305,12 @@ export function ExpensesManager({
               onValueChange={(value) => setRecurringFilter(value ?? "all")}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Recurring filter" />
+                <SelectValue placeholder={recurringFilterPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                <SelectItem value="recurring">Recurring</SelectItem>
-                <SelectItem value="oneoff">One-off</SelectItem>
+                <SelectItem value="all">{allTypesLabel}</SelectItem>
+                <SelectItem value="recurring">{recurringLabel}</SelectItem>
+                <SelectItem value="oneoff">{oneOffLabel}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -298,30 +325,35 @@ export function ExpensesManager({
                   {expense.name}
                   {isInvestmentCategory(expense.category) ? (
                     <span className="bg-lilac/30 text-foreground ml-2 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-bold">
-                      inversión
+                      {investmentBadge}
                     </span>
                   ) : null}
                 </p>
                 <p className="text-muted-foreground text-sm">
                   {expense.bank.name} ·{" "}
-                  <span className={isInvestmentCategory(expense.category) ? "text-lilac" : ""}>
-                    {formatCurrency(Number(expense.amount), primaryCurrency)}
+                  <span
+                    className={
+                      isInvestmentCategory(expense.category) ? "text-lilac" : ""
+                    }
+                  >
+                    {formatCurrency(Number(expense.amount), primaryCurrency, locale)}
                   </span>{" "}
-                  · {expense.isRecurring ? "Recurring" : "One-off"} · {expense.category.toLowerCase()}
+                  · {expense.isRecurring ? recurringLabel : oneOffLabel} ·{" "}
+                  {expense.category.toLowerCase()}
                 </p>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => editExpense(expense)}>
-                  Edit
+                  {t.expenses.edit}
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => removeExpense(expense.id)}>
-                  Delete
+                <Button size="sm" variant="destructive" onClick={() => removeExpense(expense)}>
+                  {t.expenses.delete}
                 </Button>
               </div>
             </div>
           ))}
           {filteredExpenses.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No expenses found.</p>
+            <p className="text-muted-foreground text-sm">{noExpensesLabel}</p>
           ) : null}
         </CardContent>
       </Card>

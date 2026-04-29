@@ -6,6 +6,8 @@ import { AppHeader } from "@/components/app-header";
 import { BalanceProvider } from "@/components/balance-provider";
 import { DevTools } from "@/components/dev-tools";
 import { MonthDrawerProvider } from "@/components/month-drawer";
+import { LocaleProvider } from "@/lib/i18n/client";
+import type { Locale } from "@/lib/i18n/locale";
 
 /**
  * Shared shell for every authenticated route. Mounts the balance provider,
@@ -18,21 +20,25 @@ import { MonthDrawerProvider } from "@/components/month-drawer";
 export function AppShell({
   children,
   isAdmin = false,
+  locale = "es",
 }: {
   children: ReactNode;
   isAdmin?: boolean;
+  locale?: Locale;
 }) {
   return (
-    <Suspense fallback={null}>
-      <BalanceProvider>
-        <MonthDrawerProvider>
-          <div className="flex min-h-dvh flex-col">
-            <AppHeader isAdmin={isAdmin} />
-            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-          </div>
-          <DevTools />
-        </MonthDrawerProvider>
-      </BalanceProvider>
-    </Suspense>
+    <LocaleProvider locale={locale}>
+      <Suspense fallback={null}>
+        <BalanceProvider>
+          <MonthDrawerProvider>
+            <div className="flex min-h-dvh flex-col">
+              <AppHeader isAdmin={isAdmin} />
+              <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+            </div>
+            <DevTools />
+          </MonthDrawerProvider>
+        </BalanceProvider>
+      </Suspense>
+    </LocaleProvider>
   );
 }

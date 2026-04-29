@@ -4,6 +4,7 @@ import { Bug, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { useTx } from "@/lib/i18n/client";
 
 /**
  * Floating dev-only widget. Shows up only when `NODE_ENV !== "production"`
@@ -29,6 +30,7 @@ type Status =
   | { kind: "error"; message: string };
 
 function DevToolsPanel() {
+  const tx = useTx();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
@@ -50,13 +52,16 @@ function DevToolsPanel() {
         return;
       }
       if (data.nothingToRevert) {
-        setStatus({ kind: "ok", message: "Nada para revertir." });
+        setStatus({ kind: "ok", message: tx({ es: "Nada para revertir.", en: "Nothing to revert." }) });
         return;
       }
       const { name, amount, type } = data.reverted ?? {};
       setStatus({
         kind: "ok",
-        message: `Borrado ${type === "expenseTemplate" ? "template" : "línea"}: ${name} (${amount}).`,
+        message: tx({
+          es: `Borrado ${type === "expenseTemplate" ? "template" : "línea"}: ${name} (${amount}).`,
+          en: `Deleted ${type === "expenseTemplate" ? "template" : "line"}: ${name} (${amount}).`,
+        }),
       });
       // Reflect the deletion in the rest of the UI (balance pill, month
       // dashboard, etc.). Chat is in-memory and stays as-is on purpose.
@@ -64,7 +69,7 @@ function DevToolsPanel() {
     } catch (err) {
       setStatus({
         kind: "error",
-        message: err instanceof Error ? err.message : "Falló la request.",
+        message: err instanceof Error ? err.message : tx({ es: "Falló la request.", en: "Request failed." }),
       });
     }
   }
@@ -72,7 +77,10 @@ function DevToolsPanel() {
   async function resetAccount() {
     if (
       !window.confirm(
-        "¿Resetear la cuenta como recién registrada? Esto borra bancos, meses, gastos, plantillas y el historial de chat de WhatsApp.",
+        tx({
+          es: "¿Resetear la cuenta como recién registrada? Esto borra bancos, meses, gastos, plantillas y el historial de chat de WhatsApp.",
+          en: "Reset the account as if just registered? This deletes banks, months, expenses, templates, and WhatsApp chat history.",
+        }),
       )
     ) {
       return;
@@ -98,7 +106,7 @@ function DevToolsPanel() {
     } catch (err) {
       setStatus({
         kind: "error",
-        message: err instanceof Error ? err.message : "Falló la request.",
+        message: err instanceof Error ? err.message : tx({ es: "Falló la request.", en: "Request failed." }),
       });
     }
   }
@@ -116,7 +124,7 @@ function DevToolsPanel() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              aria-label="Cerrar"
+              aria-label={tx({ es: "Cerrar", en: "Close" })}
               className="text-muted-foreground hover:text-foreground"
             >
               <ChevronDown className="size-4" />
@@ -126,16 +134,22 @@ function DevToolsPanel() {
           <div className="flex flex-col gap-1.5">
             <DevAction
               icon={<RotateCcw className="size-4" />}
-              label="Revertir última op"
-              hint="Borra la última línea o plantilla creada."
+              label={tx({ es: "Revertir última op", en: "Revert last op" })}
+              hint={tx({
+                es: "Borra la última línea o plantilla creada.",
+                en: "Deletes the most recent line or template.",
+              })}
               loading={loading && status.action === "revert"}
               disabled={loading}
               onClick={revertLast}
             />
             <DevAction
               icon={<Trash2 className="size-4" />}
-              label="Resetear cuenta"
-              hint="Cuenta como recién registrada. Chat vuelve a 0."
+              label={tx({ es: "Resetear cuenta", en: "Reset account" })}
+              hint={tx({
+                es: "Cuenta como recién registrada. Chat vuelve a 0.",
+                en: "Fresh-account state. Chat counter back to 0.",
+              })}
               tone="danger"
               loading={loading && status.action === "reset"}
               disabled={loading}
@@ -160,7 +174,7 @@ function DevToolsPanel() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="Abrir dev tools"
+          aria-label={tx({ es: "Abrir dev tools", en: "Open dev tools" })}
           className="bg-card text-foreground flex size-11 items-center justify-center rounded-full shadow-lg ring-1 ring-foreground/10 transition hover:scale-105"
         >
           <Bug className="size-4" />

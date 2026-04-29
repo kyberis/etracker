@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useT, useTx } from "@/lib/i18n/client";
 
 export type AdminUser = {
   id: string;
@@ -41,6 +42,8 @@ function formatTokens(tokens: number): string {
 }
 
 export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
+  const t = useT();
+  const tx = useTx();
   const [users, setUsers] = useState<AdminUser[]>(initialUsers);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(data.error ?? "No se pudo actualizar el usuario.");
+        setError(data.error ?? t.admin.error);
         return false;
       }
       const data = (await res.json()) as {
@@ -100,7 +103,7 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
   async function onCommitLimit(user: AdminUser, raw: string) {
     const next = Number.parseInt(raw, 10);
     if (!Number.isFinite(next) || next < 1 || next > 1000) {
-      setError("El límite debe estar entre 1 y 1000.");
+      setError(tx({ es: "El límite debe estar entre 1 y 1000.", en: "The limit must be between 1 and 1000." }));
       setUsers((prev) =>
         prev.map((u) =>
           u.id === user.id
@@ -120,11 +123,11 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Usuario</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead>Hoy</TableHead>
-            <TableHead className="w-32">Límite/día</TableHead>
-            <TableHead>Alta</TableHead>
+            <TableHead>{t.admin.columnsEmail}</TableHead>
+            <TableHead>{tx({ es: "Estado", en: "Status" })}</TableHead>
+            <TableHead>{t.admin.columnsToday}</TableHead>
+            <TableHead className="w-32">{t.admin.columnsLimit}</TableHead>
+            <TableHead>{t.admin.columnsCreated}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -143,7 +146,9 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
                         </Badge>
                       ) : null}
                       {isSelf ? (
-                        <span className="text-muted-foreground text-[10px]">(vos)</span>
+                        <span className="text-muted-foreground text-[10px]">
+                          {tx({ es: "(vos)", en: "(you)" })}
+                        </span>
                       ) : null}
                     </div>
                   </div>
@@ -154,10 +159,16 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
                       checked={u.isActive}
                       onCheckedChange={(next: boolean) => onToggleActive(u, next)}
                       disabled={isSelf || pendingId === u.id}
-                      aria-label={u.isActive ? "Desactivar usuario" : "Activar usuario"}
+                      aria-label={
+                        u.isActive
+                          ? tx({ es: "Desactivar usuario", en: "Deactivate user" })
+                          : tx({ es: "Activar usuario", en: "Activate user" })
+                      }
                     />
                     <span className="text-muted-foreground text-xs">
-                      {u.isActive ? "activo" : "desactivado"}
+                      {u.isActive
+                        ? tx({ es: "activo", en: "active" })
+                        : tx({ es: "desactivado", en: "inactive" })}
                     </span>
                   </div>
                 </TableCell>

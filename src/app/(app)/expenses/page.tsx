@@ -1,11 +1,12 @@
 import { ExpensesManager } from "@/components/expenses-manager";
 import { PageContainer } from "@/components/page-container";
 import { db } from "@/lib/db";
+import { getT } from "@/lib/i18n/server";
 import { formatMonthKey } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
 
 export default async function ExpensesPage() {
-  const userId = await requireUserId();
+  const [userId, t] = await Promise.all([requireUserId(), getT()]);
   const [user, banks, expenses] = await Promise.all([
     db.user.findUnique({ where: { id: userId }, select: { primaryCurrency: true } }),
     db.bank.findMany({
@@ -36,7 +37,7 @@ export default async function ExpensesPage() {
 
   return (
     <PageContainer className="space-y-4">
-      <h1 className="font-display text-2xl font-semibold">Plantillas</h1>
+      <h1 className="font-display text-2xl font-semibold">{t.expenses.pageTitle}</h1>
       <ExpensesManager
         initialBanks={banks}
         initialExpenses={initialExpenses}

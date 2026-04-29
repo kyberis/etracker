@@ -1,7 +1,6 @@
 "use client";
 
 import { format, parse } from "date-fns";
-import { es } from "date-fns/locale";
 import {
   CalendarDays,
   Landmark,
@@ -19,6 +18,7 @@ import { useState } from "react";
 import { signOut } from "next-auth/react";
 
 import { useBalance } from "@/components/balance-provider";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { useMonthDrawer } from "@/components/month-drawer";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -29,21 +29,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/format";
+import { useLocale, useT } from "@/lib/i18n/client";
+import { dateLocale } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 
-const NAV_LINKS = [
-  { href: "/banks", label: "Bancos", icon: Landmark },
-  { href: "/expenses", label: "Plantillas", icon: ListChecks },
-  { href: "/settings", label: "Configuración", icon: Settings },
-  { href: "/about", label: "Sobre Clara", icon: Sparkles },
-];
-
-const ADMIN_LINK = { href: "/admin", label: "Administración", icon: Shield };
-
-function shortMonthLabel(monthKey: string): string {
+function shortMonthLabel(monthKey: string, locale: ReturnType<typeof useLocale>): string {
   const date = parse(monthKey, "yyyy-MM", new Date());
-  // Spanish abbreviated month + 2-digit year, lowercase ("abr '26").
-  const month = format(date, "MMM", { locale: es }).toLowerCase().replace(".", "");
+  // Locale-aware abbreviated month + 2-digit year, lowercase ("abr '26" / "apr '26").
+  const month = format(date, "MMM", { locale: dateLocale(locale) })
+    .toLowerCase()
+    .replace(".", "");
   const year = format(date, "yy");
   return `${month} '${year}`;
 }
@@ -52,10 +47,20 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const balance = useBalance();
   const drawer = useMonthDrawer();
+  const t = useT();
+  const locale = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const NAV_LINKS = [
+    { href: "/banks", label: t.header.nav.banks, icon: Landmark },
+    { href: "/expenses", label: t.header.nav.expenses, icon: ListChecks },
+    { href: "/settings", label: t.header.nav.settings, icon: Settings },
+    { href: `/${locale}/about`, label: t.header.nav.about, icon: Sparkles },
+  ];
+  const ADMIN_LINK = { href: "/admin", label: t.header.nav.admin, icon: Shield };
   const navLinks = isAdmin ? [...NAV_LINKS, ADMIN_LINK] : NAV_LINKS;
 
-  const monthLabel = shortMonthLabel(balance.month);
+  const monthLabel = shortMonthLabel(balance.month, locale);
   const balancePositive = balance.balance >= 0;
   const isHome = pathname === "/app" || pathname === "/chat";
 
@@ -67,20 +72,20 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
       <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-3 py-3 sm:gap-3 sm:px-5">
         <Link
           href="/app"
-          aria-label="Clara home"
+          aria-label={t.brand.homeLabel}
           className="flex shrink-0 items-center gap-2.5 focus-visible:outline-none"
         >
           <Image
-            src="/clara-avatar-simple.png"
-            alt="Clara"
+            src="/ada-avatar.png"
+            alt={t.brand.avatarAlt}
             width={40}
             height={40}
             className="avatar-clara size-10 shrink-0 rounded-full object-cover"
           />
           <span className="hidden flex-col leading-none sm:flex">
-            <span className="display text-base font-bold">Clara</span>
+            <span className="display text-base font-bold">{t.brand.name}</span>
             <span className="text-muted-foreground text-[11px] font-medium">
-              tu asistente financiera
+              {t.brand.tagline}
             </span>
           </span>
         </Link>
@@ -88,13 +93,13 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
         <button
           type="button"
           onClick={() => drawer.setOpen(true)}
-          aria-label="Abrir balance del mes"
+          aria-label={t.header.balancePillLabel}
           data-testid="balance-pill"
           className="ink-card group ml-1 flex flex-1 items-center gap-3 rounded-full px-4 py-2 text-left transition-transform hover:scale-[1.01]"
         >
           <span className="flex flex-col leading-tight">
             <span className="text-lime text-[10px] font-bold uppercase tracking-[0.2em]">
-              balance · {monthLabel}
+              {t.header.balancePrefix} · {monthLabel}
             </span>
             <span
               className={cn(
@@ -103,9 +108,9 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
               )}
             >
               {balance.loading && !balance.hasRecord ? (
-                <span className="text-white/50">—</span>
+                <span className="text-white/50">{t.header.placeholderDash}</span>
               ) : (
-                formatCurrency(balance.balance, balance.primaryCurrency)
+                formatCurrency(balance.balance, balance.primaryCurrency, locale)
               )}
             </span>
           </span>
@@ -113,15 +118,15 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
             <span className="h-7 w-px bg-white/15" />
             <span className="flex flex-col text-[11px] leading-tight text-white/70">
               <span>
-                pend.{" "}
+                {t.header.pendingShort}{" "}
                 <span className="num text-peach">
-                  {formatCurrency(balance.remaining, balance.primaryCurrency)}
+                  {formatCurrency(balance.remaining, balance.primaryCurrency, locale)}
                 </span>
               </span>
               <span>
-                ingreso{" "}
+                {t.header.incomeShort}{" "}
                 <span className="num text-white/85">
-                  {formatCurrency(balance.income, balance.primaryCurrency)}
+                  {formatCurrency(balance.income, balance.primaryCurrency, locale)}
                 </span>
               </span>
             </span>
@@ -135,15 +140,15 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
             size="sm"
             className="hidden h-10 rounded-full border-transparent bg-card px-4 shadow-sm hover:bg-card sm:inline-flex"
             onClick={() => drawer.setOpen(true)}
-            aria-label="Abrir panel del mes"
+            aria-label={t.header.monthPanelLabel}
           >
             <CalendarDays className="size-4 text-lilac" />
-            <span className="ml-1.5 text-xs font-bold">Mes</span>
+            <span className="ml-1.5 text-xs font-bold">{t.header.monthButton}</span>
           </Button>
           {!isHome ? (
             <Link
               href="/app"
-              aria-label="Abrir asistente"
+              aria-label={t.header.nav.assistant}
               className={cn(
                 buttonVariants({ variant: "outline", size: "icon-lg" }),
                 "rounded-full border-transparent bg-card shadow-sm hover:bg-card",
@@ -161,7 +166,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                   variant="outline"
                   size="icon-lg"
                   className="rounded-full border-transparent bg-card shadow-sm hover:bg-card"
-                  aria-label="Abrir menú"
+                  aria-label={t.header.openMenu}
                 />
               }
             >
@@ -172,7 +177,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
               showCloseButton
             >
               <DialogHeader>
-                <DialogTitle className="display">Menú</DialogTitle>
+                <DialogTitle className="display">{t.header.menuTitle}</DialogTitle>
               </DialogHeader>
               <nav className="flex flex-col gap-1">
                 <button
@@ -183,7 +188,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                   }}
                   className="text-foreground hover:bg-muted flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm sm:hidden"
                 >
-                  <CalendarDays className="size-4 text-lilac" /> Panel del mes
+                  <CalendarDays className="size-4 text-lilac" /> {t.header.monthPanelMobile}
                 </button>
                 {navLinks.map((link) => {
                   const Icon = link.icon;
@@ -203,6 +208,12 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                     </Link>
                   );
                 })}
+                <div className="mt-1 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5">
+                  <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                    {t.header.languageLabel}
+                  </span>
+                  <LanguageSwitcher variant="app" />
+                </div>
                 <Button
                   type="button"
                   variant="outline"
@@ -212,7 +223,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                     void signOut({ callbackUrl: "/login" });
                   }}
                 >
-                  <LogOut className="size-4" /> Sign out
+                  <LogOut className="size-4" /> {t.header.signOut}
                 </Button>
               </nav>
             </DialogContent>

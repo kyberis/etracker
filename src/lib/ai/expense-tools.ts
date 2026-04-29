@@ -874,6 +874,23 @@ export function buildExpenseTools(userId: string) {
       },
     }),
 
+    setUserLocale: tool({
+      description:
+        "Updates the user's UI/agent language. Call when the user explicitly asks to switch language (e.g. 'habla en inglés', 'switch to Spanish', 'cambiá a español'). After this tool runs, the agent's NEXT reply MUST already be in the new locale, with a short acknowledgement.",
+      inputSchema: z.object({
+        locale: z
+          .enum(["es", "en"])
+          .describe("Target locale: 'es' (rioplatense Spanish) or 'en' (neutral English)."),
+      }),
+      execute: async ({ locale }) => {
+        await db.user.update({
+          where: { id: userId },
+          data: { locale },
+        });
+        return { ok: true as const, locale };
+      },
+    }),
+
     setPrimaryCurrency: tool({
       description:
         "Define la moneda principal del usuario (ISO 4217, p. ej. USD/ARS/EUR). " +

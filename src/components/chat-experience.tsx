@@ -2,6 +2,7 @@
 
 import { Chat, useChat, type UIMessage } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { useRouter } from "next/navigation";
 import {
   ChevronDown,
   ChevronUp,
@@ -39,6 +40,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
 import { formatBankCsvForAgent } from "@/lib/chat/bank-csv-for-agent";
+import { intlLocale } from "@/lib/i18n/format";
+import { pick, useLocale, useT, useTx } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 export type ChatExperienceProps = {
@@ -65,33 +68,6 @@ type Suggestion = {
   tone: "lime" | "pink" | "peach" | "violet";
 };
 
-const SUGGESTIONS: Suggestion[] = [
-  {
-    label: "¿Cómo voy este mes?",
-    prompt: "¿Cuánto me queda este mes?",
-    emoji: "📊",
-    tone: "lime",
-  },
-  {
-    label: "Roastéame",
-    prompt: "Roastéame mis gastos de este mes sin piedad.",
-    emoji: "🔥",
-    tone: "pink",
-  },
-  {
-    label: "Anotá un gasto",
-    prompt: "Anotá un gasto de USD 12 en café, lo pagué con Visa.",
-    emoji: "🧾",
-    tone: "peach",
-  },
-  {
-    label: "Distribución por categoría",
-    prompt: "Mostrame la distribución de gastos del mes por categoría.",
-    emoji: "🍰",
-    tone: "violet",
-  },
-];
-
 function assistantPlainText(message: UIMessage): string {
   let s = "";
   for (const p of message.parts) {
@@ -115,6 +91,54 @@ export function ChatExperience({
   layout = "default",
 }: ChatExperienceProps = {}) {
   const balance = useBalance();
+  const locale = useLocale();
+  const t = useT();
+  const router = useRouter();
+  const suggestions = useMemo(
+    () =>
+      [
+        {
+          label: pick(locale, { es: "¿Cómo voy este mes?", en: "How am I doing this month?" }),
+          prompt: pick(locale, {
+            es: "¿Cuánto me queda este mes?",
+            en: "How much do I have left this month?",
+          }),
+          emoji: "📊",
+          tone: "lime" as const,
+        },
+        {
+          label: pick(locale, { es: "Roastéame", en: "Roast me" }),
+          prompt: pick(locale, {
+            es: "Roastéame mis gastos de este mes sin piedad.",
+            en: "Roast my spending this month with no mercy.",
+          }),
+          emoji: "🔥",
+          tone: "pink" as const,
+        },
+        {
+          label: pick(locale, { es: "Anotá un gasto", en: "Log an expense" }),
+          prompt: pick(locale, {
+            es: "Anotá un gasto de USD 12 en café, lo pagué con Visa.",
+            en: "Log a USD 12 coffee expense; I paid with Visa.",
+          }),
+          emoji: "🧾",
+          tone: "peach" as const,
+        },
+        {
+          label: pick(locale, {
+            es: "Distribución por categoría",
+            en: "Spending by category",
+          }),
+          prompt: pick(locale, {
+            es: "Mostrame la distribución de gastos del mes por categoría.",
+            en: "Show me this month’s spending breakdown by category.",
+          }),
+          emoji: "🍰",
+          tone: "violet" as const,
+        },
+      ] satisfies Suggestion[],
+    [locale],
+  );
   const [conversationMode, setConversationMode] = useState(false);
   const [voiceResponses, setVoiceResponses] = useState(false);
   const [voiceUrlByMessageId, setVoiceUrlByMessageId] = useState<Record<string, string>>(
@@ -253,6 +277,38 @@ export function ChatExperience({
       void balance.refresh();
     }
   }, [messages, isStreaming, balance]);
+
+  // When the agent calls `setUserLocale`, we need to refresh the surrounding
+  // UI (header, html lang, server-rendered dictionary) so it picks up the new
+  // locale from the DB. We also re-fetch balance because currency formatting
+  // is locale-aware.
+  const lastLocaleRefreshRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (isStreaming) return;
+    const lastAssistant = [...messages]
+      .reverse()
+      .find((m) => m.role === "assistant");
+    if (!lastAssistant || lastAssistant.id === lastLocaleRefreshRef.current) return;
+
+    const switchedLocale = lastAssistant.parts.some((part) => {
+      if (part.type === "dynamic-tool") {
+        return (
+          "toolName" in part &&
+          typeof part.toolName === "string" &&
+          part.toolName === "setUserLocale"
+        );
+      }
+      if (typeof part.type === "string" && part.type.startsWith("tool-")) {
+        return part.type.replace(/^tool-/, "") === "setUserLocale";
+      }
+      return false;
+    });
+
+    lastLocaleRefreshRef.current = lastAssistant.id;
+    if (switchedLocale) {
+      router.refresh();
+    }
+  }, [messages, isStreaming, router]);
 
   useEffect(() => {
     if (!voiceResponses || isStreaming) return;
@@ -448,7 +504,12 @@ export function ChatExperience({
         const raw = await csvFile.text();
         csvBlocks.push(formatBankCsvForAgent(raw, csvFile.name));
       } catch {
-        csvBlocks.push(`(_No se pudo leer el CSV ${csvFile.name}._)`);
+        csvBlocks.push(
+          pick(locale, {
+            es: `(_No se pudo leer el CSV ${csvFile.name}._)`,
+            en: `(_Could not read CSV ${csvFile.name}._)`,
+          }),
+        );
       }
     }
 
@@ -470,7 +531,10 @@ export function ChatExperience({
         };
         if (!res.ok) {
           pdfBlocks.push(
-            `(_PDF ${pdfFile.name}: ${payload.error ?? "no se pudo leer el archivo"}._)`,
+            `(_PDF ${pdfFile.name}: ${
+              payload.error ??
+              pick(locale, { es: "no se pudo leer el archivo", en: "could not read file" })
+            }._)`,
           );
           continue;
         }
@@ -488,28 +552,40 @@ export function ChatExperience({
           }
           if (!extracted) {
             pdfBlocks.push(
-              `(_PDF ${pdfFile.name}: sin texto seleccionable; las primeras ${payload.images.length} página(s) van como imagen adjunta._)`,
+              pick(locale, {
+                es: `(_PDF ${pdfFile.name}: sin texto seleccionable; las primeras ${payload.images.length} página(s) van como imagen adjunta._)`,
+                en: `(_PDF ${pdfFile.name}: no selectable text; first ${payload.images.length} page(s) sent as attached images._)`,
+              }),
             );
           }
         }
       } catch {
-        pdfBlocks.push(`(_No se pudo leer el PDF ${pdfFile.name}._)`);
+        pdfBlocks.push(
+          pick(locale, {
+            es: `(_No se pudo leer el PDF ${pdfFile.name}._)`,
+            en: `(_Could not read PDF ${pdfFile.name}._)`,
+          }),
+        );
       }
     }
 
     let messageText = text;
     if (csvBlocks.length > 0) {
       const csvSection = csvBlocks.join("\n\n---\n\n");
-      const intro =
-        "Te adjunto movimientos exportados del banco (CSV). Usá la lista que sigue; respetá mis instrucciones personales si las hay. Pedí confirmación antes de cargar o marcar pagos.";
+      const intro = pick(locale, {
+        es: "Te adjunto movimientos exportados del banco (CSV). Usá la lista que sigue; respetá mis instrucciones personales si las hay. Pedí confirmación antes de cargar o marcar pagos.",
+        en: "I'm attaching bank-exported movements (CSV). Use the list below; respect my personal instructions if any. Ask for confirmation before loading or marking payments.",
+      });
       messageText = messageText
         ? `${messageText}\n\n${intro}\n\n${csvSection}`
         : `${intro}\n\n${csvSection}`;
     }
     if (pdfBlocks.length > 0) {
       const pdfSection = pdfBlocks.join("\n\n---\n\n");
-      const intro =
-        "Te adjunto uno o más PDF: texto cuando el archivo tiene capa de texto, y/o páginas renderizadas como imagen si era escaneo u hoja visual. Tratalo como extracto o resumen bancario; respetá mis instrucciones personales. Pedí confirmación antes de cargar o marcar pagos.";
+      const intro = pick(locale, {
+        es: "Te adjunto uno o más PDF: texto cuando el archivo tiene capa de texto, y/o páginas renderizadas como imagen si era escaneo u hoja visual. Tratalo como extracto o resumen bancario; respetá mis instrucciones personales. Pedí confirmación antes de cargar o marcar pagos.",
+        en: "I'm attaching one or more PDFs: text when the file has a text layer, and/or pages rendered as images if it was a scan or visual sheet. Treat it as a bank statement or summary; respect my personal instructions. Ask for confirmation before loading or marking payments.",
+      });
       messageText = messageText
         ? `${messageText}\n\n${intro}\n\n${pdfSection}`
         : `${intro}\n\n${pdfSection}`;
@@ -518,7 +594,7 @@ export function ChatExperience({
     const allImageAttachments = [...imageFiles, ...pdfImageFiles];
 
     if (!messageText && allImageAttachments.length > 0) {
-      messageText = "Imagen adjunta.";
+      messageText = pick(locale, { es: "Imagen adjunta.", en: "Image attached." });
     }
 
     const dt = new DataTransfer();
@@ -579,12 +655,13 @@ export function ChatExperience({
                     ) : (
                       <ChevronUp className="size-3.5" aria-hidden />
                     )}
-                    cargar mensajes anteriores
+                    {pick(locale, { es: "cargar mensajes anteriores", en: "load older messages" })}
                   </button>
                 </div>
               ) : null}
               {messages.length === 0 ? (
                 <EmptyState
+                  suggestions={suggestions}
                   onPick={(prompt) => {
                     setInput(prompt);
                     void submitText(prompt);
@@ -607,7 +684,7 @@ export function ChatExperience({
               {isStreaming && messages.length > 0 ? <TypingIndicator /> : null}
               {error ? (
                 <p className="text-sm text-bad px-2">
-                  {error.message ?? "Algo salió mal con el asistente."}
+                  {error.message ?? t.chat.error}
                 </p>
               ) : null}
             </>
@@ -635,7 +712,7 @@ export function ChatExperience({
           {/* suggestions when empty (skipped during history hydration) */}
           {messages.length === 0 && !historyLoading ? (
             <div className="mb-2 flex flex-wrap gap-1.5">
-              {SUGGESTIONS.slice(0, 2).map((s) => (
+              {suggestions.slice(0, 2).map((s) => (
                 <button
                   key={s.label}
                   type="button"
@@ -662,7 +739,7 @@ export function ChatExperience({
               size="icon-lg"
               className="rounded-full"
               onClick={() => fileInputRef.current?.click()}
-              aria-label="Adjuntar archivo"
+              aria-label={t.chat.attachLabel}
               disabled={isStreaming}
             >
               <Paperclip className="size-4" />
@@ -671,7 +748,10 @@ export function ChatExperience({
               ref={textareaRef}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Decime algo… o adjuntá un PDF del banco 📎"
+              placeholder={pick(locale, {
+                es: "Decime algo… o adjuntá un PDF del banco 📎",
+                en: "Say something… or attach a bank PDF 📎",
+              })}
               rows={1}
               className="min-h-10 max-h-40 flex-1 resize-none border-0 bg-transparent px-1.5 py-2 text-sm shadow-none focus-visible:ring-0"
               onKeyDown={(event) => {
@@ -716,7 +796,7 @@ export function ChatExperience({
                 variant="outline"
                 className="rounded-full"
                 onClick={() => stop()}
-                aria-label="Detener"
+                aria-label={t.chat.composerStop}
               >
                 <Square className="size-4" />
               </Button>
@@ -726,7 +806,7 @@ export function ChatExperience({
                 size="icon-lg"
                 className="gradient-lime text-ink size-10 rounded-full shadow-[0_12px_24px_-10px_oklch(0.74_0.18_156/0.55)] hover:opacity-95"
                 disabled={!input.trim() && (!files || files.length === 0)}
-                aria-label="Enviar"
+                aria-label={t.chat.composerSend}
               >
                 <Send className="size-4" />
               </Button>
@@ -736,14 +816,18 @@ export function ChatExperience({
           {files && files.length > 0 ? (
             <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-2 px-3 text-xs">
               <span className="bg-card rounded-full px-2.5 py-0.5 ring-1 ring-foreground/5">
-                {files.length} archivo{files.length === 1 ? "" : "s"} adjuntos
+                {files.length}{" "}
+                {pick(locale, {
+                  es: `archivo${files.length === 1 ? "" : "s"} adjuntos`,
+                  en: `attached file${files.length === 1 ? "" : "s"}`,
+                })}
               </span>
               <button
                 type="button"
                 onClick={clearFiles}
                 className="hover:text-foreground underline-offset-2 hover:underline"
               >
-                limpiar
+                {pick(locale, { es: "limpiar", en: "clear" })}
               </button>
             </div>
           ) : null}
@@ -764,6 +848,8 @@ function ChatModeMenu({
   voiceResponses: boolean;
   onVoiceChange: (v: boolean) => void;
 }) {
+  const t = useT();
+  const tr = useTx();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -773,12 +859,14 @@ function ChatModeMenu({
             variant="ghost"
             size="sm"
             className="hidden h-10 rounded-full px-3 sm:inline-flex"
-            aria-label="Opciones del asistente"
+            aria-label={tr({ es: "Opciones del asistente", en: "Assistant options" })}
           />
         }
       >
         <span className="sticker sticker-soft">
-          {conversationMode ? "convo" : "conciso"}
+          {conversationMode
+            ? tr({ es: "convo", en: "convo" })
+            : tr({ es: "conciso", en: "concise" })}
         </span>
         <ChevronDown className="size-3.5 text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -788,7 +876,7 @@ function ChatModeMenu({
         className="w-72 rounded-2xl p-3"
       >
         <p className="text-muted-foreground text-[10px] uppercase tracking-[0.18em] mb-2">
-          Asistente
+          {tr({ es: "Asistente", en: "Assistant" })}
         </p>
         <div className="space-y-3 px-1">
           <div className="flex items-start justify-between gap-3">
@@ -798,10 +886,13 @@ function ChatModeMenu({
                 className="cursor-pointer text-sm font-medium"
               >
                 <Sparkles className="mr-1.5 inline size-3.5 text-primary" />
-                Modo conversación
+                {tr({ es: "Modo conversación", en: "Conversation mode" })}
               </Label>
               <p className="text-muted-foreground text-xs">
-                Saludos y explicaciones cortas. Conciso por defecto.
+                {tr({
+                  es: "Saludos y explicaciones cortas. Conciso por defecto.",
+                  en: "Short greetings and explanations. Concise by default.",
+                })}
               </p>
             </div>
             <Switch
@@ -817,10 +908,13 @@ function ChatModeMenu({
                 className="cursor-pointer text-sm font-medium"
               >
                 <Volume2 className="mr-1.5 inline size-3.5 text-primary" />
-                Respuesta en audio
+                {tr({ es: "Respuesta en audio", en: "Voice reply" })}
               </Label>
               <p className="text-muted-foreground text-xs">
-                Genera un MP3 con la respuesta del asistente.
+                {tr({
+                  es: "Genera un MP3 con la respuesta del asistente.",
+                  en: "Generate an MP3 of the assistant’s reply.",
+                })}
               </p>
             </div>
             <Switch
@@ -835,10 +929,19 @@ function ChatModeMenu({
   );
 }
 
-function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
+function EmptyState({
+  suggestions,
+  onPick,
+}: {
+  suggestions: Suggestion[];
+  onPick: (prompt: string) => void;
+}) {
+  const tr = useTx();
   return (
     <div className="flex flex-col items-center gap-7 py-10 text-center">
-      <span className="sticker sticker-lime">hola, soy tu coach</span>
+      <span className="sticker sticker-lime">
+        {tr({ es: "hola, soy tu coach", en: "hi, I’m your coach" })}
+      </span>
       <Image
         src="/clara-avatar-simple.png"
         alt="Clara"
@@ -848,17 +951,42 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
       />
       <div className="space-y-3">
         <h2 className="display text-3xl tracking-tight sm:text-4xl">
-          ¿qué hacemos<br />
-          con tu plata hoy?
+          {tr({
+            es: (
+              <>
+                ¿qué hacemos
+                <br />
+                con tu plata hoy?
+              </>
+            ),
+            en: (
+              <>
+                what are
+                <br />
+                we doing with your money?
+              </>
+            ),
+          })}
         </h2>
         <p className="text-muted-foreground mx-auto max-w-md text-sm">
-          Anotá un gasto, marcá un pago, adjuntá una captura del banco. Si querés
-          que sea cruel, pedí un{" "}
-          <span className="font-bold text-foreground">roast</span>.
+          {tr({
+            es: (
+              <>
+                Anotá un gasto, marcá un pago, adjuntá una captura del banco. Si querés que sea
+                cruel, pedí un <span className="font-bold text-foreground">roast</span>.
+              </>
+            ),
+            en: (
+              <>
+                Log an expense, mark a payment, attach a bank screenshot. If you want it mean, ask
+                for a <span className="font-bold text-foreground">roast</span>.
+              </>
+            ),
+          })}
         </p>
       </div>
       <div className="grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {SUGGESTIONS.map((s) => (
+        {suggestions.map((s) => (
           <button
             key={s.label}
             type="button"
@@ -889,8 +1017,12 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
 }
 
 function HistoryLoadingSkeleton() {
+  const tr = useTx();
   return (
-    <div className="flex flex-col gap-3 py-6" aria-label="Cargando conversación…">
+    <div
+      className="flex flex-col gap-3 py-6"
+      aria-label={tr({ es: "Cargando conversación…", en: "Loading conversation…" })}
+    >
       <div className="bg-card/60 ml-auto h-10 w-44 animate-pulse rounded-full" />
       <div className="bg-card/60 mr-auto h-12 w-64 animate-pulse rounded-3xl" />
       <div className="bg-card/60 ml-auto h-10 w-56 animate-pulse rounded-full" />
@@ -1030,6 +1162,7 @@ function MessageBubble({
   audioSrc?: string;
   audioLoading?: boolean;
 }) {
+  const tr = useTx();
   const isUser = message.role === "user";
   return (
     <div
@@ -1071,7 +1204,7 @@ function MessageBubble({
                 <img
                   key={i}
                   src={part.url}
-                  alt={part.filename ?? "Adjunto"}
+                  alt={part.filename ?? tr({ es: "Adjunto", en: "Attachment" })}
                   className="max-h-64 rounded-2xl"
                 />
               );
@@ -1090,7 +1223,7 @@ function MessageBubble({
                   className="text-xs italic opacity-70"
                   aria-label="render chart"
                 >
-                  Preparando gráfico…
+                  {tr({ es: "Preparando gráfico…", en: "Preparing chart…" })}
                 </p>
               );
             }
@@ -1105,14 +1238,16 @@ function MessageBubble({
                   className="text-xs italic opacity-70"
                   aria-label={`tool ${toolName}`}
                 >
-                  {`Usando herramienta: ${toolName}…`}
+                  {tr({ es: `Usando herramienta: ${toolName}…`, en: `Using tool: ${toolName}…` })}
                 </p>
               );
             }
             return null;
           })}
           {!isUser && audioLoading ? (
-            <p className="text-muted-foreground text-xs italic">Generando audio…</p>
+            <p className="text-muted-foreground text-xs italic">
+              {tr({ es: "Generando audio…", en: "Generating audio…" })}
+            </p>
           ) : null}
           {!isUser && audioSrc ? (
             <audio
@@ -1133,9 +1268,11 @@ function QuotaBadge({
 }: {
   quota: { used: number; limit: number; remaining: number; resetAtUtc: string };
 }) {
+  const locale = useLocale();
+  const tr = useTx();
   const low = quota.remaining > 0 && quota.remaining <= 3;
   const empty = quota.remaining === 0;
-  const resetLocal = new Date(quota.resetAtUtc).toLocaleString(undefined, {
+  const resetLocal = new Date(quota.resetAtUtc).toLocaleString(intlLocale(locale), {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -1150,13 +1287,16 @@ function QuotaBadge({
               ? "text-peach"
               : "text-muted-foreground",
         )}
-        title={`Se reinicia ~${resetLocal} (00:00 UTC).`}
+        title={tr({
+          es: `Se reinicia ~${resetLocal} (00:00 UTC).`,
+          en: `Resets ~${resetLocal} (00:00 UTC).`,
+        })}
       >
-        <span className="font-semibold">Asistente</span>
+        <span className="font-semibold">{tr({ es: "Asistente", en: "Assistant" })}</span>
         <span className="font-mono">
           {quota.used}/{quota.limit}
         </span>
-        <span className="text-muted-foreground/80">hoy</span>
+        <span className="text-muted-foreground/80">{tr({ es: "hoy", en: "today" })}</span>
       </div>
     </div>
   );

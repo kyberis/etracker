@@ -5,6 +5,7 @@ import { TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/format";
+import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 type PendingByBank = { bankId: string; bankName: string; pending: number };
@@ -41,19 +42,25 @@ export function MonthSummary({
   pendingByBank,
   currency,
 }: Props) {
-  const fmt = (value: number) => formatCurrency(value, currency);
+  const locale = useLocale();
+  const t = useT();
+  const tx = useTx();
+  const fmt = (value: number) => formatCurrency(value, currency, locale);
   const effectiveIncome = income + carryoverFromPrev;
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-muted-foreground text-sm">Ingreso</CardTitle>
+          <CardTitle className="text-muted-foreground text-sm">{t.month.summaryIncome}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="text-good num text-xl">{fmt(effectiveIncome)}</div>
           {carryoverFromPrev > 0 ? (
             <p className="text-muted-foreground text-xs">
-              incluye {fmt(carryoverFromPrev)} del mes anterior
+              {tx({
+                es: `incluye ${fmt(carryoverFromPrev)} del mes anterior`,
+                en: `includes ${fmt(carryoverFromPrev)} from last month`,
+              })}
             </p>
           ) : null}
           <div className="flex items-center gap-2">
@@ -71,7 +78,7 @@ export function MonthSummary({
               disabled={savingIncome}
               className="bg-primary text-primary-foreground hover:bg-primary/90 h-8 rounded-md px-3 text-sm disabled:opacity-50"
             >
-              {savingIncome ? "…" : "Guardar"}
+              {savingIncome ? "…" : t.common.save}
             </button>
           </div>
           {incomeError ? <p className="text-destructive text-sm">{incomeError}</p> : null}
@@ -80,14 +87,24 @@ export function MonthSummary({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-muted-foreground text-sm">Gastos (plan.)</CardTitle>
+          <CardTitle className="text-muted-foreground text-sm">
+            {tx({ es: "Gastos (plan.)", en: "Expenses (planned)" })}
+          </CardTitle>
         </CardHeader>
-        <CardContent title="Total de gastos planificados (pagados y no pagados)">
+        <CardContent
+          title={tx({
+            es: "Total de gastos planificados (pagados y no pagados)",
+            en: "Total planned expenses (paid and unpaid)",
+          })}
+        >
           <p className="num text-bad text-xl">{fmt(totals.planned)}</p>
           {totals.investment > 0 ? (
             <p className="text-lilac mt-1 flex items-center gap-1 text-xs">
               <TrendingUp className="size-3" />
-              {fmt(totals.investment)} inversión
+              {tx({
+                es: `${fmt(totals.investment)} inversión`,
+                en: `${fmt(totals.investment)} investment`,
+              })}
             </p>
           ) : null}
         </CardContent>
@@ -95,7 +112,7 @@ export function MonthSummary({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-muted-foreground text-sm">Pagado</CardTitle>
+          <CardTitle className="text-muted-foreground text-sm">{t.month.summaryPaid}</CardTitle>
         </CardHeader>
         <CardContent className="text-foreground num text-xl">
           {fmt(totals.paid)}
@@ -104,7 +121,7 @@ export function MonthSummary({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-muted-foreground text-sm">Pendiente</CardTitle>
+          <CardTitle className="text-muted-foreground text-sm">{t.month.summaryRemaining}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-foreground num text-xl">{fmt(totals.remaining)}</p>
@@ -123,21 +140,26 @@ export function MonthSummary({
               ))}
             </div>
           ) : (
-            <p className="text-good mt-1 text-xs">✓ Todo pagado</p>
+            <p className="text-good mt-1 text-xs">
+              {tx({ es: "✓ Todo pagado", en: "✓ All paid" })}
+            </p>
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-muted-foreground text-sm">Saldo</CardTitle>
+          <CardTitle className="text-muted-foreground text-sm">{t.month.summaryBalance}</CardTitle>
         </CardHeader>
         <CardContent
           className={cn(
             "num text-xl",
             balance >= 0 ? "text-good" : "text-bad",
           )}
-          title="Ingreso (incluye carryover) − gastos planificados"
+          title={tx({
+            es: "Ingreso (incluye carryover) − gastos planificados",
+            en: "Income (includes carryover) − planned expenses",
+          })}
         >
           {fmt(balance)}
         </CardContent>
@@ -146,11 +168,16 @@ export function MonthSummary({
       {savings > 0 ? (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm">Ahorros</CardTitle>
+            <CardTitle className="text-muted-foreground text-sm">
+              {tx({ es: "Ahorros", en: "Savings" })}
+            </CardTitle>
           </CardHeader>
           <CardContent
             className="text-lilac num text-xl"
-            title="Pila acumulada cuando elegiste 'dejar aparte' al cierre de un mes."
+            title={tx({
+              es: "Pila acumulada cuando elegiste 'dejar aparte' al cierre de un mes.",
+              en: "Running total when you chose “set aside” at the end of a month.",
+            })}
           >
             {fmt(savings)}
           </CardContent>

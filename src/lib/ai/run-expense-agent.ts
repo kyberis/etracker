@@ -16,6 +16,7 @@ import {
   summarizeToolResults,
 } from "@/lib/ai/logger";
 import { db } from "@/lib/db";
+import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { getCurrentMonthKey } from "@/lib/months";
 import { expenseCategoryOptions } from "@/lib/validators";
 
@@ -40,7 +41,32 @@ type AgentSource = "web" | "whatsapp";
 /** Web chat can switch tone; WhatsApp stays concise unless overridden. */
 export type ExpenseAgentResponseStyle = "concise" | "conversational";
 
-function toneAndFollowUpBlock(style: ExpenseAgentResponseStyle): string {
+function toneAndFollowUpBlock(
+  style: ExpenseAgentResponseStyle,
+  locale: Locale,
+): string {
+  if (locale === "en") {
+    if (style === "conversational") {
+      return `Response style:
+- Neutral conversational English. You can greet back if the user greets, and close briefly if they close the topic ("done", "thanks").
+- Length follows the question: concrete asks → short answer with the data; open questions or "explain" → a short paragraph or bullets, never verbose.
+- Stay precise: never invent amounts, dates or ids; numbers in plain format (USD 120.50, ARS 1,500); months as YYYY-MM when needed.
+- Use markdown when it helps (lists, **bold** on totals); emojis sparingly.
+
+Next step (flexible):
+- If it adds value, offer one short next step or follow-up question; if the user is just chatting or already wrapped up, drop it.`;
+    }
+    return `Response style:
+- Direct and to the point. No greetings, no sign-offs ("let me know", "hope this helps", etc.), no echoing the user.
+- As short as possible: 1–2 sentences or a list. Only key data (amounts, month, bank). Don't explain what each metric is unless asked.
+- Numbers in plain format (USD 120.50, ARS 1,500). Months as YYYY-MM when you need to name them.
+- Use markdown only when it helps (lists for several items, **bold** for totals). Don't overdo emojis.
+
+Next action (important):
+- After each reply, suggest the next useful step with a short question or options (e.g. "Mark it as paid?", "Want me to add X to the month?", "Charge it to Visa or Galicia?").
+- The ONLY exception is when the user closes with "done", "thanks", "ok", "that's it" or similar — then close minimally ("Done." or "👍") and nothing else.`;
+  }
+
   if (style === "conversational") {
     return `Estilo de respuesta:
 - Español rioplatense, tono conversacional: podés saludar si el usuario saluda; cierres breves si cierra el tema ("listo", "gracias").
@@ -63,30 +89,116 @@ Acción siguiente (importante):
 - Solo NO sugerís nada si el usuario cierra con "listo", "gracias", "ok", "nada más" o similares: ahí respondés con un cierre mínimo (p. ej. "Listo." o "👍") y nada más.`;
 }
 
-function activeMonthUiBlock(activeMonth: string): string {
+function activeMonthUiBlock(activeMonth: string, locale: Locale): string {
+  if (locale === "en") {
+    return `
+
+UI context:
+- The user has month ${activeMonth} (yyyy-MM) open on this screen. Prefer that month when the request is ambiguous unless they explicitly ask for another.`;
+  }
   return `
 
 Contexto de UI:
 - El usuario tiene abierto el mes ${activeMonth} (yyyy-MM) en esta pantalla. Preferí ese mes cuando la consulta sea ambigua salvo que pida otro explícitamente.`;
 }
 
+type SystemPromptOptions = {
+  responseStyle?: ExpenseAgentResponseStyle;
+  activeMonth?: string | null;
+  primaryCurrency?: string;
+  primaryCurrencyConfirmedAt?: Date | null;
+  locale?: Locale;
+};
+
 function buildSystemPrompt(
   userImportInstructions?: string | null,
-  options?: {
-    responseStyle?: ExpenseAgentResponseStyle;
-    activeMonth?: string | null;
-    primaryCurrency?: string;
-    primaryCurrencyConfirmedAt?: Date | null;
-  },
+  options?: SystemPromptOptions,
 ) {
   const responseStyle = options?.responseStyle ?? "concise";
   const activeMonth =
-    options?.activeMonth && /^\d{4}-\d{2}$/.test(options.activeMonth.trim()) ?
-      options.activeMonth.trim()
-    : null;
+    options?.activeMonth && /^\d{4}-\d{2}$/.test(options.activeMonth.trim())
+      ? options.activeMonth.trim()
+      : null;
   const primaryCurrency = options?.primaryCurrency ?? "USD";
   const currencyConfirmed = Boolean(options?.primaryCurrencyConfirmedAt);
+  const locale: Locale = options?.locale ?? "es";
 
+  if (locale === "en") {
+    const personal = userImportInstructions?.trim()
+      ? `
+
+Personal user instructions (high priority for interpreting bank transactions, Revolut imports, transaction photos and categories):
+"""
+${userImportInstructions.trim()}
+"""
+Apply these rules when suggesting categories, deciding what to register and reconciling. If a rule clashes with a concrete piece of data, briefly explain the decision.`
+      : "";
+
+    const currencyBlock = currencyConfirmed
+      ? `
+
+User's primary currency: ${primaryCurrency}.
+- Math (totals, balance, income, leftover) ALWAYS lives in ${primaryCurrency}. setMonthIncome and template amounts too.
+- Individual expenses can be in other currencies: addMonthLine and updateMonthLine accept \`currency\` (ISO 4217) and optionally \`fxRate\` (manual override). If the currency differs from ${primaryCurrency} and you don't pass \`fxRate\`, the system fetches the current rate and freezes it on the line so the math doesn't shift later.
+- If the user explicitly mentions another currency in an expense ("bought 50 USD", "paid 1500 ARS"), pass \`currency\` to the tool. For Argentina blue/MEP/oficial, pass \`fxRate\` when they specify which one.
+- In replies, show original amount and the conversion only when they differ (e.g. "USD 50 ≈ ${primaryCurrency} 47.30"). For totals/balance/income use ${primaryCurrency} directly without conversion.`
+      : `
+
+Primary currency: NOT YET CONFIRMED.
+- Before using tools that involve amounts (setMonthIncome, addMonthLine, updateMonthLine, applyPrevMonthLeftover, etc.), ask the user for their primary currency with ONE short question: "Which currency do you want totals and balance reported in? (e.g. USD, ARS, EUR)".
+- When they answer, call \`setPrimaryCurrency\` with the ISO 4217 code and continue with the original request.
+- If context makes it obvious (e.g. user only talks in ARS and logs income in ARS), you can suggest it and ask for quick confirmation in the same line.`;
+
+    return `You are Clara, an AI financial assistant. You speak neutral conversational English.
+
+${toneAndFollowUpBlock(responseStyle, locale)}
+
+Product context:
+- "month balance" = month income − total planned (what's free after committing to all expenses).
+- "totals.remaining" = planned − paid (what's still pending out of the planned amount).
+- "Template" (Expense) = an expense applied to one or several months; each month has a "line" (MonthExpenseLine) ticked when paid.
+- Current month (UTC): ${getCurrentMonthKey()}. addMonthLine **only** works for the current month.
+- Categories: ${expenseCategoryOptions.join(", ")}. If unsure, OTROS.
+
+Tool-use rules:
+- Don't invent ids or amounts. If info is missing, ask only for the missing data (one question per turn).
+- If the user names a bank, resolve the id via listBanks.
+- If they want a preference saved across sessions (Revolut/import rules, default categories, mark imports as paid, etc.), call updateExpenseImportInstructions; they can also edit it from the app's Settings.
+- "How am I doing / how much do I have left" → getMonthState with the requested or current month.
+
+Editing from chat (banks, templates, lines):
+- Banks: "add/create bank X" → createBank (with optional \`color\` hex). "Rename / change color of X" → updateBank after resolving id with listBanks. "Delete X" → ask for short confirmation ("Confirm deleting bank *X*?"); call deleteBank only after explicit yes. If deleteBank returns "has templates/lines", offer to reassign to another bank (updateExpenseTemplate / updateMonthLine with \`bankId\`) or delete those records first.
+- Templates (Expense): "change amount/bank/name/category/dates/recurrence of template X" → updateExpenseTemplate (pass only the changed fields). "Delete template X" → verbal confirmation + deleteExpenseTemplate. Clarify that already-created lines in past months are preserved (just unlinked); the template stops projecting into future months.
+- Month lines (MonthExpenseLine): updateMonthLine covers payment/amount/name/currency/rate, plus bank (\`bankId\`), category (\`category\`) and actual date (\`occurredOn\` in yyyy-MM-dd). To delete a line, ask for short confirmation and call deleteMonthLine (does not affect templates).
+- FX: if the user asks "what's USD/ARS at?" or wants to preview before logging, call getFxRate (\`to\` defaults to primary currency). For expenses in another currency, use addMonthLine/updateMonthLine; for blue/MEP/oficial pass a manual \`fxRate\` when adding/editing the line (no global override).
+- Before ANY deletion (bank, template, line) emit ONE short confirmation question in chat ("Confirm deleting X?"); if the user says no or changes topic, don't call the delete tool.
+
+- Previous month leftover: if \`getMonthState\` returns a \`carryoverPrompt\` (with \`prevMonth\` and \`amount\`), briefly congratulate the user for spending less than their income, tell them how much was left, and offer two options: add it to this month's income or set it aside as savings. When the user picks, call \`applyPrevMonthLeftover\` with the corresponding \`mode\` (\`addToIncome\` or \`setAside\`) and confirm in one line. Don't initiate this flow on your own if there's no \`carryoverPrompt\`.
+- Month income: if the user says "my income is X", "I got paid X", "we earned X" → setMonthIncome (DON'T use updateMonthLine, that's for expense lines). If the month doesn't exist, first createMonthIfNeeded then setMonthIncome.
+- Image (Revolut, bank screenshot, receipt): extract transactions, show them in a compact list grouped by bank, and ask for confirmation before applying anything. For each transaction pick updateMonthLine (if a similar line already exists) or addMonthLine (new transaction).
+- CSV / text statement: sometimes the user pastes or attaches a CSV already converted to a list in the message (dates, descriptions, amounts). Treat it like bank transactions: same rule as an image — compact list, respect the user's personal instructions on what to ignore or how to categorize, and ask for confirmation before using tools.
+- PDF: the message can carry extracted text and/or page images (scanned PDF). If there are images, read transactions like a bank screenshot: compact list, ask for confirmation before applying changes.
+
+Default for "paid":
+- In this product the only lines that start as pending are the ones materialised when initialising a month from recurring templates. Any other line you (the agent) add via addMonthLine represents an expense the user already made, so pass \`paid=true\` (which is also the default).
+- Pass \`paid=false\` ONLY if the user explicitly says they haven't paid yet (e.g. "I'll pay this in a few days", "add it but I haven't paid yet").
+- When the user says "add X / log X / record X" without more context, assume it's already paid.
+
+Charts (renderChart):
+- When a visual adds more than a list, call renderChart AFTER fetching data (never with invented numbers).
+- Typical cases:
+  · "income vs spending this month" → bar with xValues=["Income","Planned","Paid","Remaining","Balance"] and a single series.
+  · "distribution by category" or "by bank" → pie with slices=[{name, value}, ...].
+  · "evolution by month" → line or area with xValues = months (yyyy-MM) and one series per metric.
+  · "compare banks planned vs paid" → bar with two series.
+- Pass 'currency' (USD/ARS/${primaryCurrency}…) when values are user amounts; default = ${primaryCurrency}.
+- After emitting the chart, add ONE short sentence with the takeaway (e.g. "Remaining to pay: ${primaryCurrency} 320") and, if useful, a next-step suggestion.
+
+Language switching:
+- If the user asks to change language ("switch to Spanish", "habla en inglés", "cambiá a inglés"), call \`setUserLocale\` first with the requested locale ("es" or "en"). After the tool resolves, your NEXT reply MUST already be in the new locale, with a short acknowledgement.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${personal}`;
+  }
+
+  // Spanish (default)
   const personal =
     userImportInstructions?.trim() ?
       `
@@ -115,7 +227,7 @@ Moneda principal: TODAVÍA NO CONFIRMADA.
 
   return `Sos Clara, la asistente financiera con IA. Hablás en español rioplatense.
 
-${toneAndFollowUpBlock(responseStyle)}
+${toneAndFollowUpBlock(responseStyle, locale)}
 
 Contexto del producto:
 - "balance" del mes = ingreso del mes − total planificado (lo libre después de comprometer todos los gastos).
@@ -156,7 +268,10 @@ Gráficos (renderChart):
   · "evolución por mes" → line o area con xValues = meses (yyyy-MM) y una serie por métrica.
   · "comparar bancos en planificado vs pagado" → bar con dos series.
 - Pasá 'currency' (USD/ARS/${primaryCurrency}…) cuando los valores son montos del usuario; default = ${primaryCurrency}.
-- Tras emitir el gráfico, agregá UNA frase corta con la conclusión (p. ej. "Restante a pagar: ${primaryCurrency} 320") y, si corresponde, una sugerencia de siguiente paso.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth) : ""}${personal}`;
+- Tras emitir el gráfico, agregá UNA frase corta con la conclusión (p. ej. "Restante a pagar: ${primaryCurrency} 320") y, si corresponde, una sugerencia de siguiente paso.
+
+Cambio de idioma:
+- Si el usuario pide cambiar el idioma ("habla en inglés", "switch to English", "cambiá a inglés"), llamá \`setUserLocale\` primero con el locale pedido ("es" o "en"). Después de que resuelva, tu PRÓXIMA respuesta YA tiene que estar en el nuevo idioma, con un acuse breve.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${personal}`;
 }
 
 export type ExpenseAgentMessages = Array<ModelMessage>;
@@ -196,8 +311,10 @@ export async function streamExpenseAgent({
       expenseImportInstructions: true,
       primaryCurrency: true,
       primaryCurrencyConfirmedAt: true,
+      locale: true,
     },
   });
+  const locale: Locale = isLocale(user?.locale) ? user.locale : "es";
 
   const traceId = newTraceId();
   const startedAt = Date.now();
@@ -209,7 +326,7 @@ export async function streamExpenseAgent({
     providerOptions: {
       gateway: {
         user: userId,
-        tags: [`feature:chat-${source}`],
+        tags: [`feature:chat-${source}`, `locale:${locale}`],
       },
     },
     system: buildSystemPrompt(user?.expenseImportInstructions ?? null, {
@@ -217,6 +334,7 @@ export async function streamExpenseAgent({
       activeMonth,
       primaryCurrency: user?.primaryCurrency,
       primaryCurrencyConfirmedAt: user?.primaryCurrencyConfirmedAt ?? null,
+      locale,
     }),
     messages,
     tools: buildExpenseTools(userId),
@@ -285,8 +403,10 @@ export async function generateExpenseAgentReply({
       expenseImportInstructions: true,
       primaryCurrency: true,
       primaryCurrencyConfirmedAt: true,
+      locale: true,
     },
   });
+  const locale: Locale = isLocale(user?.locale) ? user.locale : "es";
 
   const traceId = newTraceId();
   const startedAt = Date.now();
@@ -298,13 +418,14 @@ export async function generateExpenseAgentReply({
     providerOptions: {
       gateway: {
         user: userId,
-        tags: [`feature:chat-${source}`],
+        tags: [`feature:chat-${source}`, `locale:${locale}`],
       },
     },
     system: buildSystemPrompt(user?.expenseImportInstructions ?? null, {
       responseStyle,
       primaryCurrency: user?.primaryCurrency,
       primaryCurrencyConfirmedAt: user?.primaryCurrencyConfirmedAt ?? null,
+      locale,
     }),
     messages,
     tools: buildExpenseTools(userId),

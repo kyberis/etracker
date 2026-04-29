@@ -1,7 +1,9 @@
 import bcrypt from "bcrypt";
+import { cookies } from "next/headers";
 
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
+import { LOCALE_COOKIE } from "@/lib/i18n/locale";
 import { requireUserId } from "@/lib/session";
 import { settingsSchema } from "@/lib/validators";
 
@@ -16,6 +18,7 @@ export async function GET() {
         passwordHash: true,
         primaryCurrency: true,
         primaryCurrencyConfirmedAt: true,
+        locale: true,
         accounts: { select: { provider: true } },
       },
     });
@@ -30,6 +33,7 @@ export async function GET() {
         hasPassword: user.passwordHash != null,
         primaryCurrency: user.primaryCurrency,
         primaryCurrencyConfirmedAt: user.primaryCurrencyConfirmedAt?.toISOString() ?? null,
+        locale: user.locale,
         linkedProviders: user.accounts.map((a) => a.provider),
       },
     };
@@ -80,8 +84,18 @@ export async function PATCH(request: Request) {
               primaryCurrencyConfirmedAt: new Date(),
             }
           : {}),
+        ...(payload.locale !== undefined ? { locale: payload.locale } : {}),
       },
     });
+
+    if (payload.locale !== undefined) {
+      const cookieStore = await cookies();
+      cookieStore.set(LOCALE_COOKIE, payload.locale, {
+        path: "/",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
 
     return { ok: true };
   });

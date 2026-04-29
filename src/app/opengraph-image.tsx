@@ -55,13 +55,28 @@ export default async function OGImage() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ fontSize: 64, fontWeight: 700, lineHeight: 1.1 }}>
-            Tu plata,
-            <br />
-            finalmente clara.
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              fontSize: 64,
+              fontWeight: 700,
+              lineHeight: 1.1,
+            }}
+          >
+            <span>Tu plata,</span>
+            <span>finalmente clara.</span>
           </div>
-          <div style={{ fontSize: 24, color: "#FBEFD3CC", lineHeight: 1.4, maxWidth: 880 }}>
-            {SITE_DESCRIPTION.slice(0, 160)}…
+          <div
+            style={{
+              display: "flex",
+              fontSize: 24,
+              color: "#FBEFD3CC",
+              lineHeight: 1.4,
+              maxWidth: 880,
+            }}
+          >
+            {`${SITE_DESCRIPTION.slice(0, 160)}…`}
           </div>
         </div>
 

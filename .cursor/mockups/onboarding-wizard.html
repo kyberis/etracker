@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Clara · onboarding wizard mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ["Sora", "sans-serif"],
+              sans: ["Inter", "system-ui", "sans-serif"],
+            },
+            colors: {
+              ink: {
+                950: "#06070b",
+                900: "#0b0c12",
+                800: "#11131c",
+                700: "#181a26",
+                600: "#1f2230",
+              },
+              accent: {
+                400: "#b08bff",
+                500: "#8c5cff",
+                600: "#6d3aff",
+                glow: "rgba(140,92,255,0.35)",
+              },
+              good: "#3ddc97",
+              warn: "#f4b740",
+              bad: "#ff5f6d",
+            },
+            boxShadow: {
+              soft: "0 24px 60px -32px rgba(108,58,255,0.55)",
+              ring: "inset 0 0 0 1px rgba(255,255,255,0.06)",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        background: radial-gradient(circle at 12% -10%, #2a1a4d 0%, transparent 55%),
+          radial-gradient(circle at 95% 12%, #19243d 0%, transparent 55%),
+          linear-gradient(180deg, #06070b 0%, #06070b 100%);
+        font-family: "Inter", system-ui, sans-serif;
+        color: #f3f3f6;
+      }
+      .device {
+        background: linear-gradient(180deg, #0b0c12 0%, #11131c 100%);
+        box-shadow:
+          0 60px 120px -40px rgba(0, 0, 0, 0.7),
+          0 0 0 1px rgba(255, 255, 255, 0.04);
+        border-radius: 44px;
+      }
+      .device.phone {
+        width: 380px;
+        height: 800px;
+        padding: 14px;
+      }
+      .device.desktop {
+        width: 1080px;
+        height: 720px;
+        padding: 18px;
+        border-radius: 28px;
+      }
+      .screen {
+        background: linear-gradient(180deg, #0b0c12 0%, #11131c 100%);
+        border-radius: 32px;
+        height: 100%;
+        overflow: hidden;
+        position: relative;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+      }
+      .desktop .screen {
+        border-radius: 16px;
+      }
+      .glow-bg::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(700px 220px at 0% 0%, rgba(140, 92, 255, 0.16), transparent 60%),
+          radial-gradient(540px 240px at 100% 8%, rgba(61, 220, 151, 0.07), transparent 60%);
+        pointer-events: none;
+      }
+      .num {
+        font-family: "Sora", sans-serif;
+        font-feature-settings: "tnum" 1;
+      }
+      .chip {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .chip:hover {
+        background: rgba(255, 255, 255, 0.07);
+      }
+      .chip.active {
+        background: linear-gradient(135deg, rgba(109, 58, 255, 0.25), rgba(176, 139, 255, 0.18));
+        border-color: rgba(176, 139, 255, 0.55);
+        box-shadow: 0 0 0 1px rgba(176, 139, 255, 0.35), 0 12px 24px -16px rgba(140, 92, 255, 0.6);
+      }
+      .stack-card {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 24px;
+      }
+      .cta {
+        background: linear-gradient(135deg, #6d3aff 0%, #b08bff 100%);
+        box-shadow: 0 18px 40px -16px rgba(140, 92, 255, 0.7);
+      }
+      .step-dot {
+        width: 22px;
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        transition: all 0.2s ease;
+      }
+      .step-dot.done {
+        background: linear-gradient(90deg, #6d3aff, #b08bff);
+      }
+      .step-dot.active {
+        background: linear-gradient(90deg, #b08bff, #ffffff);
+        width: 36px;
+      }
+      .skip-link {
+        color: rgba(255, 255, 255, 0.45);
+      }
+      .skip-link:hover {
+        color: rgba(255, 255, 255, 0.8);
+      }
+      .feature-card {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .country-row {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .country-row:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .country-row.active {
+        background: linear-gradient(135deg, rgba(109, 58, 255, 0.18), rgba(176, 139, 255, 0.08));
+        border-color: rgba(176, 139, 255, 0.45);
+      }
+      .input-shell {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+      }
+      .input-shell:focus-within {
+        border-color: rgba(176, 139, 255, 0.45);
+        box-shadow: 0 0 0 4px rgba(140, 92, 255, 0.18);
+      }
+      .qr-grid {
+        background-image:
+          linear-gradient(45deg, rgba(255,255,255,0.85) 25%, transparent 25%, transparent 75%, rgba(255,255,255,0.85) 75%),
+          linear-gradient(45deg, rgba(255,255,255,0.85) 25%, transparent 25%, transparent 75%, rgba(255,255,255,0.85) 75%);
+        background-size: 14px 14px;
+        background-position: 0 0, 7px 7px;
+      }
+      .scrollbar-none::-webkit-scrollbar { display: none; }
+      .scrollbar-none { scrollbar-width: none; }
+      .glow-border {
+        box-shadow:
+          0 0 0 1px rgba(176, 139, 255, 0.35),
+          0 30px 60px -30px rgba(140, 92, 255, 0.5);
+      }
+    </style>
+  </head>
+  <body class="min-h-screen pb-32">
+    <header class="px-10 pt-12 pb-6">
+      <div class="flex items-center gap-3 text-white/60 text-sm">
+        <span class="size-2 rounded-full bg-accent-500 shadow-[0_0_10px] shadow-accent-glow"></span>
+        Clara · onboarding wizard mockup
+      </div>
+      <h1 class="font-display text-5xl font-bold tracking-tight mt-3">
+        Welcome flow, todo skipeable.
+      </h1>
+      <p class="text-white/55 mt-3 max-w-2xl">
+        Cinco pasos opcionales después del registro: bienvenida, nombre y motivo,
+        país → moneda principal, vincular WhatsApp, y un cierre con CTA al chat.
+        Cada paso tiene <em>Saltar</em> y <em>Continuar</em>; si saltás, el wizard no vuelve.
+      </p>
+      <div class="flex items-center gap-2 mt-4 text-xs text-white/40">
+        <span class="step-dot done"></span>
+        <span class="step-dot done"></span>
+        <span class="step-dot active"></span>
+        <span class="step-dot"></span>
+        <span class="step-dot"></span>
+        <span class="ml-2">5 pantallas</span>
+      </div>
+    </header>
+
+    <!-- ============================================================ -->
+    <!-- MOBILE: 5 STEPS                                              -->
+    <!-- ============================================================ -->
+    <section class="px-10 mt-6">
+      <h2 class="font-display text-2xl font-semibold mb-6 flex items-center gap-3">
+        <span class="text-white/40 text-sm font-sans">01</span>
+        Mobile · 5 pasos en orden
+      </h2>
+
+      <div class="flex flex-wrap gap-10 justify-start">
+        <!-- =================== STEP 1 · BIENVENIDA =================== -->
+        <div class="device phone">
+          <div class="screen glow-bg flex flex-col">
+            <!-- top bar -->
+            <div class="px-6 pt-7 pb-2 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="size-7 rounded-xl bg-gradient-to-br from-accent-600 to-accent-400 flex items-center justify-center text-white font-display font-bold text-sm">C</div>
+                <span class="font-display font-semibold tracking-tight">Clara</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="step-dot active"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+              </div>
+            </div>
+
+            <div class="px-6 pt-2 pb-5 flex-1 overflow-auto scrollbar-none">
+              <p class="text-[11px] uppercase tracking-[0.2em] text-white/40">Paso 1 de 5</p>
+              <h3 class="font-display text-3xl font-bold tracking-tight mt-2 leading-[1.05]">
+                ¡Hola!<br/>Soy <span class="text-accent-400">Clara</span>.
+              </h3>
+              <p class="text-white/60 text-sm mt-3 leading-relaxed">
+                Tu asistente financiera. Te ayudo a planificar gastos fijos y puntuales,
+                ver en qué se te va la plata y cuánto te sobra al cierre del mes.
+              </p>
+
+              <div class="grid gap-3 mt-5">
+                <div class="feature-card rounded-2xl p-4 flex gap-3 items-start">
+                  <div class="size-9 shrink-0 rounded-xl bg-accent-500/20 text-accent-400 flex items-center justify-center">
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>
+                  </div>
+                  <div>
+                    <p class="font-medium text-sm">Mes a mes</p>
+                    <p class="text-white/50 text-xs leading-relaxed">Cargás tus gastos fijos una vez y los copiamos cada mes nuevo.</p>
+                  </div>
+                </div>
+
+                <div class="feature-card rounded-2xl p-4 flex gap-3 items-start">
+                  <div class="size-9 shrink-0 rounded-xl bg-good/15 text-good flex items-center justify-center">
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></svg>
+                  </div>
+                  <div>
+                    <p class="font-medium text-sm">Chateá conmigo</p>
+                    <p class="text-white/50 text-xs leading-relaxed">Mandame fotos del banco, CSV de Revolut o describime gastos en lenguaje natural.</p>
+                  </div>
+                </div>
+
+                <div class="feature-card rounded-2xl p-4 flex gap-3 items-start">
+                  <div class="size-9 shrink-0 rounded-xl bg-warn/15 text-warn flex items-center justify-center">
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+                  </div>
+                  <div>
+                    <p class="font-medium text-sm">Sin sermones</p>
+                    <p class="text-white/50 text-xs leading-relaxed">Recomendaciones honestas. Multi-moneda con tipo de cambio del momento.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- footer -->
+            <div class="px-6 pb-7 pt-3 border-t border-white/5 flex items-center justify-between">
+              <button class="skip-link text-sm">Saltar todo</button>
+              <button class="cta rounded-2xl px-5 py-3 font-display font-semibold text-sm">Empezar →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- =================== STEP 2 · NOMBRE + RAZÓN =================== -->
+        <div class="device phone">
+          <div class="screen glow-bg flex flex-col">
+            <div class="px-6 pt-7 pb-2 flex items-center justify-between">
+              <button class="size-8 chip rounded-full flex items-center justify-center text-white/70">
+                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <div class="flex items-center gap-1">
+                <span class="step-dot done"></span>
+                <span class="step-dot active"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+              </div>
+              <button class="skip-link text-xs">Saltar</button>
+            </div>
+
+            <div class="px-6 pt-3 pb-5 flex-1 overflow-auto scrollbar-none">
+              <p class="text-[11px] uppercase tracking-[0.2em] text-white/40">Paso 2 de 5</p>
+              <h3 class="font-display text-2xl font-bold tracking-tight mt-2 leading-tight">
+                Contame quién sos
+              </h3>
+              <p class="text-white/55 text-sm mt-2 leading-relaxed">
+                Te llamo por tu nombre y entiendo mejor el contexto. Todo opcional.
+              </p>
+
+              <label class="block mt-6 text-[11px] uppercase tracking-[0.18em] text-white/40">¿Cómo te llamás?</label>
+              <div class="input-shell rounded-2xl mt-2 px-4 py-3.5 flex items-center gap-3">
+                <svg class="size-4 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+                <span class="font-medium">Marcos</span>
+                <span class="ml-auto h-5 w-px bg-white/20 animate-pulse"></span>
+              </div>
+
+              <label class="block mt-6 text-[11px] uppercase tracking-[0.18em] text-white/40">¿Para qué la vas a usar?</label>
+              <p class="text-white/40 text-xs mt-1">Podés elegir más de uno.</p>
+
+              <div class="grid grid-cols-2 gap-2 mt-3">
+                <button class="chip active rounded-xl px-3 py-3 text-left flex items-center gap-2">
+                  <span class="text-base">🧍</span>
+                  <span class="text-sm font-medium">Personal</span>
+                </button>
+                <button class="chip active rounded-xl px-3 py-3 text-left flex items-center gap-2">
+                  <span class="text-base">👫</span>
+                  <span class="text-sm font-medium">Pareja / Familia</span>
+                </button>
+                <button class="chip rounded-xl px-3 py-3 text-left flex items-center gap-2">
+                  <span class="text-base">💼</span>
+                  <span class="text-sm font-medium">Freelance</span>
+                </button>
+                <button class="chip rounded-xl px-3 py-3 text-left flex items-center gap-2">
+                  <span class="text-base">🏢</span>
+                  <span class="text-sm font-medium">Negocio</span>
+                </button>
+                <button class="chip rounded-xl px-3 py-3 text-left flex items-center gap-2 col-span-2">
+                  <span class="text-base">✨</span>
+                  <span class="text-sm font-medium">Otro</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="px-6 pb-7 pt-3 border-t border-white/5 flex items-center justify-between">
+              <span class="text-white/35 text-xs">2 seleccionados</span>
+              <button class="cta rounded-2xl px-5 py-3 font-display font-semibold text-sm">Continuar →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- =================== STEP 3 · PAÍS + MONEDA =================== -->
+        <div class="device phone">
+          <div class="screen glow-bg flex flex-col">
+            <div class="px-6 pt-7 pb-2 flex items-center justify-between">
+              <button class="size-8 chip rounded-full flex items-center justify-center text-white/70">
+                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <div class="flex items-center gap-1">
+                <span class="step-dot done"></span>
+                <span class="step-dot done"></span>
+                <span class="step-dot active"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+              </div>
+              <button class="skip-link text-xs">Saltar</button>
+            </div>
+
+            <div class="px-6 pt-3 pb-5 flex-1 overflow-auto scrollbar-none">
+              <p class="text-[11px] uppercase tracking-[0.2em] text-white/40">Paso 3 de 5</p>
+              <h3 class="font-display text-2xl font-bold tracking-tight mt-2 leading-tight">
+                ¿Dónde vivís?
+              </h3>
+              <p class="text-white/55 text-sm mt-2 leading-relaxed">
+                Nos da la moneda principal por default. Lo podés cambiar siempre desde ajustes.
+              </p>
+
+              <label class="block mt-6 text-[11px] uppercase tracking-[0.18em] text-white/40">País de residencia</label>
+
+              <div class="input-shell rounded-2xl mt-2 px-4 py-3 flex items-center gap-3">
+                <svg class="size-4 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <span class="text-white/40 text-sm">Buscar país…</span>
+              </div>
+
+              <div class="space-y-1.5 mt-3 max-h-[280px] overflow-auto scrollbar-none pr-1">
+                <div class="country-row active rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇦🇷</span>
+                  <div class="flex-1">
+                    <p class="font-medium text-sm">Argentina</p>
+                    <p class="text-white/40 text-[11px]">Peso argentino · ARS</p>
+                  </div>
+                  <svg class="size-4 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12l5 5 9-11"/></svg>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇺🇾</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Uruguay</p><p class="text-white/40 text-[11px]">UYU</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇨🇱</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Chile</p><p class="text-white/40 text-[11px]">CLP</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇪🇸</span>
+                  <div class="flex-1"><p class="font-medium text-sm">España</p><p class="text-white/40 text-[11px]">EUR</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇺🇸</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Estados Unidos</p><p class="text-white/40 text-[11px]">USD</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3 opacity-60">
+                  <span class="text-xl leading-none">🌍</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Otro / no listado</p><p class="text-white/40 text-[11px]">Elegí la moneda manualmente</p></div>
+                </div>
+              </div>
+
+              <div class="mt-5 stack-card rounded-2xl p-3 flex items-center gap-3">
+                <div class="size-9 rounded-xl bg-accent-500/20 text-accent-400 flex items-center justify-center font-display font-bold text-sm">$</div>
+                <div class="flex-1">
+                  <p class="text-[11px] uppercase tracking-[0.18em] text-white/40">Moneda principal</p>
+                  <p class="font-display font-semibold text-base num">ARS</p>
+                </div>
+                <button class="text-xs text-accent-400 font-medium">Cambiar</button>
+              </div>
+            </div>
+
+            <div class="px-6 pb-7 pt-3 border-t border-white/5 flex items-center justify-end">
+              <button class="cta rounded-2xl px-5 py-3 font-display font-semibold text-sm">Continuar →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- =================== STEP 4 · WHATSAPP =================== -->
+        <div class="device phone">
+          <div class="screen glow-bg flex flex-col">
+            <div class="px-6 pt-7 pb-2 flex items-center justify-between">
+              <button class="size-8 chip rounded-full flex items-center justify-center text-white/70">
+                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <div class="flex items-center gap-1">
+                <span class="step-dot done"></span>
+                <span class="step-dot done"></span>
+                <span class="step-dot done"></span>
+                <span class="step-dot active"></span>
+                <span class="step-dot"></span>
+              </div>
+              <button class="skip-link text-xs">Saltar</button>
+            </div>
+
+            <div class="px-6 pt-3 pb-5 flex-1 overflow-auto scrollbar-none">
+              <p class="text-[11px] uppercase tracking-[0.2em] text-white/40">Paso 4 de 5</p>
+              <h3 class="font-display text-2xl font-bold tracking-tight mt-2 leading-tight flex items-center gap-2">
+                <span class="size-8 rounded-xl bg-good/20 text-good flex items-center justify-center">
+                  <svg class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19.05 4.91A10 10 0 0 0 4.4 18.41L3 22l3.66-1.4a10 10 0 0 0 14.39-9.69 10 10 0 0 0-2-6zm-7 15.27a8.3 8.3 0 0 1-4.24-1.16l-.3-.18-2.83.93.92-2.76-.2-.31a8.34 8.34 0 1 1 6.65 3.48z"/></svg>
+                </span>
+                Linkeá WhatsApp
+              </h3>
+              <p class="text-white/55 text-sm mt-3 leading-relaxed">
+                Chateá conmigo desde WhatsApp. Mandá fotos del banco, dictá gastos por audio
+                o consultá tu mes sin abrir la app.
+              </p>
+
+              <label class="block mt-6 text-[11px] uppercase tracking-[0.18em] text-white/40">Tu número (formato internacional)</label>
+              <div class="input-shell rounded-2xl mt-2 px-4 py-3.5 flex items-center gap-3">
+                <span class="text-white/40 text-sm">+</span>
+                <span class="font-medium num">5491134567890</span>
+              </div>
+
+              <div class="mt-5 stack-card rounded-2xl p-4">
+                <div class="flex items-center gap-3">
+                  <div class="qr-grid size-12 rounded-md ring-2 ring-white/40"></div>
+                  <div class="flex-1">
+                    <p class="text-[11px] uppercase tracking-[0.18em] text-white/40">Tu código</p>
+                    <p class="font-display font-bold text-2xl num tracking-widest text-accent-400">429 173</p>
+                  </div>
+                </div>
+                <p class="text-white/55 text-xs mt-3 leading-relaxed">
+                  Abrí WhatsApp y mandale al asistente
+                  <span class="font-mono text-white/80 bg-white/5 px-1.5 py-0.5 rounded">LINK 429173</span>.
+                  Expira en 14 min.
+                </p>
+              </div>
+
+              <p class="text-white/35 text-xs mt-4 text-center">
+                Lo podés hacer más tarde desde Configuración.
+              </p>
+            </div>
+
+            <div class="px-6 pb-7 pt-3 border-t border-white/5 flex items-center justify-between">
+              <button class="skip-link text-sm">Más tarde</button>
+              <button class="cta rounded-2xl px-5 py-3 font-display font-semibold text-sm">Listo →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- =================== STEP 5 · DONE =================== -->
+        <div class="device phone">
+          <div class="screen glow-bg flex flex-col items-center text-center">
+            <div class="px-6 pt-7 pb-2 w-full flex items-center justify-center">
+              <div class="flex items-center gap-1">
+                <span class="step-dot done"></span>
+                <span class="step-dot done"></span>
+                <span class="step-dot done"></span>
+                <span class="step-dot done"></span>
+                <span class="step-dot done"></span>
+              </div>
+            </div>
+
+            <div class="px-7 pt-12 flex-1 flex flex-col items-center">
+              <div class="size-24 rounded-full bg-gradient-to-br from-accent-600 to-accent-400 flex items-center justify-center text-white shadow-soft glow-border">
+                <svg class="size-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12l5 5 9-11"/></svg>
+              </div>
+              <p class="text-[11px] uppercase tracking-[0.2em] text-white/40 mt-8">Listo, Marcos</p>
+              <h3 class="font-display text-3xl font-bold tracking-tight mt-2 leading-[1.05]">
+                Hablamos en el chat.
+              </h3>
+              <p class="text-white/55 text-sm mt-3 leading-relaxed">
+                Decime tu ingreso del mes o tirame una foto del banco para arrancar.
+                <br/>Tu moneda principal es <span class="font-display font-semibold text-white">ARS</span>.
+              </p>
+
+              <div class="grid grid-cols-3 gap-2 mt-8 w-full">
+                <div class="feature-card rounded-2xl p-3 text-center">
+                  <p class="text-2xl">💬</p>
+                  <p class="text-[11px] text-white/55 mt-1">Chat</p>
+                </div>
+                <div class="feature-card rounded-2xl p-3 text-center">
+                  <p class="text-2xl">📅</p>
+                  <p class="text-[11px] text-white/55 mt-1">Mes</p>
+                </div>
+                <div class="feature-card rounded-2xl p-3 text-center">
+                  <p class="text-2xl">📊</p>
+                  <p class="text-[11px] text-white/55 mt-1">Año</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="px-6 pb-7 pt-5 w-full">
+              <button class="cta rounded-2xl w-full py-3.5 font-display font-semibold">
+                Ir al chat →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- DESKTOP: STEP 3 (PAÍS) - HERO VIEW                           -->
+    <!-- ============================================================ -->
+    <section class="px-10 mt-20">
+      <h2 class="font-display text-2xl font-semibold mb-6 flex items-center gap-3">
+        <span class="text-white/40 text-sm font-sans">02</span>
+        Desktop · paso 3 con vista hero
+      </h2>
+
+      <div class="device desktop">
+        <div class="screen glow-bg flex">
+          <!-- left: hero -->
+          <div class="w-[42%] p-12 flex flex-col justify-between border-r border-white/5">
+            <div>
+              <div class="flex items-center gap-2">
+                <div class="size-8 rounded-xl bg-gradient-to-br from-accent-600 to-accent-400 flex items-center justify-center text-white font-display font-bold">C</div>
+                <span class="font-display font-semibold tracking-tight">Clara</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-12">
+                <span class="step-dot done"></span>
+                <span class="step-dot done"></span>
+                <span class="step-dot active"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+              </div>
+              <p class="text-[11px] uppercase tracking-[0.2em] text-white/40 mt-6">Paso 3 de 5</p>
+              <h3 class="font-display text-4xl font-bold tracking-tight mt-3 leading-[1.05]">
+                ¿Dónde vivís?
+              </h3>
+              <p class="text-white/55 mt-4 leading-relaxed max-w-sm">
+                Nos da la moneda principal por default. Tus gastos pueden venir en cualquier
+                moneda — convertimos al toque con el tipo de cambio del momento.
+              </p>
+
+              <div class="mt-8 stack-card rounded-2xl p-4 flex items-center gap-4 max-w-sm">
+                <div class="size-12 rounded-xl bg-accent-500/20 text-accent-400 flex items-center justify-center font-display font-bold text-lg">$</div>
+                <div class="flex-1">
+                  <p class="text-[11px] uppercase tracking-[0.18em] text-white/40">Moneda principal</p>
+                  <p class="font-display font-bold text-2xl num">ARS<span class="text-white/40 text-base font-normal ml-2">Peso argentino</span></p>
+                </div>
+              </div>
+            </div>
+
+            <p class="text-white/30 text-xs">
+              Los importes que cargues siempre se reportan en tu moneda principal.<br/>
+              El tipo de cambio se "congela" al momento de registrar cada gasto.
+            </p>
+          </div>
+
+          <!-- right: form -->
+          <div class="flex-1 p-12 flex flex-col">
+            <div class="flex items-center justify-between">
+              <button class="text-sm text-white/60 hover:text-white flex items-center gap-2">
+                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                Atrás
+              </button>
+              <button class="skip-link text-sm">Saltar paso</button>
+            </div>
+
+            <div class="mt-8 flex-1 flex flex-col">
+              <label class="block text-[11px] uppercase tracking-[0.18em] text-white/40">País de residencia</label>
+              <div class="input-shell rounded-2xl mt-2 px-4 py-3.5 flex items-center gap-3">
+                <svg class="size-4 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <span class="text-white/80">Argentina</span>
+                <span class="ml-auto text-xs text-white/40">9 más</span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 mt-4 flex-1 overflow-auto scrollbar-none">
+                <div class="country-row active rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇦🇷</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Argentina</p><p class="text-white/40 text-[11px]">ARS</p></div>
+                  <svg class="size-4 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12l5 5 9-11"/></svg>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇺🇾</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Uruguay</p><p class="text-white/40 text-[11px]">UYU</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇨🇱</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Chile</p><p class="text-white/40 text-[11px]">CLP</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇧🇷</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Brasil</p><p class="text-white/40 text-[11px]">BRL</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇲🇽</span>
+                  <div class="flex-1"><p class="font-medium text-sm">México</p><p class="text-white/40 text-[11px]">MXN</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇨🇴</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Colombia</p><p class="text-white/40 text-[11px]">COP</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇵🇪</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Perú</p><p class="text-white/40 text-[11px]">PEN</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇪🇸</span>
+                  <div class="flex-1"><p class="font-medium text-sm">España</p><p class="text-white/40 text-[11px]">EUR</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <span class="text-xl leading-none">🇺🇸</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Estados Unidos</p><p class="text-white/40 text-[11px]">USD</p></div>
+                </div>
+                <div class="country-row rounded-xl px-3 py-2.5 flex items-center gap-3 opacity-60">
+                  <span class="text-xl leading-none">🌍</span>
+                  <div class="flex-1"><p class="font-medium text-sm">Otro</p><p class="text-white/40 text-[11px]">Elegir manual</p></div>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-white/5">
+                <button class="px-4 py-2.5 text-sm text-white/60 hover:text-white">Saltar paso</button>
+                <button class="cta rounded-2xl px-6 py-3 font-display font-semibold text-sm">Continuar →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="px-10 mt-16 text-white/30 text-xs">
+      Mockup estático · ./.cursor/mockups/onboarding-wizard.html · construido con Tailwind CDN.
+    </footer>
+  </body>
+</html>

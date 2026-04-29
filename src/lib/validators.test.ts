@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   currencySchema,
   expenseSchema,
+  onboardingSchema,
   whatsappLinkStartSchema,
   yearParamSchema,
 } from "./validators";
@@ -75,6 +76,43 @@ describe("validators", () => {
       expect(() => currencySchema.parse("US")).toThrow();
       expect(() => currencySchema.parse("USDX")).toThrow();
       expect(() => currencySchema.parse("12 ")).toThrow();
+    });
+  });
+
+  describe("onboardingSchema", () => {
+    it("accepts a partial step save with just the name", () => {
+      const parsed = onboardingSchema.parse({ name: " Marcos  " });
+      expect(parsed.name).toBe("Marcos");
+      expect(parsed.complete).toBeUndefined();
+    });
+
+    it("upper-cases the country code and currency", () => {
+      const parsed = onboardingSchema.parse({
+        country: "ar",
+        primaryCurrency: " ars ",
+      });
+      expect(parsed.country).toBe("AR");
+      expect(parsed.primaryCurrency).toBe("ARS");
+    });
+
+    it("rejects unknown usage reasons", () => {
+      expect(() =>
+        onboardingSchema.parse({ usageReasons: ["personal", "evil"] }),
+      ).toThrow();
+    });
+
+    it("accepts an empty usageReasons array (cleared chips)", () => {
+      const parsed = onboardingSchema.parse({ usageReasons: [], complete: true });
+      expect(parsed.usageReasons).toEqual([]);
+      expect(parsed.complete).toBe(true);
+    });
+
+    it("rejects an empty body", () => {
+      expect(() => onboardingSchema.parse({})).toThrow(/Nada para actualizar/);
+    });
+
+    it("rejects a 1-letter country code", () => {
+      expect(() => onboardingSchema.parse({ country: "a" })).toThrow();
     });
   });
 

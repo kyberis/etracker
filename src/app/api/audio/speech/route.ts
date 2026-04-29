@@ -1,6 +1,8 @@
 import { synthesizeSpeechMp3 } from "@/lib/ai/text-to-speech";
 import { uploadTtsAudioToBlob } from "@/lib/blob/tts";
+import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
+import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { limitByUser } from "@/lib/rate-limit";
 import { requireUserId } from "@/lib/session";
 
@@ -57,7 +59,12 @@ export async function POST(request: Request) {
       return jsonError('Enviá { "text": "…" } con contenido.', 400);
     }
 
-    const mp3 = await synthesizeSpeechMp3(text);
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { locale: true },
+    });
+    const locale: Locale = isLocale(user?.locale) ? (user!.locale as Locale) : "es";
+    const mp3 = await synthesizeSpeechMp3(text, locale);
     if (!mp3) {
       return jsonError("No se pudo generar el audio.", 500);
     }

@@ -1,0 +1,574 @@
+import type { Dict } from "./es";
+
+/**
+ * English (en-US, neutral) translation. Typed `: Dict` so missing keys fail
+ * the TypeScript build — keep this file in lockstep with `es.ts`.
+ */
+
+export const en: Dict = {
+  common: {
+    save: "Save",
+    saving: "Saving…",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    delete: "Delete",
+    edit: "Edit",
+    close: "Close",
+    loading: "Loading…",
+    retry: "Retry",
+    back: "Back",
+    open: "Open",
+    add: "Add",
+    update: "Update",
+    yes: "Yes",
+    no: "No",
+    optional: "(optional)",
+    required: "(required)",
+    error: "Error",
+    success: "Done",
+    on: "On",
+    off: "Off",
+    actions: "Actions",
+    search: "Search",
+    name: "Name",
+    amount: "Amount",
+    date: "Date",
+    bank: "Bank",
+    category: "Category",
+    currency: "Currency",
+    notes: "Notes",
+    description: "Description",
+  },
+
+  brand: {
+    name: "Clara",
+    tagline: "Your AI financial assistant",
+    avatarAlt: "Clara",
+    homeLabel: "Clara home",
+    onlineRioplatense: "online · speaks rioplatense",
+    onlineEnglish: "online · speaks English",
+  },
+
+  header: {
+    nav: {
+      banks: "Banks",
+      expenses: "Templates",
+      settings: "Settings",
+      about: "About Clara",
+      admin: "Admin",
+      assistant: "Assistant",
+    },
+    monthButton: "Month",
+    monthPanelLabel: "Open month panel",
+    balancePillLabel: "Open monthly balance",
+    openMenu: "Open menu",
+    monthPanelMobile: "Month panel",
+    menuTitle: "Menu",
+    signOut: "Sign out",
+    languageLabel: "Language",
+    balancePrefix: "balance",
+    pendingShort: "left",
+    incomeShort: "income",
+    placeholderDash: "—",
+  },
+
+  marketingNav: {
+    primaryNavLabel: "Primary navigation",
+    features: "Features",
+    about: "About Clara",
+    faq: "FAQ",
+    changelog: "Changelog",
+    github: "GitHub",
+    openClara: "Open Clara",
+    signIn: "Sign in",
+    signUp: "Sign up",
+    languageLabel: "Language",
+    footerProductTitle: "Product",
+    footerProductLinks: {
+      features: "Features",
+      about: "About Clara",
+      faq: "FAQ",
+      changelog: "Changelog",
+      privacy: "Privacy",
+    },
+    footerForAisTitle: "For AIs",
+    footerForAisLinks: {
+      llms: "/llms.txt",
+      llmsFull: "/llms-full.txt",
+      mcpPublic: "/api/mcp (public)",
+      mcpDescriptor: "/.well-known/mcp.json",
+      openapi: "/openapi.json",
+    },
+    footerCopy: (year: number) => `© ${year} Trefolio · MIT License`,
+    footerHomepage: "trefolio.com",
+    footerTagline: "Your AI financial assistant. Open source, MIT, self-hostable.",
+  },
+
+  landing: {
+    chip: "AI money coach · Open Source · MIT",
+    title1: "Your money,",
+    title2: "finally",
+    title2highlight: "Clara",
+    cta: {
+      register: "Start free",
+      registerArrow: "→",
+      seeFeatures: "See what it does",
+    },
+    badges: {
+      noCard: "No card",
+      noTelemetry: "No telemetry",
+      selfHostable: "Self-hostable",
+    },
+    chatPreview: {
+      conciseSticker: "concise",
+      bubbleUser1: "Paid rent today, $850",
+      bubbleClaraText: (rentLabel: string, leftLabel: string) =>
+        `Done — marked ${rentLabel} as paid for April ✅. You have ${leftLabel} left for the rest of the month.`,
+      bubbleClaraLineLabel: "Rent · housing · Galicia",
+      bubbleClaraRentLabel: "Rent",
+      bubbleClaraLeftLabel: "USD 1,240",
+      bubbleUser2: "Send me a bank PDF",
+      mcpReadySticker: "+ MCP-ready",
+      balanceLabel: "balance · apr '26",
+    },
+    stats: {
+      income: "Income",
+      incomeSub: "USD · April",
+      planned: "Planned",
+      plannedSub: "7 templates",
+      paid: "Paid",
+      paidSub: "+200 today",
+      pending: "Pending",
+      pendingSub: "2 items",
+    },
+    pitchTitle1: "An",
+    pitchTitleAssistant: "assistant",
+    pitchTitle2: ", not a spreadsheet.",
+    pitchExtra:
+      "Every feature is built so you can understand your money without opening Excel — and so your own AI can help without asking permission fifteen times.",
+    mcpCallout: {
+      sticker: "MCP-ready",
+      titlePart1: "Your own AI can",
+      titleHighlight: "talk to Clara",
+      body: "Clara exposes an MCP (Model Context Protocol) server. Generate a token from Settings and paste it into Claude Desktop, Cursor or any compatible client: your assistant queries your months, checks the balance, and registers expenses with your permission.",
+      howTo: "How to connect",
+      mcpPublic: "Public MCP",
+      configComment: "# Claude Desktop / Cursor mcp.json",
+    },
+    rule: {
+      sticker: "less drama",
+      titlePart1: "Clara's rule:",
+      titleHighlight: "less spreadsheet, more decisions",
+      body: "Only recurring templates start as pending. Anything you log during the month — chat, voice or photo — defaults to paid. You focus on deciding, Clara handles the rest.",
+    },
+    finalCta: {
+      titlePart1: "Your money",
+      titleHighlight: "clear",
+      titlePart2: ", in five minutes.",
+      body: "Sign up, optionally connect your bank or WhatsApp, and Clara takes care of the rest.",
+      register: "Start free",
+      faq: "Got questions?",
+    },
+    metaTitle: "Clara — your AI financial assistant",
+    metaDescription:
+      "Your AI money coach. Chat with your money: PDFs, voice notes, Open Banking. Open source MIT, self-hostable, with an MCP server to plug into Claude, ChatGPT and Cursor.",
+  },
+
+  marketingFeaturesPage: {
+    metaTitle: "Features",
+    metaDescription:
+      "Everything Clara can do for your money: AI chat, PDFs, voice notes, Open Banking, MCP and more.",
+    chip: "Capabilities · Apr 2026",
+    title1: "What",
+    titleHighlight: "Clara does",
+    title2: "(for real)",
+    intro:
+      "We don't sell vaporware. Every feature is shipped and used inside the app daily. Here's what matters:",
+    sectionsTitle: "By feature",
+    cta: "Start free",
+    cta2: "See FAQ",
+  },
+
+  marketingAboutPage: {
+    metaTitle: "About Clara",
+    metaDescription:
+      "Clara was born so managing money stops feeling like keeping a spreadsheet. Open source, MIT, made at Trefolio.",
+    chip: "About Clara",
+    title1: "A",
+    titleHighlight: "money coach",
+    title2: ", not a spreadsheet.",
+    metaSubtitle:
+      "Clara is the AI financial assistant you want next to you when the monthly bills arrive — even if your relationship with your finances is rocky.",
+    sectionWhyTitle: "Why Clara?",
+    sectionWhyBody1:
+      "Most finance apps are spreadsheets with a nicer UI: rows, categories, reports. They work, but they make you do the accountant's job.",
+    sectionWhyBody2:
+      "Clara starts with conversation. Tell her what happened (in plain language, by chat, voice or photo) and she understands, categorizes and keeps your balance up to date. Templates, months, banks — everything that makes a tracker — is still there, but as tools, not the whole product.",
+    sectionPersonalityTitle: "The personality",
+    sectionPersonalityBody:
+      "Clara speaks in plain English (or rioplatense Spanish). She's direct, brief, professional. No emoji spam, no motivational coach jargon. If she can save you drama she will; if she has to tell you you're overspending she'll say it clearly.",
+    sectionTechTitle: "The stack",
+    sectionTechBody:
+      "Next.js 16 (App Router) + Vercel AI SDK + Vercel AI Gateway with multiple LLM providers in zero data retention mode. Postgres with Prisma for persistence. An MCP server so any external assistant (Claude, Cursor, ChatGPT) can talk to Clara.",
+    sectionTeamTitle: "The team",
+    sectionTeamBody:
+      "Clara is built at Trefolio. Open source MIT, no telemetry, no per-user pricing. The intent is for you to use it for free, and if you want to self-host, do it in five minutes on your own Vercel.",
+    sectionTeamLinkRepo: "GitHub repository",
+    sectionTeamLinkOrg: "trefolio.com",
+    cta: "Start free",
+    ctaSecondary: "See features",
+  },
+
+  marketingFaqPage: {
+    metaTitle: "FAQ",
+    metaDescription:
+      "Common questions about Clara: pricing, languages, banks, integrations with Claude/Cursor/ChatGPT, self-hosting and privacy.",
+    chip: "Frequently asked",
+    title: "Let's clear",
+    titleHighlight: "the air",
+    intro:
+      "If you need more details, open an issue on GitHub or chat with Clara directly.",
+    cta: "Start free",
+    ctaSecondary: "See changelog",
+  },
+
+  marketingChangelogPage: {
+    metaTitle: "Changelog",
+    metaDescription: "Release history for Clara — open source, MIT, built in public.",
+    chip: "Release history",
+    title: "What came",
+    titleHighlight: "before",
+    intro:
+      "Visible changes, in public. Each version highlights the most important shipments; the rest lives in the repo's commits.",
+    publishedOn: (date: string) => `Published on ${date}`,
+    cta: "Start free",
+    ctaSecondary: "Open the repo",
+  },
+
+  marketingPrivacyPage: {
+    metaTitle: "Privacy",
+    metaDescription:
+      "What data Clara stores, what it does — and doesn't do — with it. No telemetry, no data sales, AI calls in zero data retention.",
+    chip: "Privacy",
+    title: "Your money,",
+    titleHighlight: "your data",
+    titleSuffix: ".",
+    intro:
+      "Clara is built so your financial information stays yours. Here's what we collect, what we don't, and how we process each thing.",
+    cta: "Start free",
+    ctaSecondary: "See the code",
+  },
+
+  auth: {
+    loginTitle: "Sign in to Clara",
+    loginSubtitle: "Back to your personalized financial balance.",
+    registerTitle: "Create your Clara account",
+    registerSubtitle:
+      "Your AI money coach: plan expenses, connect your bank and send voice notes.",
+    email: "Email address",
+    password: "Password",
+    passwordMin: "At least 8 characters",
+    confirmPassword: "Confirm password",
+    submitLogin: "Sign in",
+    submitRegister: "Create account",
+    submittingLogin: "Signing in…",
+    submittingRegister: "Creating…",
+    googleContinue: "Continue with Google",
+    or: "or",
+    haveAccount: "Already have an account?",
+    noAccount: "Don't have an account yet?",
+    goToLogin: "Sign in",
+    goToRegister: "Create account",
+    forgotPassword: "Forgot your password?",
+    backHome: "Back to home",
+    errorInvalid: "Wrong email or password.",
+    errorAccountDisabled:
+      "Your account is disabled. If you think it's a mistake, write us.",
+    errorAccessDenied:
+      "We need a Google-verified email to sign in. Try another provider.",
+    errorPasswordMismatch: "Passwords do not match.",
+    errorRegisterFailed: "We couldn't create the account. Try again.",
+    errorLoginFailed: "Could not sign in.",
+  },
+
+  errors: {
+    appCrashTitle: "Something broke.",
+    appCrashBody:
+      "Sorry about that. Try refreshing the page; if it persists, file an issue and we'll fix it.",
+    appCrashRetry: "Retry",
+    notFoundTitle: "Page not found",
+    notFoundBody:
+      "This URL does not exist. Go back to the home or open Clara to keep chatting.",
+    notFoundCta: "Back to home",
+    notFoundCtaApp: "Open Clara",
+  },
+
+  settings: {
+    pageTitle: "Settings",
+    profileTitle: "Profile",
+    emailLabel: "Email address",
+    currentPassword: "Current password",
+    currentPasswordHintRequired: "(required to change it)",
+    currentPasswordHintOptional: "(optional)",
+    newPassword: "New password",
+    setPassword: "Set a password (optional)",
+    googleHint:
+      "You signed up with Google. You can add a password if you also want to sign in with email and password.",
+    save: "Save",
+    saved: "Changes saved.",
+    cannotSave: "Could not save changes.",
+
+    languageTitle: "Language",
+    languageDescription:
+      "UI and assistant language. You can also ask Clara to switch language from chat.",
+    languageOptionEs: "Español",
+    languageOptionEn: "English",
+    languageSaved: "Language updated.",
+    languageError: "Could not update the language.",
+
+    accessTitle: "Sign-in methods",
+    accessDescription:
+      "Link Google to sign in with one click. Use the same email as this account to keep a single profile.",
+    googleLinked: "Google is linked to this account.",
+    connectGoogle: "Connect Google",
+
+    currencyTitle: "Primary currency",
+    currencyDescription:
+      "Pick the currency you want totals, balance, income and savings reported in. You can record expenses in any currency: we convert them to this one using the rate at the time (frozen per expense, never re-computed).",
+    currencyIsoLabel: "ISO 4217 code",
+    currencySave: "Save currency",
+    currencyConfirmed: (date: string) => `Confirmed on ${date}.`,
+    currencyNotConfirmed:
+      "You haven't confirmed the currency yet. The assistant may ask next time you chat.",
+    currencyUpdated:
+      "Primary currency updated. Existing lines keep their original FX rate.",
+    currencyInvalid: "Enter a 3-letter ISO 4217 code (USD, ARS, EUR, …).",
+    currencyError: "Could not save the currency.",
+
+    instructionsTitle: "Assistant & import instructions",
+    instructionsDescription:
+      "Define rules in plain language: which Revolut transactions NOT to import (transfers between accounts, top-ups, etc.), how to categorize specific merchants, or conventions the assistant should use in chat and on bank photos. You can also ask the assistant to remember a preference; it will write it here.",
+    instructionsPlaceholder:
+      'E.g.: Skip transfers to my USD account and "Top up" entries. Supermarkets always ALIMENTACION. Spotify and Netflix → SUSCRIPCIONES.',
+    instructionsHint: "Up to 12,000 characters. Requires",
+    instructionsHintEnvSuffix: "on the server to apply rules during Revolut sync.",
+    instructionsSaveBtn: "Save instructions",
+    instructionsSaved: "Instructions saved.",
+    instructionsError: "Could not save.",
+
+    whatsappTitle: "WhatsApp Assistant",
+    whatsappDescription:
+      "Link your number to use the Clara assistant on WhatsApp: check your month, add expenses and send transaction photos for automatic registration.",
+    whatsappLinkedTo: (phone: string) => `Linked to ${phone}`,
+    whatsappUnlinkBtn: "Unlink",
+    whatsappUnlinkConfirm: "Unlink the WhatsApp number?",
+    whatsappUnlinkDone: "Number unlinked.",
+    whatsappPhoneLabel:
+      "WhatsApp number (international format, e.g. +5491112345678)",
+    whatsappGenerateCode: "Generate code",
+    whatsappPendingTitle: (code: string) => `Your code: ${code}`,
+    whatsappPendingHelp: (code: string) =>
+      `Open WhatsApp and send the assistant: LINK ${code}. The code expires in a few minutes.`,
+    whatsappStartError: "Could not start the linking flow.",
+    whatsappCodeGenerated:
+      "We generated a code. Send it via WhatsApp to the assistant to finish linking.",
+
+    apiTokensTitle: "AI access (MCP)",
+    apiTokensDescription:
+      "Generate personal tokens to connect Clara to Claude Desktop, Cursor, or any MCP client. Tokens are shown only once on creation.",
+    apiTokensCreate: "Create token",
+    apiTokensCreating: "Creating…",
+    apiTokensName: "Name",
+    apiTokensExpiresAt: "Expires",
+    apiTokensCreatedAt: "Created",
+    apiTokensLastUsedAt: "Last used",
+    apiTokensRevoke: "Revoke",
+    apiTokensRevokeConfirm:
+      "Revoke this token? Any client using it will be disconnected.",
+    apiTokensRevoked: "Token revoked.",
+    apiTokensCreatePlaceholder: "Claude Desktop, Cursor, etc.",
+    apiTokensExpiresHint: "Leave empty to never expire.",
+    apiTokensCreatedShort: (token: string) =>
+      `Token created. Copy and paste now: ${token}`,
+    apiTokensCopy: "Copy token",
+    apiTokensCopied: "Copied.",
+    apiTokensEmpty: "You haven't created any tokens yet.",
+    apiTokensRevokedSuffix: " (revoked)",
+    apiTokensExpired: " (expired)",
+    apiTokensNeverUsed: "Never",
+    apiTokensExpireDateLabel: "Expires (optional)",
+
+    revolutTitle: "Revolut connection",
+    revolutDescription:
+      "Connect your Revolut (UK / EU) account so Clara can import transactions at month close. Read-only — Clara never touches your money.",
+    revolutLinkAccount: "Link account",
+    revolutPending: "Connection pending — finish the authorization flow on Revolut.",
+    revolutLinked: (institution: string) => `Linked with ${institution}`,
+    revolutLastSync: (when: string) => `Last sync: ${when}`,
+    revolutNeverSynced: "Not synced yet.",
+    revolutDisconnect: "Disconnect",
+    revolutImport: "Import current month",
+    revolutImporting: "Importing…",
+    revolutDefaultBank: "Default bank when importing",
+    revolutDefaultBankSave: "Save",
+    revolutSelectInstitution: "Pick your bank",
+    revolutCountryLabel: "Country",
+    revolutLoadInstitutions: "Load banks",
+    revolutAuthorize: "Authorize on Revolut",
+    revolutSyncDone: "Sync complete.",
+  },
+
+  app: {
+    welcomeBack: "Welcome back!",
+    chatLoading: "Loading chat…",
+    devTools: "Dev tools",
+  },
+
+  banks: {
+    pageTitle: "Banks",
+    pageDescription:
+      "The accounts you use to pay your expenses. Every template lives in a bank; you can move expenses between banks anytime.",
+    addBank: "Add bank",
+    nameLabel: "Bank name",
+    namePlaceholder: "Galicia, Visa, Cash, …",
+    colorLabel: "Color",
+    colorHint: "Hex (with or without #).",
+    save: "Save",
+    saving: "Saving…",
+    duplicate: "A bank with that name already exists.",
+    saveError: "Could not save the bank.",
+    edit: "Edit",
+    delete: "Delete",
+    deleteConfirm: (name: string) =>
+      `Delete the bank ${name}? If it has expenses we can't delete it.`,
+    deleteError: "Could not delete the bank.",
+    empty: "You haven't added any banks yet.",
+  },
+
+  expenses: {
+    pageTitle: "Expense templates",
+    pageDescription:
+      "Templates describe a recurring or one-off expense. Each month gets an editable copy; tick it when you pay.",
+    addExpense: "Add template",
+    name: "Name",
+    amount: "Amount",
+    bank: "Bank",
+    isRecurring: "Recurring",
+    startMonth: "Start month",
+    endMonth: "End month",
+    endMonthHint: "Empty = continues indefinitely.",
+    category: "Category",
+    save: "Save",
+    saving: "Saving…",
+    edit: "Edit",
+    delete: "Delete",
+    deleteConfirm: (name: string) =>
+      `Delete the template ${name}? Existing monthly lines won't be deleted.`,
+    saveError: "Could not save the template.",
+    deleteError: "Could not delete the template.",
+    empty: "You haven't created templates yet.",
+    perMonth: "/mo",
+    oneOff: "one-off",
+    activeFrom: (m: string) => `Active from ${m}`,
+    untilMonth: (m: string) => `until ${m}`,
+    indefinite: "indefinite",
+  },
+
+  month: {
+    drawerTitle: "Month panel",
+    summaryIncome: "Income",
+    summaryCarryover: "Carryover",
+    summaryPlanned: "Planned",
+    summaryPaid: "Paid",
+    summaryRemaining: "Pending",
+    summaryBalance: "Balance",
+    monthFor: (label: string) => `Month · ${label}`,
+    addLine: "Add expense",
+    addLineDialogTitle: "New expense",
+    importFromRevolut: "Import from Revolut",
+    importing: "Importing…",
+    paid: "Paid",
+    unpaid: "Pending",
+    markPaid: "Mark as paid",
+    markUnpaid: "Mark as pending",
+    bankTotalsTitle: "Totals by bank",
+    chronoTitle: "Lines for the month",
+    pendingFromTemplates: "Pending from templates",
+    addLinePlaceholderName: "Pizza with friends",
+    saveError: "Could not save the line.",
+    delete: "Delete",
+    deleteConfirm: "Delete this line from the month?",
+    notCreated: "The month has not been created yet.",
+    createFromTemplates: "Create month from templates",
+    createCopyFrom: (m: string) => `Copy from ${m}`,
+    createBtn: "Create month",
+    creating: "Creating…",
+    incomePromptTitle: "How much will you earn this month?",
+    incomeSave: "Save income",
+    carryoverTitle: "Last month's leftover",
+    carryoverBody: (amount: string, prev: string) =>
+      `You closed ${prev} with ${amount} unspent. What do we do?`,
+    carryoverAdd: "Add to income",
+    carryoverAside: "Set aside as savings",
+  },
+
+  chat: {
+    metaTitle: "Chat with Clara",
+    inputPlaceholder: "Type, dictate a voice note or drop a PDF…",
+    composerSend: "Send",
+    composerStop: "Stop",
+    attachLabel: "Attach file",
+    typingLabel: "Clara is typing…",
+    error: "Something broke in the chat. Try again.",
+    quotaExceeded:
+      "You've hit the daily message limit. Come back tomorrow or ask an admin to raise it.",
+    rateLimited: "You're going too fast. Wait a few seconds and retry.",
+    rebooting: "Restarting…",
+    confirmReset: "Erase the entire conversation?",
+    resetBtn: "Erase chat",
+    welcome: "Hi! I'm Clara, your financial assistant.",
+    languageChangedToEs: "Listo, ahora hablamos en español.",
+    languageChangedToEn: "Done — switching to English from now on.",
+  },
+
+  admin: {
+    pageTitle: "Admin",
+    pageDescription:
+      "User management: enable/disable accounts and tune the daily agent message limit.",
+    columnsEmail: "Email",
+    columnsActive: "Active",
+    columnsAdmin: "Admin",
+    columnsLimit: "Daily limit",
+    columnsToday: "Today",
+    columnsCreated: "Created",
+    columnsActions: "Actions",
+    enable: "Enable",
+    disable: "Disable",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Saved.",
+    error: "Could not save.",
+    empty: "No users yet.",
+  },
+
+  pwa: {
+    installTitle: "Install Clara on your home screen",
+    installBody:
+      "Clara works as a native app: notifications, icon and fast launch. Optional.",
+    install: "Install",
+    notNow: "Not now",
+    iosHelp:
+      "On iPhone, tap the Share button and choose “Add to Home Screen”.",
+  },
+
+  charts: {
+    monthlyTitle: "Monthly comparison",
+    categoryTitle: "Distribution by category",
+    bankTitle: "Distribution by bank",
+    noData: "No data to display.",
+  },
+
+  units: {
+    monthShort: (m: string) => m,
+  },
+};

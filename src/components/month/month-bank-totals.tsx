@@ -1,5 +1,8 @@
+"use client";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
+import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import type { MonthPageDataWithRecord } from "@/lib/month-page-types";
 import { cn } from "@/lib/utils";
 
@@ -17,14 +20,19 @@ type Props = {
  * Bancos sin gastos en el mes se filtran para no mostrar cards vacías.
  */
 export function MonthBankTotals({ bankTotals, primaryCurrency }: Props) {
+  const locale = useLocale();
+  const t = useT();
+  const tx = useTx();
   const visible = bankTotals.filter((bank) => bank.planned > 0 || bank.paid > 0);
   if (visible.length === 0) return null;
 
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="font-heading text-sm font-semibold">Totales por banco</h2>
-        <span className="text-muted-foreground text-xs">planeado vs gastado</span>
+        <h2 className="font-heading text-sm font-semibold">{t.month.bankTotalsTitle}</h2>
+        <span className="text-muted-foreground text-xs">
+          {tx({ es: "planeado vs gastado", en: "planned vs spent" })}
+        </span>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {visible.map((bank) => {
@@ -39,29 +47,29 @@ export function MonthBankTotals({ bankTotals, primaryCurrency }: Props) {
                   <p className="font-heading truncate text-sm font-medium">{bank.bankName}</p>
                   {fullyPaid ? (
                     <span className="bg-good/15 text-good rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                      ✓ pagado
+                      ✓ {t.month.paid.toLowerCase()}
                     </span>
                   ) : (
                     <span className="bg-warn/15 text-warn rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide tabular-nums">
-                      {formatCurrency(pending, primaryCurrency)} pend.
+                      {formatCurrency(pending, primaryCurrency, locale)} {t.header.pendingShort}
                     </span>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-[0.18em]">
-                      Gastado
+                      {tx({ es: "Gastado", en: "Spent" })}
                     </p>
                     <p className="text-foreground text-base font-semibold tabular-nums">
-                      {formatCurrency(bank.paid, primaryCurrency)}
+                      {formatCurrency(bank.paid, primaryCurrency, locale)}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-[0.18em]">
-                      Planeado
+                      {t.month.summaryPlanned}
                     </p>
                     <p className="text-bad text-base font-semibold tabular-nums">
-                      {formatCurrency(bank.planned, primaryCurrency)}
+                      {formatCurrency(bank.planned, primaryCurrency, locale)}
                     </p>
                   </div>
                 </div>
@@ -81,7 +89,7 @@ export function MonthBankTotals({ bankTotals, primaryCurrency }: Props) {
                       fullyPaid ? "text-good" : "text-muted-foreground",
                     )}
                   >
-                    {pct}% pagado
+                    {pct}% {tx({ es: "pagado", en: "paid" })}
                   </p>
                 </div>
               </CardContent>

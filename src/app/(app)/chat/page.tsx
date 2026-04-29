@@ -15,5 +15,5 @@ export default async function ChatAliasPage({ searchParams }: PageProps) {
     typeof sp.month === "string" && /^\d{4}-\d{2}$/.test(sp.month)
       ? `?month=${encodeURIComponent(sp.month)}`
       : "";
-  redirect(`/${monthQs}`);
+  redirect(`/app${monthQs}`);
 }

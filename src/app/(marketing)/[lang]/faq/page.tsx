@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { FAQ } from "@/lib/marketing-content";
+import { marketingContent } from "@/lib/marketing-content";
+import { faqCopy } from "@/lib/marketing-pages";
+import { isLocale, type Locale } from "@/lib/i18n/locale";
 import {
   breadcrumbJsonLd,
   buildMetadata,
@@ -8,18 +11,38 @@ import {
   jsonLdScript,
 } from "@/lib/seo";
 
-export const metadata: Metadata = buildMetadata({
-  title: "Preguntas frecuentes",
-  description:
-    "Todo lo que querés saber sobre Clara: cómo procesa PDFs, qué bancos soporta, privacidad, costo, cómo conectarla a Claude/Cursor/ChatGPT vía MCP, y self-hosting.",
-  path: "/faq",
-});
-
-type Props = {
+type PageProps = {
+  params: Promise<{ lang: string }>;
   searchParams: Promise<{ q?: string }>;
 };
 
-export default async function FaqPage({ searchParams }: Props) {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lang: string }>;
+}): Promise<Metadata> {
+  const { lang } = await params;
+  if (!isLocale(lang)) return {};
+  const copy = faqCopy(lang);
+  return buildMetadata({
+    title: copy.metaTitle,
+    description: copy.metaDescription,
+    path: `/${lang}/faq`,
+    locale: lang,
+    pathByLocale: { es: "/es/faq", en: "/en/faq" },
+  });
+}
+
+export function generateStaticParams() {
+  return [{ lang: "es" }, { lang: "en" }];
+}
+
+export default async function FaqPage({ params, searchParams }: PageProps) {
+  const { lang } = await params;
+  if (!isLocale(lang)) notFound();
+  const locale: Locale = lang;
+  const copy = faqCopy(locale);
+  const { FAQ } = marketingContent(locale);
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().toLowerCase() : "";
   const filtered = q
@@ -30,33 +53,33 @@ export default async function FaqPage({ searchParams }: Props) {
       )
     : FAQ;
 
+  const noMatchLabel = locale === "en"
+    ? `No questions matched "${q}".`
+    : `No encontramos preguntas que matcheen "${q}".`;
+
   return (
     <article className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
       <script
         {...jsonLdScript([
           faqJsonLd(FAQ),
           breadcrumbJsonLd([
-            { name: "Inicio", path: "/" },
-            { name: "FAQ", path: "/faq" },
+            { name: locale === "en" ? "Home" : "Inicio", path: `/${locale}` },
+            { name: "FAQ", path: `/${locale}/faq` },
           ]),
         ])}
       />
 
       <header className="mb-10 space-y-3">
-        <span className="sticker sticker-lime">FAQ</span>
+        <span className="sticker sticker-lime">{copy.chip}</span>
         <h1 className="font-display text-4xl font-bold leading-tight sm:text-5xl">
-          Preguntas frecuentes
+          {copy.title1}
+          <span className="hl">{copy.titleHighlight}</span>
         </h1>
-        <p className="text-muted-foreground text-lg leading-relaxed">
-          Las dudas más comunes sobre cómo funciona Clara, qué hace con tus datos y cómo
-          integrarla con tu propio AI assistant.
-        </p>
+        <p className="text-muted-foreground text-lg leading-relaxed">{copy.intro}</p>
       </header>
 
       {q && filtered.length === 0 ? (
-        <p className="text-muted-foreground">
-          No encontramos preguntas que matcheen “{q}”.
-        </p>
+        <p className="text-muted-foreground">{noMatchLabel}</p>
       ) : null}
 
       <dl className="space-y-6">

@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getTodayUtcDate } from "@/lib/agent-quota";
 import { getAuthSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getT } from "@/lib/i18n/server";
 
 /** Admin-only panel: list users, toggle isActive, edit dailyAgentMessageLimit. */
 export default async function AdminPage() {
-  const session = await getAuthSession();
+  const [session, t] = await Promise.all([getAuthSession(), getT()]);
   if (!session?.user?.isAdmin) {
     notFound();
   }
@@ -51,16 +52,13 @@ export default async function AdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Administración</h1>
-        <p className="text-muted-foreground text-sm">
-          Gestioná usuarios, su estado y el límite diario de mensajes con el asistente. El día se
-          reinicia a las 00:00 UTC.
-        </p>
+        <h1 className="text-2xl font-semibold">{t.admin.pageTitle}</h1>
+        <p className="text-muted-foreground text-sm">{t.admin.pageDescription}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Usuarios</CardTitle>
+          <CardTitle>{t.admin.pageTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <AdminUsersTable initialUsers={initialUsers} currentAdminId={session.user.id} />

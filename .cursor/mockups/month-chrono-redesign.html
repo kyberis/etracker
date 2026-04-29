@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>eTracker · Mes cronológico + totales por banco</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ["Sora", "sans-serif"],
+              sans: ["Inter", "system-ui", "sans-serif"],
+            },
+            colors: {
+              ink: { 950: "#06070b", 900: "#0b0c12", 800: "#11131c", 700: "#181a26", 600: "#1f2230" },
+              lime: { DEFAULT: "#c8ff5d", deep: "#9ce03b" },
+              violet: { DEFAULT: "#b08bff", deep: "#8c5cff" },
+              peach: "#ffc596",
+              hotpink: "#ff5f8a",
+              good: "#3ddc97",
+              warn: "#f4b740",
+              bad: "#ff5f6d",
+              lilac: "#cab6ff",
+            },
+            boxShadow: {
+              soft: "0 24px 60px -32px rgba(140,92,255,0.55)",
+              card: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 30px -22px rgba(0,0,0,0.7)",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root { color-scheme: dark; }
+      html, body {
+        background:
+          radial-gradient(circle at 8% -10%, #2a1a4d 0%, transparent 55%),
+          radial-gradient(circle at 95% 5%, #1d3327 0%, transparent 50%),
+          linear-gradient(180deg, #06070b 0%, #06070b 100%);
+        font-family: "Inter", system-ui, sans-serif;
+        color: #f3f3f6;
+      }
+      .display { font-family: "Sora", sans-serif; letter-spacing: -0.01em; }
+      .num { font-variant-numeric: tabular-nums; font-family: "Sora", sans-serif; font-weight: 600; }
+      .card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 18px;
+      }
+      .card-strong {
+        background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+        border: 1px solid rgba(255,255,255,0.09);
+        border-radius: 22px;
+      }
+      .pill {
+        border: 1px solid rgba(255,255,255,0.08);
+        background: rgba(255,255,255,0.03);
+        border-radius: 999px;
+      }
+      .device { background: linear-gradient(180deg, #0b0c12, #11131c); border-radius: 28px; padding: 18px; box-shadow: 0 60px 120px -40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04); }
+      .desktop { width: min(1180px, 96vw); }
+      .phone   { width: 380px; padding: 14px; border-radius: 44px; }
+      .screen  { background: linear-gradient(180deg, #0b0c12, #11131c); border-radius: 22px; overflow: hidden; }
+      .screen.phone-screen { border-radius: 32px; }
+      .checkbox { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.25); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s ease; }
+      .checkbox.checked { background: #c8ff5d; border-color: #c8ff5d; color: #06070b; }
+      .row { transition: background .15s ease; border-radius: 12px; }
+      .row:hover { background: rgba(255,255,255,0.03); }
+      .row.paid .name { color: rgba(255,255,255,0.5); text-decoration: line-through; }
+      .row.paid .amount { color: rgba(255,255,255,0.45); }
+      .progress { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+      .progress > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #9ce03b, #c8ff5d); }
+      .badge { font-size: 10px; padding: 2px 7px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      .badge.investment { background: rgba(176,139,255,0.18); color: #cab6ff; }
+      .badge.warn { background: rgba(244,183,64,0.16); color: #f4b740; }
+      .badge.good { background: rgba(61,220,151,0.16); color: #3ddc97; }
+      .scroll-y { overflow-y: auto; }
+      .scroll-y::-webkit-scrollbar { width: 6px; }
+      .scroll-y::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 999px; }
+      .label { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.55); font-weight: 700; }
+      .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); }
+    </style>
+  </head>
+  <body class="min-h-screen pb-24">
+    <header class="mx-auto max-w-7xl px-6 pt-10 pb-6 flex items-center gap-3">
+      <div class="size-9 rounded-full bg-gradient-to-br from-lime to-violet shadow-soft"></div>
+      <div>
+        <p class="display text-lg font-bold leading-none">Mockup · Vista del mes</p>
+        <p class="text-white/50 text-xs">Lista cronológica + totales por banco — propuesta para `/m/[month]`</p>
+      </div>
+      <div class="ml-auto flex items-center gap-2 text-xs text-white/50">
+        <span class="pill px-3 py-1">abr '26</span>
+        <span class="pill px-3 py-1">balance + USD 1,240</span>
+      </div>
+    </header>
+
+    <!-- Desktop preview -->
+    <div class="mx-auto desktop device">
+      <div class="screen p-7">
+        <!-- Header strip -->
+        <div class="flex items-end justify-between mb-6">
+          <div>
+            <p class="label">abril 2026</p>
+            <h1 class="display text-3xl font-bold mt-1">Tu mes en limpio</h1>
+            <p class="text-white/55 text-sm mt-1">Marcá lo que ya pagaste; los totales por banco se ajustan en vivo.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="pill px-3 py-2 text-sm flex items-center gap-2"><span>‹</span> mar '26</button>
+            <button class="pill px-3 py-2 text-sm flex items-center gap-2">may '26 <span>›</span></button>
+            <button class="pill px-3 py-2 text-sm bg-violet/20 text-lilac border-violet/30">+ Nuevo gasto</button>
+          </div>
+        </div>
+
+        <!-- Top summary row (existente: MonthSummary) -->
+        <div class="grid grid-cols-5 gap-3 mb-5">
+          <div class="card p-4">
+            <p class="label">Ingreso</p>
+            <p class="num text-good text-2xl mt-1">$ 4.800</p>
+          </div>
+          <div class="card p-4">
+            <p class="label">Planeado</p>
+            <p class="num text-bad text-2xl mt-1">$ 3.560</p>
+          </div>
+          <div class="card p-4">
+            <p class="label">Pagado</p>
+            <p class="num text-2xl mt-1">$ 2.140</p>
+          </div>
+          <div class="card p-4">
+            <p class="label">Pendiente</p>
+            <p class="num text-warn text-2xl mt-1">$ 1.420</p>
+          </div>
+          <div class="card p-4">
+            <p class="label">Saldo</p>
+            <p class="num text-good text-2xl mt-1">$ 1.240</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-5 gap-5">
+          <!-- LEFT: Totales por banco (NUEVO) -->
+          <section class="col-span-2 space-y-3">
+            <div class="flex items-center justify-between">
+              <h2 class="display text-sm font-bold">Totales por banco</h2>
+              <span class="text-xs text-white/40">planeado vs gastado</span>
+            </div>
+
+            <!-- Bank card 1 -->
+            <article class="card-strong p-4">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <p class="font-semibold text-sm">Galicia</p>
+                  <p class="text-xs text-white/45">5 gastos</p>
+                </div>
+                <span class="badge warn">$ 920 pend.</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <p class="label">Gastado</p>
+                  <p class="num text-lg mt-0.5">$ 480</p>
+                </div>
+                <div class="text-right">
+                  <p class="label">Planeado</p>
+                  <p class="num text-bad text-lg mt-0.5">$ 1.400</p>
+                </div>
+              </div>
+              <div class="progress"><i style="width: 34%"></i></div>
+              <p class="text-xs text-white/45 mt-2">34% pagado</p>
+            </article>
+
+            <!-- Bank card 2 -->
+            <article class="card-strong p-4">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <p class="font-semibold text-sm">Brubank</p>
+                  <p class="text-xs text-white/45">3 gastos</p>
+                </div>
+                <span class="badge good">✓ todo pagado</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <p class="label">Gastado</p>
+                  <p class="num text-lg mt-0.5">$ 660</p>
+                </div>
+                <div class="text-right">
+                  <p class="label">Planeado</p>
+                  <p class="num text-bad text-lg mt-0.5">$ 660</p>
+                </div>
+              </div>
+              <div class="progress"><i style="width: 100%"></i></div>
+              <p class="text-xs text-good mt-2">100% pagado</p>
+            </article>
+
+            <!-- Bank card 3 -->
+            <article class="card-strong p-4">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <p class="font-semibold text-sm">Revolut · USD</p>
+                  <p class="text-xs text-white/45">7 gastos</p>
+                </div>
+                <span class="badge warn">$ 500 pend.</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <p class="label">Gastado</p>
+                  <p class="num text-lg mt-0.5">$ 1.000</p>
+                </div>
+                <div class="text-right">
+                  <p class="label">Planeado</p>
+                  <p class="num text-bad text-lg mt-0.5">$ 1.500</p>
+                </div>
+              </div>
+              <div class="progress"><i style="width: 67%"></i></div>
+              <p class="text-xs text-white/45 mt-2">67% pagado</p>
+            </article>
+          </section>
+
+          <!-- RIGHT: Lista cronológica (NUEVO, reemplaza MonthLinesByBank) -->
+          <section class="col-span-3 card-strong p-5 flex flex-col">
+            <header class="flex items-center justify-between mb-4">
+              <div>
+                <h2 class="display text-sm font-bold">Gastos del mes</h2>
+                <p class="text-xs text-white/45">orden cronológico · más nuevo primero</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="pill px-3 py-1.5 text-xs">15 gastos</span>
+                <span class="pill px-3 py-1.5 text-xs text-warn">7 sin pagar</span>
+              </div>
+            </header>
+
+            <div class="space-y-1 scroll-y" style="max-height: 460px">
+              <!-- group: hoy -->
+              <p class="label mt-1 mb-2">hoy · 29 abr</p>
+
+              <div class="row flex items-center gap-3 px-3 py-2.5">
+                <span class="checkbox"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Supermercado Coto</p>
+                  <p class="text-[11px] text-white/45 truncate">Galicia · alimentación</p>
+                </div>
+                <p class="amount num text-bad text-sm">$ 84,30</p>
+              </div>
+
+              <div class="row flex items-center gap-3 px-3 py-2.5">
+                <span class="checkbox"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate flex items-center gap-1.5">
+                    Aporte mensual ETF
+                    <span class="badge investment">↑ inversión</span>
+                  </p>
+                  <p class="text-[11px] text-white/45 truncate">Revolut · stock</p>
+                </div>
+                <p class="amount num text-lilac text-sm">$ 250,00</p>
+              </div>
+
+              <p class="label mt-4 mb-2">ayer · 28 abr</p>
+
+              <div class="row paid flex items-center gap-3 px-3 py-2.5">
+                <span class="checkbox checked">
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6.5l2.5 2.5L10 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Netflix</p>
+                  <p class="text-[11px] text-white/45 truncate">Brubank · suscripciones</p>
+                </div>
+                <p class="amount num text-bad text-sm">$ 14,90</p>
+              </div>
+
+              <div class="row paid flex items-center gap-3 px-3 py-2.5">
+                <span class="checkbox checked">
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6.5l2.5 2.5L10 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Edesur · luz</p>
+                  <p class="text-[11px] text-white/45 truncate">Galicia · servicios</p>
+                </div>
+                <p class="amount num text-bad text-sm">$ 62,40</p>
+              </div>
+
+              <div class="row flex items-center gap-3 px-3 py-2.5">
+                <span class="checkbox"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Cuota auto</p>
+                  <p class="text-[11px] text-white/45 truncate">Galicia · transporte</p>
+                </div>
+                <p class="amount num text-bad text-sm">$ 320,00</p>
+              </div>
+
+              <p class="label mt-4 mb-2">26 abr</p>
+
+              <div class="row paid flex items-center gap-3 px-3 py-2.5">
+                <span class="checkbox checked">
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6.5l2.5 2.5L10 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Spotify Family</p>
+                  <p class="text-[11px] text-white/45 truncate">Revolut · suscripciones</p>
+                </div>
+                <p class="amount num text-bad text-sm">$ 16,99</p>
+              </div>
+
+              <div class="row flex items-center gap-3 px-3 py-2.5">
+                <span class="checkbox"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Gimnasio</p>
+                  <p class="text-[11px] text-white/45 truncate">Brubank · salud</p>
+                </div>
+                <p class="amount num text-bad text-sm">$ 49,00</p>
+              </div>
+
+              <div class="row paid flex items-center gap-3 px-3 py-2.5">
+                <span class="checkbox checked">
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6.5l2.5 2.5L10 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Café · Lab Tostadores</p>
+                  <p class="text-[11px] text-white/45 truncate">Brubank · alimentación</p>
+                </div>
+                <p class="amount num text-bad text-sm">$ 8,50</p>
+              </div>
+
+              <p class="label mt-4 mb-2">22 abr</p>
+
+              <div class="row flex items-center gap-3 px-3 py-2.5">
+                <span class="checkbox"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Alquiler</p>
+                  <p class="text-[11px] text-white/45 truncate">Galicia · vivienda</p>
+                </div>
+                <p class="amount num text-bad text-sm">$ 850,00</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phone preview -->
+    <section class="mx-auto max-w-7xl px-6 mt-12">
+      <h2 class="display text-sm font-bold mb-4 text-white/70">Mobile · misma estructura, stackeada</h2>
+
+      <div class="flex flex-wrap gap-8">
+        <div class="phone device">
+          <div class="screen phone-screen p-4">
+            <header class="mb-4">
+              <p class="label">abril 2026</p>
+              <h1 class="display text-xl font-bold">Tu mes en limpio</h1>
+            </header>
+
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <div class="card p-3"><p class="label">Saldo</p><p class="num text-good text-lg">$ 1.240</p></div>
+              <div class="card p-3"><p class="label">Pendiente</p><p class="num text-warn text-lg">$ 1.420</p></div>
+            </div>
+
+            <h3 class="display text-xs font-bold mt-4 mb-2 text-white/70">Bancos</h3>
+            <div class="space-y-2">
+              <div class="card p-3">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-semibold">Galicia</p>
+                  <span class="badge warn">$ 920 pend.</span>
+                </div>
+                <div class="flex items-center justify-between text-xs mt-1.5">
+                  <span class="text-white/55">$ 480 / <span class="text-bad">$ 1.400</span></span>
+                  <span class="text-white/45">34%</span>
+                </div>
+                <div class="progress mt-2"><i style="width: 34%"></i></div>
+              </div>
+              <div class="card p-3">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-semibold">Brubank</p>
+                  <span class="badge good">✓</span>
+                </div>
+                <div class="flex items-center justify-between text-xs mt-1.5">
+                  <span class="text-white/55">$ 660 / <span class="text-bad">$ 660</span></span>
+                  <span class="text-good">100%</span>
+                </div>
+                <div class="progress mt-2"><i style="width: 100%"></i></div>
+              </div>
+              <div class="card p-3">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-semibold">Revolut · USD</p>
+                  <span class="badge warn">$ 500 pend.</span>
+                </div>
+                <div class="flex items-center justify-between text-xs mt-1.5">
+                  <span class="text-white/55">$ 1.000 / <span class="text-bad">$ 1.500</span></span>
+                  <span class="text-white/45">67%</span>
+                </div>
+                <div class="progress mt-2"><i style="width: 67%"></i></div>
+              </div>
+            </div>
+
+            <h3 class="display text-xs font-bold mt-5 mb-2 text-white/70">Gastos · más nuevo arriba</h3>
+            <div class="space-y-1">
+              <div class="row flex items-center gap-2 px-2 py-2">
+                <span class="checkbox"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Supermercado Coto</p>
+                  <p class="text-[10px] text-white/45 truncate">Galicia · hoy</p>
+                </div>
+                <p class="amount num text-bad text-xs">$ 84,30</p>
+              </div>
+              <div class="row paid flex items-center gap-2 px-2 py-2">
+                <span class="checkbox checked">
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6.5l2.5 2.5L10 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Netflix</p>
+                  <p class="text-[10px] text-white/45 truncate">Brubank · ayer</p>
+                </div>
+                <p class="amount num text-bad text-xs">$ 14,90</p>
+              </div>
+              <div class="row flex items-center gap-2 px-2 py-2">
+                <span class="checkbox"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Cuota auto</p>
+                  <p class="text-[10px] text-white/45 truncate">Galicia · ayer</p>
+                </div>
+                <p class="amount num text-bad text-xs">$ 320,00</p>
+              </div>
+              <div class="row paid flex items-center gap-2 px-2 py-2">
+                <span class="checkbox checked">
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6.5l2.5 2.5L10 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="name text-sm font-medium truncate">Spotify</p>
+                  <p class="text-[10px] text-white/45 truncate">Revolut · 26 abr</p>
+                </div>
+                <p class="amount num text-bad text-xs">$ 16,99</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notas / leyenda -->
+        <div class="flex-1 min-w-[280px] max-w-[420px] space-y-4 text-sm text-white/70">
+          <div class="card p-4 space-y-2">
+            <p class="label">Cambios vs hoy</p>
+            <ul class="space-y-1.5 text-xs leading-relaxed">
+              <li>• Lista plana ordenada por <code>createdAt</code> desc, agrupada visualmente por día.</li>
+              <li>• El banco aparece en el subtítulo de cada gasto (no agrupa la lista).</li>
+              <li>• Toggle de pagado tacha la fila y refresca el balance del header.</li>
+              <li>• Panel "totales por banco" con planeado / gastado / pendiente y barra de progreso.</li>
+              <li>• En mobile: bancos como tira de cards y la lista debajo.</li>
+            </ul>
+          </div>
+          <div class="card p-4 space-y-2">
+            <p class="label">Datos backend</p>
+            <ul class="space-y-1.5 text-xs leading-relaxed">
+              <li>• <code>MonthLinePayload.createdAt</code> nuevo (ISO).</li>
+              <li>• <code>loadMonthPageData</code> incluye <code>orderBy: {"{"} createdAt: "desc" {"}"}</code>.</li>
+              <li>• <code>bankTotals</code> ya existente: planned + paid + pending.</li>
+              <li>• Toggle: <code>PATCH /api/month-expense-lines/:id</code> con <code>{"{ paid }"}</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </body>
+</html>
