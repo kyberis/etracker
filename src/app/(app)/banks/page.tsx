@@ -13,8 +13,11 @@ export default async function BanksPage() {
   });
 
   return (
-    <PageContainer className="space-y-4">
-      <h1 className="font-display text-2xl font-semibold">{t.banks.pageTitle}</h1>
+    <PageContainer className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="font-display text-2xl font-semibold">{t.banks.pageTitle}</h1>
+        <p className="text-muted-foreground text-sm">{t.banks.pageDescription}</p>
+      </div>
       <BanksManager initialBanks={banks} />
     </PageContainer>
   );

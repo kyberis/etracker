@@ -305,6 +305,8 @@ export const en: Dict = {
 
   settings: {
     pageTitle: "Settings",
+    pageDescription:
+      "Manage your account, preferences and Clara integrations in one place.",
     profileTitle: "Profile",
     emailLabel: "Email address",
     currentPassword: "Current password",

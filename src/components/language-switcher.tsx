@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useLocale, useSetLocale } from "@/lib/i18n/client";
+import { intlLocale } from "@/lib/i18n/format";
 import { LOCALES, LOCALE_LABELS, type Locale } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +53,11 @@ export function LanguageSwitcher({
         if (!ok && variant === "app") {
           return;
         }
+      }
+      // Optimistic <html lang> swap so the browser/AT pick up the change
+      // immediately while the server re-renders the tree.
+      if (typeof document !== "undefined") {
+        document.documentElement.lang = intlLocale(target);
       }
       if (variant === "marketing" && currentPath) {
         const next = pathname.replace(/^\/[^/]+/, `/${target}`) || `/${target}`;

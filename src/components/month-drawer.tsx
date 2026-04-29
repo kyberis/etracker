@@ -1,7 +1,7 @@
 "use client";
 
 import { format, parse } from "date-fns";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
 import {
   createContext,
@@ -18,6 +18,7 @@ import { formatCurrency } from "@/lib/format";
 import { dateLocale } from "@/lib/i18n/format";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import type { Locale } from "@/lib/i18n/locale";
+import { getCurrentMonthKey, isCurrentMonthKey } from "@/lib/months";
 import { cn } from "@/lib/utils";
 
 type MonthDrawerContextValue = {
@@ -141,6 +142,17 @@ function MonthDrawerSheet() {
               onClick={() => balance.setMonth(shiftMonth(monthKey, -1))}
             >
               <ChevronLeft />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              className="bg-card rounded-full border-transparent shadow-sm hover:bg-card"
+              aria-label={tx({ es: "Ir al mes actual", en: "Go to current month" })}
+              onClick={() => balance.setMonth(getCurrentMonthKey())}
+              disabled={isCurrentMonthKey(monthKey)}
+            >
+              <CalendarCheck />
             </Button>
             <Button
               type="button"

@@ -3,6 +3,7 @@
 import { format, parse } from "date-fns";
 import {
   CalendarDays,
+  ChevronDown,
   Landmark,
   ListChecks,
   LogOut,
@@ -20,7 +21,7 @@ import { signOut } from "next-auth/react";
 import { useBalance } from "@/components/balance-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useMonthDrawer } from "@/components/month-drawer";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatCurrency } from "@/lib/format";
 import { useLocale, useT } from "@/lib/i18n/client";
 import { dateLocale } from "@/lib/i18n/format";
@@ -52,24 +59,56 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const NAV_LINKS = [
-    { href: "/banks", label: t.header.nav.banks, icon: Landmark },
-    { href: "/expenses", label: t.header.nav.expenses, icon: ListChecks },
-    { href: "/settings", label: t.header.nav.settings, icon: Settings },
-    { href: `/${locale}/about`, label: t.header.nav.about, icon: Sparkles },
+    {
+      href: "/app",
+      label: t.header.nav.assistant,
+      icon: Sparkles,
+      // The assistant home also "owns" /chat and the dedicated month pages —
+      // they're all surfaces of the same monthly experience.
+      match: (p: string) =>
+        p === "/app" || p === "/chat" || p.startsWith("/m/") || p.startsWith("/app/"),
+    },
+    {
+      href: "/banks",
+      label: t.header.nav.banks,
+      icon: Landmark,
+      match: (p: string) => p === "/banks" || p.startsWith("/banks/"),
+    },
+    {
+      href: "/expenses",
+      label: t.header.nav.expenses,
+      icon: ListChecks,
+      match: (p: string) => p === "/expenses" || p.startsWith("/expenses/"),
+    },
+    {
+      href: "/settings",
+      label: t.header.nav.settings,
+      icon: Settings,
+      match: (p: string) => p === "/settings" || p.startsWith("/settings/"),
+    },
   ];
-  const ADMIN_LINK = { href: "/admin", label: t.header.nav.admin, icon: Shield };
-  const navLinks = isAdmin ? [...NAV_LINKS, ADMIN_LINK] : NAV_LINKS;
+  if (isAdmin) {
+    NAV_LINKS.push({
+      href: "/admin",
+      label: t.header.nav.admin,
+      icon: Shield,
+      match: (p: string) => p === "/admin" || p.startsWith("/admin/"),
+    });
+  }
 
   const monthLabel = shortMonthLabel(balance.month, locale);
   const balancePositive = balance.balance >= 0;
-  const isHome = pathname === "/app" || pathname === "/chat";
+  const balanceText =
+    balance.loading && !balance.hasRecord
+      ? t.header.placeholderDash
+      : formatCurrency(balance.balance, balance.primaryCurrency, locale);
 
   return (
     <header
       className="bg-background/80 supports-backdrop-filter:bg-background/55 sticky top-0 z-30 backdrop-blur-xl"
       data-testid="app-header"
     >
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-3 py-3 sm:gap-3 sm:px-5">
+      <div className="mx-auto flex w-full max-w-7xl items-center gap-2 px-3 py-3 sm:gap-3 sm:px-5">
         <Link
           href="/app"
           aria-label={t.brand.homeLabel}
@@ -82,7 +121,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
             height={40}
             className="avatar-clara size-10 shrink-0 rounded-full object-cover"
           />
-          <span className="hidden flex-col leading-none sm:flex">
+          <span className="hidden flex-col leading-none sm:flex lg:flex">
             <span className="display text-base font-bold">{t.brand.name}</span>
             <span className="text-muted-foreground text-[11px] font-medium">
               {t.brand.tagline}
@@ -90,12 +129,14 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
           </span>
         </Link>
 
+        {/* Mobile-only balance pill (visible <md). On desktop the inline nav
+            takes this slot and the compact balance chip moves to the right. */}
         <button
           type="button"
           onClick={() => drawer.setOpen(true)}
           aria-label={t.header.balancePillLabel}
           data-testid="balance-pill"
-          className="ink-card group ml-1 flex flex-1 items-center gap-3 rounded-full px-4 py-2 text-left transition-transform hover:scale-[1.01]"
+          className="ink-card group ml-1 flex flex-1 items-center gap-3 rounded-full px-4 py-2 text-left transition-transform hover:scale-[1.01] md:hidden"
         >
           <span className="flex flex-col leading-tight">
             <span className="text-lime text-[10px] font-bold uppercase tracking-[0.2em]">
@@ -103,20 +144,68 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
             </span>
             <span
               className={cn(
-                "num text-base sm:text-xl",
+                "num text-base",
                 balancePositive ? "text-lime" : "text-hotpink",
               )}
             >
               {balance.loading && !balance.hasRecord ? (
                 <span className="text-white/50">{t.header.placeholderDash}</span>
               ) : (
-                formatCurrency(balance.balance, balance.primaryCurrency, locale)
+                balanceText
               )}
             </span>
           </span>
-          <span className="ml-auto hidden items-center gap-3 sm:flex">
-            <span className="h-7 w-px bg-white/15" />
-            <span className="flex flex-col text-[11px] leading-tight text-white/70">
+        </button>
+
+        {/* Desktop inline nav */}
+        <nav
+          className="ml-2 hidden flex-1 items-center gap-1 md:flex"
+          aria-label={t.header.menuTitle}
+        >
+          {NAV_LINKS.map((link) => {
+            const Icon = link.icon;
+            const active = link.match(pathname);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "text-muted-foreground hover:text-foreground inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-semibold transition-colors",
+                  active
+                    ? "bg-card text-foreground shadow-sm"
+                    : "hover:bg-card/60",
+                )}
+              >
+                <Icon className="size-4" />
+                <span>{link.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Desktop compact balance chip (md+) */}
+          <button
+            type="button"
+            onClick={() => drawer.setOpen(true)}
+            aria-label={t.header.balancePillLabel}
+            data-testid="balance-pill-compact"
+            className="ink-card group hidden h-10 items-center gap-2.5 rounded-full px-3 text-left transition-transform hover:scale-[1.01] md:inline-flex"
+          >
+            <span className="text-lime text-[10px] font-bold uppercase tracking-[0.2em]">
+              {monthLabel}
+            </span>
+            <span className="bg-white/15 h-5 w-px" aria-hidden />
+            <span
+              className={cn(
+                "num text-sm",
+                balancePositive ? "text-lime" : "text-hotpink",
+              )}
+            >
+              {balanceText}
+            </span>
+            <span className="hidden text-[11px] leading-tight text-white/70 lg:flex lg:flex-col lg:items-end">
               <span>
                 {t.header.pendingShort}{" "}
                 <span className="num text-peach">
@@ -130,34 +219,52 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                 </span>
               </span>
             </span>
-          </span>
-        </button>
+          </button>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Mobile: kept-from-before "Mes" quick button */}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="hidden h-10 rounded-full border-transparent bg-card px-4 shadow-sm hover:bg-card sm:inline-flex"
+            className="hidden h-10 rounded-full border-transparent bg-card px-4 shadow-sm hover:bg-card sm:inline-flex md:hidden"
             onClick={() => drawer.setOpen(true)}
             aria-label={t.header.monthPanelLabel}
           >
             <CalendarDays className="size-4 text-lilac" />
             <span className="ml-1.5 text-xs font-bold">{t.header.monthButton}</span>
           </Button>
-          {!isHome ? (
-            <Link
-              href="/app"
-              aria-label={t.header.nav.assistant}
-              className={cn(
-                buttonVariants({ variant: "outline", size: "icon-lg" }),
-                "rounded-full border-transparent bg-card shadow-sm hover:bg-card",
-              )}
-            >
-              <Sparkles className="size-4 text-lime-deep" />
-            </Link>
-          ) : null}
 
+          {/* Desktop language switcher */}
+          <div className="hidden md:block">
+            <LanguageSwitcher variant="app" />
+          </div>
+
+          {/* Desktop profile dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-lg"
+                  className="hidden rounded-full border-transparent bg-card shadow-sm hover:bg-card md:inline-flex"
+                  aria-label={t.header.openMenu}
+                />
+              }
+            >
+              <ChevronDown className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" sideOffset={6} className="min-w-44 rounded-xl">
+              <DropdownMenuItem
+                onClick={() => void signOut({ callbackUrl: "/login" })}
+                variant="destructive"
+              >
+                <LogOut className="size-4" /> {t.header.signOut}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Mobile menu (hamburger dialog) */}
           <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
             <DialogTrigger
               render={
@@ -165,7 +272,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                   type="button"
                   variant="outline"
                   size="icon-lg"
-                  className="rounded-full border-transparent bg-card shadow-sm hover:bg-card"
+                  className="rounded-full border-transparent bg-card shadow-sm hover:bg-card md:hidden"
                   aria-label={t.header.openMenu}
                 />
               }
@@ -186,14 +293,13 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                     setMenuOpen(false);
                     drawer.setOpen(true);
                   }}
-                  className="text-foreground hover:bg-muted flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm sm:hidden"
+                  className="text-foreground hover:bg-muted flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm"
                 >
                   <CalendarDays className="size-4 text-lilac" /> {t.header.monthPanelMobile}
                 </button>
-                {navLinks.map((link) => {
+                {NAV_LINKS.map((link) => {
                   const Icon = link.icon;
-                  const active =
-                    pathname === link.href || pathname.startsWith(`${link.href}/`);
+                  const active = link.match(pathname);
                   return (
                     <Link
                       key={link.href}
@@ -208,6 +314,16 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                     </Link>
                   );
                 })}
+                <Link
+                  href={`/${locale}/about`}
+                  onClick={() => setMenuOpen(false)}
+                  className={cn(
+                    "text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                    pathname.startsWith(`/${locale}/about`) && "bg-muted text-foreground",
+                  )}
+                >
+                  <Sparkles className="size-4" /> {t.header.nav.about}
+                </Link>
                 <div className="mt-1 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5">
                   <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
                     {t.header.languageLabel}

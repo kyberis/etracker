@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { FormEvent, useState, useTransition } from "react";
+import { CheckCircle2, Info, XCircle } from "lucide-react";
+import { FormEvent, useState } from "react";
 
 import { ApiTokensCard } from "@/components/api-tokens-card";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
@@ -12,9 +12,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CurrencyPicker } from "@/components/ui/currency-picker";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useT } from "@/lib/i18n/client";
+import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import { intlLocale } from "@/lib/i18n/format";
-import { useLocale } from "@/lib/i18n/client";
+import { isLocale, LOCALE_LABELS } from "@/lib/i18n/locale";
+import { cn } from "@/lib/utils";
 
 type UserSettings = {
   email: string;
@@ -65,6 +66,51 @@ type SettingsManagerProps = {
   googleAuthConfigured: boolean;
 };
 
+/** Inline feedback for forms — consistent success/error/info styling. */
+function FormStatus({
+  tone,
+  children,
+}: {
+  tone: "success" | "error" | "info";
+  children: React.ReactNode;
+}) {
+  const Icon = tone === "success" ? CheckCircle2 : tone === "error" ? XCircle : Info;
+  const cls =
+    tone === "success"
+      ? "text-emerald-700 dark:text-emerald-400"
+      : tone === "error"
+        ? "text-destructive"
+        : "text-muted-foreground";
+  return (
+    <p className={cn("flex items-center gap-1.5 text-sm", cls)} role="status">
+      <Icon className="size-4 shrink-0" aria-hidden />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/**
+ * Section heading for settings groups. Visually splits the page into
+ * "Perfil & acceso", "Preferencias" and "Integraciones" so the long stack of
+ * cards is easier to scan on desktop.
+ */
+function SectionHeader({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2>
+      {description ? (
+        <p className="text-muted-foreground text-sm">{description}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function SettingsManager({
   initialUser,
   initialWhatsapp,
@@ -74,6 +120,7 @@ export function SettingsManager({
   googleAuthConfigured,
 }: SettingsManagerProps) {
   const t = useT();
+  const tx = useTx();
   const locale = useLocale();
   const [settings, setSettings] = useState<UserSettings | null>(initialUser);
   const [importInstructions, setImportInstructions] = useState(
@@ -195,176 +242,231 @@ export function SettingsManager({
     ? new Date(settings.primaryCurrencyConfirmedAt).toLocaleDateString(intlLocale(locale))
     : null;
 
+  const showAccessCard = googleAuthConfigured;
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.settings.profileTitle}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <p className="text-muted-foreground text-sm">{t.settings.emailLabel}</p>
-              <p className="font-medium">{settings?.email ?? "..."}</p>
-            </div>
+    <div className="space-y-10">
+      {/* SECTION 1 — Perfil & acceso */}
+      <section className="space-y-4">
+        <SectionHeader
+          title={tx({ es: "Perfil y acceso", en: "Profile & access" })}
+          description={tx({
+            es: "Tus datos de cuenta y formas de iniciar sesión.",
+            en: "Your account data and sign-in methods.",
+          })}
+        />
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4",
+            showAccessCard && "lg:grid-cols-2 lg:gap-6",
+          )}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>{t.settings.profileTitle}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={onSubmit}>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                    {t.settings.emailLabel}
+                  </p>
+                  <p className="font-medium">{settings?.email ?? "..."}</p>
+                </div>
 
-            {hasPassword ? (
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="currentPassword">
-                  {t.settings.currentPassword}{" "}
-                  {newPassword
-                    ? t.settings.currentPasswordHintRequired
-                    : t.settings.currentPasswordHintOptional}
-                </label>
-                <Input
-                  id="currentPassword"
-                  type="password"
-                  autoComplete="current-password"
-                  value={currentPassword}
-                  onChange={(event) => setCurrentPassword(event.target.value)}
-                />
-              </div>
-            ) : null}
+                {hasPassword ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="currentPassword">
+                      {t.settings.currentPassword}{" "}
+                      <span className="text-muted-foreground text-xs font-normal">
+                        {newPassword
+                          ? t.settings.currentPasswordHintRequired
+                          : t.settings.currentPasswordHintOptional}
+                      </span>
+                    </label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      autoComplete="current-password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                    />
+                  </div>
+                ) : null}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="newPassword">
-                {hasPassword ? t.settings.newPassword : t.settings.setPassword}
-              </label>
-              <Input
-                id="newPassword"
-                type="password"
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                minLength={8}
-              />
-              {!hasPassword ? (
-                <p className="text-muted-foreground text-xs">{t.settings.googleHint}</p>
-              ) : null}
-            </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor="newPassword">
+                    {hasPassword ? t.settings.newPassword : t.settings.setPassword}
+                  </label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    minLength={8}
+                  />
+                  {!hasPassword ? (
+                    <p className="text-muted-foreground text-xs">
+                      {t.settings.googleHint}
+                    </p>
+                  ) : null}
+                </div>
 
-            {error ? <p className="text-sm text-red-600">{error}</p> : null}
-            {message ? <p className="text-sm text-green-600">{message}</p> : null}
+                {error ? <FormStatus tone="error">{error}</FormStatus> : null}
+                {message ? <FormStatus tone="success">{message}</FormStatus> : null}
 
-            <Button type="submit">{t.settings.save}</Button>
-          </form>
-        </CardContent>
-      </Card>
+                <Button type="submit">{t.settings.save}</Button>
+              </form>
+            </CardContent>
+          </Card>
 
-      <LanguageCard />
+          {showAccessCard ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.settings.accessTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-muted-foreground text-sm">
+                  {t.settings.accessDescription}
+                </p>
+                {googleLinked ? (
+                  <FormStatus tone="success">{t.settings.googleLinked}</FormStatus>
+                ) : (
+                  <GoogleSignInButton
+                    callbackUrl="/settings"
+                    label={t.settings.connectGoogle}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      </section>
 
-      {googleAuthConfigured ? (
+      {/* SECTION 2 — Preferencias */}
+      <section className="space-y-4">
+        <SectionHeader
+          title={tx({ es: "Preferencias", en: "Preferences" })}
+          description={tx({
+            es: "Idioma, moneda principal e instrucciones para el asistente.",
+            en: "Language, primary currency and assistant instructions.",
+          })}
+        />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+          <LanguageCard />
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t.settings.currencyTitle}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-3" onSubmit={onSaveCurrency}>
+                <p className="text-muted-foreground text-sm">
+                  {t.settings.currencyDescription}
+                </p>
+                <div className="flex items-end gap-2">
+                  <div className="space-y-1">
+                    <label
+                      className="text-muted-foreground text-xs"
+                      htmlFor="primary-currency"
+                    >
+                      {t.settings.currencyIsoLabel}
+                    </label>
+                    <CurrencyPicker
+                      id="primary-currency"
+                      value={currencyDraft}
+                      onChange={setCurrencyDraft}
+                      className="w-24"
+                    />
+                  </div>
+                  <Button type="submit" disabled={currencySaving}>
+                    {currencySaving ? t.common.saving : t.settings.currencySave}
+                  </Button>
+                </div>
+                {formattedCurrencyConfirmedAt ? (
+                  <p className="text-muted-foreground text-xs">
+                    {t.settings.currencyConfirmed(formattedCurrencyConfirmedAt)}
+                  </p>
+                ) : (
+                  <p className="text-warn text-xs">
+                    {t.settings.currencyNotConfirmed}
+                  </p>
+                )}
+                {currencyError ? (
+                  <FormStatus tone="error">{currencyError}</FormStatus>
+                ) : null}
+                {currencyMessage ? (
+                  <FormStatus tone="success">{currencyMessage}</FormStatus>
+                ) : null}
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+
         <Card>
           <CardHeader>
-            <CardTitle>{t.settings.accessTitle}</CardTitle>
+            <CardTitle>{t.settings.instructionsTitle}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-muted-foreground text-sm">{t.settings.accessDescription}</p>
-            {googleLinked ? (
-              <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                {t.settings.googleLinked}
+          <CardContent>
+            <form className="space-y-4" onSubmit={onSaveInstructions}>
+              <p className="text-muted-foreground text-sm">
+                {t.settings.instructionsDescription}
               </p>
-            ) : (
-              <GoogleSignInButton callbackUrl="/settings" label={t.settings.connectGoogle} />
-            )}
+              <Textarea
+                id="expenseImportInstructions"
+                value={importInstructions}
+                onChange={(e) => setImportInstructions(e.target.value)}
+                placeholder={t.settings.instructionsPlaceholder}
+                rows={8}
+                maxLength={12000}
+                className="min-h-[140px] resize-y font-mono text-sm"
+              />
+              <p className="text-muted-foreground text-xs">
+                {t.settings.instructionsHint}{" "}
+                <code className="text-foreground">OPENAI_API_KEY</code>{" "}
+                {t.settings.instructionsHintEnvSuffix}
+              </p>
+              {instructionsError ? (
+                <FormStatus tone="error">{instructionsError}</FormStatus>
+              ) : null}
+              {instructionsMessage ? (
+                <FormStatus tone="success">{instructionsMessage}</FormStatus>
+              ) : null}
+              <Button type="submit" disabled={instructionsSaving}>
+                {instructionsSaving ? t.common.saving : t.settings.instructionsSaveBtn}
+              </Button>
+            </form>
           </CardContent>
         </Card>
-      ) : null}
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.settings.currencyTitle}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-3" onSubmit={onSaveCurrency}>
-            <p className="text-muted-foreground text-sm">{t.settings.currencyDescription}</p>
-            <div className="flex items-end gap-2">
-              <div className="space-y-1">
-                <label
-                  className="text-muted-foreground text-xs"
-                  htmlFor="primary-currency"
-                >
-                  {t.settings.currencyIsoLabel}
-                </label>
-                <CurrencyPicker
-                  id="primary-currency"
-                  value={currencyDraft}
-                  onChange={setCurrencyDraft}
-                  className="w-24"
-                />
-              </div>
-              <Button type="submit" disabled={currencySaving}>
-                {currencySaving ? t.common.saving : t.settings.currencySave}
-              </Button>
-            </div>
-            {formattedCurrencyConfirmedAt ? (
-              <p className="text-muted-foreground text-xs">
-                {t.settings.currencyConfirmed(formattedCurrencyConfirmedAt)}
-              </p>
-            ) : (
-              <p className="text-warn text-xs">{t.settings.currencyNotConfirmed}</p>
-            )}
-            {currencyError ? (
-              <p className="text-destructive text-sm">{currencyError}</p>
-            ) : null}
-            {currencyMessage ? (
-              <p className="text-green-600 text-sm dark:text-green-400">
-                {currencyMessage}
-              </p>
-            ) : null}
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.settings.instructionsTitle}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSaveInstructions}>
-            <p className="text-muted-foreground text-sm">{t.settings.instructionsDescription}</p>
-            <Textarea
-              id="expenseImportInstructions"
-              value={importInstructions}
-              onChange={(e) => setImportInstructions(e.target.value)}
-              placeholder={t.settings.instructionsPlaceholder}
-              rows={8}
-              maxLength={12000}
-              className="min-h-[140px] resize-y font-mono text-sm"
-            />
-            <p className="text-muted-foreground text-xs">
-              {t.settings.instructionsHint}{" "}
-              <code className="text-foreground">OPENAI_API_KEY</code>{" "}
-              {t.settings.instructionsHintEnvSuffix}
-            </p>
-            {instructionsError ? (
-              <p className="text-destructive text-sm">{instructionsError}</p>
-            ) : null}
-            {instructionsMessage ? (
-              <p className="text-green-600 text-sm dark:text-green-400">
-                {instructionsMessage}
-              </p>
-            ) : null}
-            <Button type="submit" disabled={instructionsSaving}>
-              {instructionsSaving ? t.common.saving : t.settings.instructionsSaveBtn}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <WhatsappLinkCard initial={initialWhatsapp} />
-
-      <RevolutConnectionCard initialBanks={initialBanks} initialStatus={initialRevolut} />
-
-      <ApiTokensCard initialTokens={initialApiTokens} />
+      {/* SECTION 3 — Integraciones */}
+      <section className="space-y-4">
+        <SectionHeader
+          title={tx({ es: "Integraciones", en: "Integrations" })}
+          description={tx({
+            es: "Vinculá WhatsApp, tu banco y conectá clientes MCP.",
+            en: "Link WhatsApp, your bank and connect MCP clients.",
+          })}
+        />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+          <WhatsappLinkCard initial={initialWhatsapp} />
+          <RevolutConnectionCard
+            initialBanks={initialBanks}
+            initialStatus={initialRevolut}
+          />
+        </div>
+        <ApiTokensCard initialTokens={initialApiTokens} />
+      </section>
     </div>
   );
 }
 
 function LanguageCard() {
   const t = useT();
-  const router = useRouter();
-  const [, startTransition] = useTransition();
+  const locale = useLocale();
+  const activeLabel = isLocale(locale) ? LOCALE_LABELS[locale] : LOCALE_LABELS.es;
   return (
     <Card>
       <CardHeader>
@@ -372,21 +474,9 @@ function LanguageCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-muted-foreground text-sm">{t.settings.languageDescription}</p>
-        <div className="flex items-center gap-3">
-          <LanguageSwitcher
-            variant="app"
-            // After the switcher persists the locale, force a refresh so all
-            // server-rendered chrome (header, dictionary copy, html lang)
-            // re-renders.
-            className=""
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => startTransition(() => router.refresh())}
-          >
-            {t.common.update}
-          </Button>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium">{activeLabel}</p>
+          <LanguageSwitcher variant="app" />
         </div>
       </CardContent>
     </Card>
@@ -485,15 +575,17 @@ function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
 
         {status.pendingCode ? (
           <div className="bg-muted/50 rounded-md border p-3 text-sm">
-            <p className="font-medium">{t.settings.whatsappPendingTitle(status.pendingCode)}</p>
+            <p className="font-medium">
+              {t.settings.whatsappPendingTitle(status.pendingCode)}
+            </p>
             <p className="text-muted-foreground mt-1">
               {t.settings.whatsappPendingHelp(status.pendingCode)}
             </p>
           </div>
         ) : null}
 
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        {feedback ? <p className="text-sm text-green-600">{feedback}</p> : null}
+        {error ? <FormStatus tone="error">{error}</FormStatus> : null}
+        {feedback ? <FormStatus tone="success">{feedback}</FormStatus> : null}
       </CardContent>
     </Card>
   );

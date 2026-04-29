@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { AdminUsersTable, type AdminUser } from "@/components/admin-users-table";
+import { PageContainer } from "@/components/page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getTodayUtcDate } from "@/lib/agent-quota";
 import { getAuthSession } from "@/lib/auth";
@@ -50,9 +51,9 @@ export default async function AdminPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{t.admin.pageTitle}</h1>
+    <PageContainer className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="font-display text-2xl font-semibold">{t.admin.pageTitle}</h1>
         <p className="text-muted-foreground text-sm">{t.admin.pageDescription}</p>
       </div>
 
@@ -64,6 +65,6 @@ export default async function AdminPage() {
           <AdminUsersTable initialUsers={initialUsers} currentAdminId={session.user.id} />
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

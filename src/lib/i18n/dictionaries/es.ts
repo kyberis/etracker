@@ -309,6 +309,8 @@ export const es = {
 
   settings: {
     pageTitle: "Configuración",
+    pageDescription:
+      "Manejá tu cuenta, preferencias e integraciones de Clara en un solo lugar.",
     profileTitle: "Perfil",
     emailLabel: "Correo electrónico",
     currentPassword: "Contraseña actual",

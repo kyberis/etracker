@@ -116,8 +116,11 @@ export default async function SettingsPage() {
   const t = getDict(locale);
 
   return (
-    <PageContainer className="space-y-4">
-      <h1 className="font-display text-2xl font-semibold">{t.settings.pageTitle}</h1>
+    <PageContainer className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="font-display text-2xl font-semibold">{t.settings.pageTitle}</h1>
+        <p className="text-muted-foreground text-sm">{t.settings.pageDescription}</p>
+      </div>
       <SettingsManager
         initialUser={data.initialUser}
         initialWhatsapp={data.initialWhatsapp}
