@@ -13,6 +13,12 @@ export type MonthLinePayload = {
   bankName: string;
   paid: boolean;
   category: string;
+  /**
+   * ISO timestamp del momento en que se creó la línea. Es el único orden
+   * cronológico real disponible para `MonthExpenseLine` (no hay fecha de
+   * transacción explícita), así que lo usamos para ordenar la lista del mes.
+   */
+  createdAt: string;
 };
 
 /** Expense template that applies to this month but has no line in the month bucket yet. */

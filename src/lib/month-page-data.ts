@@ -20,7 +20,13 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     db.monthRecord.findFirst({
       where: { userId, month: monthForQuery },
       include: {
-        lines: { include: { bank: true } },
+        // Más nuevo primero: la home cronológica del mes consume `expenses`
+        // ya ordenado, y los grupos por banco que se calculan después
+        // heredan ese orden dentro de cada banco.
+        lines: {
+          include: { bank: true },
+          orderBy: { createdAt: "desc" },
+        },
       },
     }),
     getBanksCached(userId),
@@ -75,6 +81,7 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     bankName: line.bank.name,
     paid: line.paid,
     category: line.category,
+    createdAt: line.createdAt.toISOString(),
   }));
 
   // All aggregations work off `amountConverted` so totals stay in the user's

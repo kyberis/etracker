@@ -7,7 +7,8 @@ import { FormEvent, useMemo, useState } from "react";
 
 import { useBalance } from "@/components/balance-provider";
 import { MonthAddLineDialog } from "@/components/month/month-add-line-dialog";
-import { MonthLinesByBank } from "@/components/month/month-lines-by-bank";
+import { MonthBankTotals } from "@/components/month/month-bank-totals";
+import { MonthLinesChronological } from "@/components/month/month-lines-chronological";
 import { MonthSummary } from "@/components/month/month-summary";
 import { RevolutImportDialog } from "@/components/month/revolut-import-dialog";
 import { Button } from "@/components/ui/button";
@@ -84,9 +85,6 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   const [mergingPending, setMergingPending] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
 
-  /** `true` = colapsada (líneas ocultas). Sin clave = expandida. */
-  const [bankCollapsed, setBankCollapsed] = useState<Record<string, boolean>>({});
-
   // Revolut import dialog
   const [revolutSyncing, setRevolutSyncing] = useState(false);
   const [revolutError, setRevolutError] = useState<string | null>(null);
@@ -121,18 +119,30 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     return grouped;
   }, [expenses]);
 
+  // `data.bankTotals` viene del server con `paid` calculado al render: para
+  // que las cards y la suma de pendientes reaccionen al toggle ópticamente,
+  // recalculamos `paid` (y por ende el progreso) desde el estado local.
+  const liveBankTotals = useMemo(
+    () =>
+      data.bankTotals.map((bank) => {
+        const lines = expensesByBank.get(bank.bankId) ?? [];
+        const paid = lines
+          .filter((l) => l.paid)
+          .reduce((s, l) => s + Number(l.amountConverted), 0);
+        return { ...bank, paid };
+      }),
+    [data.bankTotals, expensesByBank],
+  );
+
   const pendingByBank = useMemo(() => {
     const result: { bankId: string; bankName: string; pending: number }[] = [];
-    for (const bank of data.bankTotals) {
-      const lines = expensesByBank.get(bank.bankId) ?? [];
-      const pending = lines
-        .filter((l) => !l.paid)
-        .reduce((s, l) => s + Number(l.amountConverted), 0);
+    for (const bank of liveBankTotals) {
+      const pending = bank.planned - bank.paid;
       if (pending > 0)
         result.push({ bankId: bank.bankId, bankName: bank.bankName, pending });
     }
     return result;
-  }, [data.bankTotals, expensesByBank]);
+  }, [liveBankTotals]);
 
   async function toggleLinePaid(lineId: string, nextPaid: boolean) {
     setExpenses((current) =>
@@ -358,10 +368,6 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     }
     refreshBalance();
     router.refresh();
-  }
-
-  function toggleBankCollapsed(bankId: string) {
-    setBankCollapsed((c) => ({ ...c, [bankId]: c[bankId] !== true }));
   }
 
   const showPendingBanner =
@@ -614,13 +620,15 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </CardContent>
       </Card>
 
-      <MonthLinesByBank
-        bankTotals={data.bankTotals}
-        expensesByBank={expensesByBank}
-        bankCollapsed={bankCollapsed}
-        onToggleCollapsed={toggleBankCollapsed}
-        onTogglePaid={toggleLinePaid}
+      <MonthBankTotals
+        bankTotals={liveBankTotals}
         primaryCurrency={data.primaryCurrency}
+      />
+
+      <MonthLinesChronological
+        expenses={expenses}
+        primaryCurrency={data.primaryCurrency}
+        onTogglePaid={toggleLinePaid}
       />
     </div>
   );
