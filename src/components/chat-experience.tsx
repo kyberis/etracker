@@ -373,6 +373,10 @@ export function ChatExperience({
   const [loadingOlder, setLoadingOlder] = useState(false);
   const skipNextAutoScrollRef = useRef(false);
   const hydratedRef = useRef(false);
+  // Forces an instant (non-smooth) jump to bottom on initial hydration so the
+  // user lands at the last message even when markdown/avatars/images shift the
+  // layout across paints. Cleared after the first successful jump.
+  const initialJumpPendingRef = useRef(false);
 
   useEffect(() => {
     if (hydratedRef.current) return;
@@ -391,6 +395,7 @@ export function ChatExperience({
           oldestId: string | null;
         };
         if (data.messages.length > 0) {
+          initialJumpPendingRef.current = true;
           setMessages(data.messages);
         }
         setHasMore(Boolean(data.hasMore));
@@ -444,6 +449,10 @@ export function ChatExperience({
 
   // Auto-scroll to bottom on new outgoing/incoming messages and during
   // streaming. Skipped exactly once when older history is prepended.
+  // The first hydration jump uses `instant` and is repeated across two
+  // animation frames so markdown/avatars/images that settle late still
+  // end up with the last message visible — that's the expected landing
+  // point on desktop when reopening the chat.
   useEffect(() => {
     if (skipNextAutoScrollRef.current) {
       skipNextAutoScrollRef.current = false;
@@ -451,6 +460,20 @@ export function ChatExperience({
     }
     const el = scrollerRef.current;
     if (!el) return;
+    if (initialJumpPendingRef.current) {
+      initialJumpPendingRef.current = false;
+      const jump = () => {
+        const node = scrollerRef.current;
+        if (!node) return;
+        node.scrollTop = node.scrollHeight;
+      };
+      jump();
+      requestAnimationFrame(() => {
+        jump();
+        requestAnimationFrame(jump);
+      });
+      return;
+    }
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages, isStreaming]);
 

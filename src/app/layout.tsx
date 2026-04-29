@@ -144,7 +144,7 @@ export default async function RootLayout({
         />
         <script {...jsonLdScript([organizationJsonLd(), websiteJsonLd()])} />
       </head>
-      <body className="flex min-h-full flex-col overflow-x-hidden">
+      <body className="flex min-h-full flex-col overflow-x-clip">
         {children}
         <ServiceWorkerRegister />
         <PwaInstallPrompt />
