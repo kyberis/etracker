@@ -11,6 +11,10 @@
 
 import { formatAgentMarkdownForTelegramHtml } from "@/lib/messaging/format-outbound";
 import { log } from "@/lib/log";
+import {
+  chunkTelegramHtmlForSend,
+  stripTelegramBoldTags,
+} from "@/lib/telegram/chunk-html";
 
 const TELEGRAM_API_BASE = "https://api.telegram.org";
 
@@ -159,26 +163,6 @@ export async function downloadTelegramFile(
   return { buffer, mediaType };
 }
 
-/** Prefer splitting HTML on paragraphs so tags are not chopped mid-message. */
-const HTML_CHUNK_TARGET = 3500;
-
-function chunkHtmlForTelegram(html: string): string[] {
-  if (html.length <= MAX_MESSAGE_LENGTH) return [html];
-  const out: string[] = [];
-  let rest = html;
-  while (rest.length > HTML_CHUNK_TARGET) {
-    let cut = rest.lastIndexOf("\n\n", HTML_CHUNK_TARGET);
-    if (cut < HTML_CHUNK_TARGET / 2) {
-      cut = rest.lastIndexOf("\n", HTML_CHUNK_TARGET);
-    }
-    if (cut < HTML_CHUNK_TARGET / 2) cut = HTML_CHUNK_TARGET;
-    out.push(rest.slice(0, cut).trimEnd());
-    rest = rest.slice(cut).trimStart();
-  }
-  if (rest) out.push(rest);
-  return out;
-}
-
 function truncateTelegramCaption(html: string): string {
   if (html.length <= 1024) return html;
   return `${html.slice(0, 1018)}…`;
@@ -219,7 +203,7 @@ export async function sendTelegramHtmlMessage(
   opts?: Omit<SendTelegramMessageOptions, "parseMode">,
 ): Promise<void> {
   const html = formatAgentMarkdownForTelegramHtml(text || "(sin respuesta)");
-  const chunks = chunkHtmlForTelegram(html);
+  const chunks = chunkTelegramHtmlForSend(html);
   for (let i = 0; i < chunks.length; i++) {
     const isLast = i === chunks.length - 1;
     const body: Record<string, unknown> = {
@@ -230,14 +214,30 @@ export async function sendTelegramHtmlMessage(
     if (opts?.disableWebPagePreview) body.disable_web_page_preview = true;
     if (isLast && opts?.replyMarkup) body.reply_markup = opts.replyMarkup;
 
-    const result = await callTelegram<{ message_id: number }>(
+    let result = await callTelegram<{ message_id: number }>(
       "sendMessage",
       body,
     );
     if (!result.ok) {
-      throw new Error(
-        `Telegram sendMessage failed: ${result.description ?? "unknown"}`,
+      log.warn("telegram.html_send_retry_plain", {
+        description: result.description,
+        chunkIndex: i,
+      });
+      const plainBody: Record<string, unknown> = {
+        chat_id: chatId.toString(),
+        text: stripTelegramBoldTags(chunks[i]),
+      };
+      if (opts?.disableWebPagePreview) plainBody.disable_web_page_preview = true;
+      if (isLast && opts?.replyMarkup) plainBody.reply_markup = opts.replyMarkup;
+      result = await callTelegram<{ message_id: number }>(
+        "sendMessage",
+        plainBody,
       );
+      if (!result.ok) {
+        throw new Error(
+          `Telegram sendMessage failed: ${result.description ?? "unknown"}`,
+        );
+      }
     }
   }
 }
@@ -256,7 +256,14 @@ export async function sendTelegramChartsThenHtmlMessage(
     opts.chartImageUrls?.filter((u) => u.startsWith("https://")) ?? [];
   for (const url of urls.slice(0, 10)) {
     await sendChatAction(chatId, "upload_photo");
-    await sendTelegramPhotoFromUrl(chatId, url);
+    try {
+      await sendTelegramPhotoFromUrl(chatId, url);
+    } catch (error) {
+      log.warn("telegram.chart_photo_skipped", {
+        error: error instanceof Error ? error.message : String(error),
+        urlPreview: url.slice(0, 80),
+      });
+    }
   }
   await sendTelegramHtmlMessage(chatId, opts.text, {
     disableWebPagePreview: opts.disableWebPagePreview,

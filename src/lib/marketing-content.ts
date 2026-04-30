@@ -149,6 +149,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.3.2",
+      date: "2026-05-01",
+      title: "Telegram: mensajes largos y gráficos sin cortar el envío",
+      highlights: [
+        "Los mensajes HTML ya no se parten en medio de una negrita: Telegram dejaba de entregar la respuesta entera cuando rechazaba el parseo.",
+        "Si igual falla el HTML, reintentamos el mismo fragmento en texto plano (sin perder el resto del mensaje).",
+        "Si una URL de gráfico falla, seguimos con el texto en lugar de frenar toda la respuesta.",
+      ],
+    },
+    {
       version: "0.3.1",
       date: "2026-04-30",
       title: "Gráficos en WhatsApp y respuestas con formato en Telegram",
@@ -374,6 +384,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.3.2",
+      date: "2026-05-01",
+      title: "Telegram: long replies and charts no longer abort the send",
+      highlights: [
+        "HTML chunks no longer split mid-<b>…</b>, which made Telegram reject the whole outbound reply with a parse error.",
+        "If HTML still fails to parse, we retry that chunk as plain text so the rest of the reply can go through.",
+        "If a chart image URL fails, we log and continue with the text instead of failing the entire response.",
+      ],
+    },
     {
       version: "0.3.1",
       date: "2026-04-30",
