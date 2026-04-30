@@ -65,6 +65,10 @@ model User {
   telegramUsername         String?
   telegramChatId           BigInt?
   telegramVerifiedAt       DateTime?
+  /// One-time code for `t.me/<bot>?start=<code>` — Telegram allows max 64 chars
+  /// for `start`, so we cannot use long signed tokens in deep links.
+  telegramLinkCode         String?             @unique
+  telegramLinkCodeExpires  DateTime?
   /// Reglas del usuario para el asistente e importaciones (Revolut / fotos): qué no importar, categorías, etc.
   expenseImportInstructions String?
   /// Marca cuándo se mostró por primera vez el mensaje de bienvenida del asistente. Null = todavía no se saludó.

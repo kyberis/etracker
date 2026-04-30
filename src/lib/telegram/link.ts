@@ -1,21 +1,14 @@
 import crypto from "node:crypto";
 
 /**
- * Stateless, signed deep-link tokens used to vinculate a Telegram chat with a
- * Clara user.
+ * Telegram Bot API: the `start` query parameter for `t.me/<bot>?start=...`
+ * is at most **64 characters** and may only use `A–Z a–z 0–9 _ and -`.
+ * Longer payloads are truncated by clients, so stateless HMAC tokens cannot
+ * be used in deep links. We store a short random code on `User` instead.
  *
- * Flow:
- *   1. Web settings calls `signLinkToken(userId)` and opens
- *      `t.me/<bot>?start=<token>` in a new tab.
- *   2. The user taps "Start" in Telegram → the bot receives `/start <token>`.
- *   3. The webhook calls `verifyLinkToken(token)`; on success we know which
- *      `userId` this Telegram chat belongs to, with no DB round-trip.
- *
- * The token is a compact `base64url(payload).hex(hmacSha256)` pair with a
- * minimal payload: `{ uid, exp }`. We don't include nonces because the token
- * is one-shot from the user's perspective (we set `telegramVerifiedAt` on
- * use and any second request goes through the linked-user code path).
+ * @see https://core.telegram.org/bots/features#deep-linking
  */
+export const TELEGRAM_DEEP_LINK_START_MAX_LEN = 64;
 
 export const TELEGRAM_LINK_TTL_MINUTES = 15;
 
@@ -59,13 +52,9 @@ function sign(payload: string): string {
 }
 
 /**
- * Telegram's `start` parameter is restricted to `[A-Za-z0-9_-]{1,64}` — our
- * token can be longer than 64 chars (the HMAC alone is 64 hex), so we keep
- * the check defensive and document the limit. In practice the token lands
- * around 100-110 chars; Telegram clients accept it via the deep link, but
- * `setMyCommands` and `/start` text don't enforce the 64-char limit, only
- * the `t.me/<bot>?start=<token>` URL does at parse time. We rely on the
- * underscore separator and hex digest to stay within the ASCII whitelist.
+ * Signed token for **tests and rare manual `/start` pastes** — not for
+ * `t.me/...?start=` (see `TELEGRAM_DEEP_LINK_START_MAX_LEN`). Production
+ * deep links use `User.telegramLinkCode` via `generateTelegramLinkCode()`.
  */
 export function signLinkToken(
   userId: string,
@@ -78,6 +67,18 @@ export function signLinkToken(
   const encoded = base64UrlEncode(JSON.stringify(payload));
   const signature = sign(encoded);
   return `${encoded}_${signature}`;
+}
+
+/**
+ * Random `start` payload for `t.me/...?start=`. Must stay within Telegram's
+ * length limit; 16 base64url chars from 12 bytes of entropy.
+ */
+export function generateTelegramLinkCode(): string {
+  return crypto
+    .randomBytes(12)
+    .toString("base64url")
+    .replace(/=/g, "")
+    .slice(0, 16);
 }
 
 export type VerifyResult =
@@ -133,6 +134,11 @@ export function verifyLinkToken(token: string): VerifyResult {
  * pipes the token to the bot for us.
  */
 export function buildTelegramDeepLink(token: string): string {
+  if (token.length > TELEGRAM_DEEP_LINK_START_MAX_LEN) {
+    throw new Error(
+      `Telegram ?start= payload exceeds ${TELEGRAM_DEEP_LINK_START_MAX_LEN} characters`,
+    );
+  }
   const username = process.env.TELEGRAM_BOT_USERNAME?.trim();
   if (!username) {
     throw new Error("Missing TELEGRAM_BOT_USERNAME");

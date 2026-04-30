@@ -30,6 +30,8 @@ async function loadSettingsData() {
         telegramUserId: true,
         telegramUsername: true,
         telegramVerifiedAt: true,
+        telegramLinkCode: true,
+        telegramLinkCodeExpires: true,
         stripeCustomerId: true,
         subscriptionStatus: true,
         subscriptionCurrentPeriodEnd: true,
@@ -73,10 +75,15 @@ async function loadSettingsData() {
     throw new Error("User not found.");
   }
 
-  const pending =
+  const waPending =
     user.whatsappLinkCode &&
     user.whatsappLinkCodeExpires &&
     user.whatsappLinkCodeExpires > now;
+
+  const tgPending =
+    user.telegramLinkCode &&
+    user.telegramLinkCodeExpires &&
+    user.telegramLinkCodeExpires > now;
 
   const linked = Boolean(revolutConnection?.accountId);
 
@@ -95,8 +102,8 @@ async function loadSettingsData() {
       verifiedAt: user.whatsappVerifiedAt
         ? user.whatsappVerifiedAt.toISOString()
         : null,
-      pendingCode: pending ? user.whatsappLinkCode : null,
-      pendingExpiresAt: pending
+      pendingCode: waPending ? user.whatsappLinkCode : null,
+      pendingExpiresAt: waPending
         ? user.whatsappLinkCodeExpires!.toISOString()
         : null,
     },
@@ -110,6 +117,10 @@ async function loadSettingsData() {
           : null,
       verifiedAt: user.telegramVerifiedAt
         ? user.telegramVerifiedAt.toISOString()
+        : null,
+      pendingCode: tgPending ? user.telegramLinkCode : null,
+      pendingExpiresAt: tgPending
+        ? user.telegramLinkCodeExpires!.toISOString()
         : null,
     },
     initialBanks: banks.map((b) => ({ id: b.id, name: b.name })),

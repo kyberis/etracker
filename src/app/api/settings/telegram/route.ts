@@ -4,7 +4,7 @@ import { requireUserId } from "@/lib/session";
 import {
   TELEGRAM_LINK_TTL_MINUTES,
   buildTelegramDeepLink,
-  signLinkToken,
+  generateTelegramLinkCode,
 } from "@/lib/telegram/link";
 
 /**
@@ -21,9 +21,16 @@ export async function GET() {
         telegramUserId: true,
         telegramUsername: true,
         telegramVerifiedAt: true,
+        telegramLinkCode: true,
+        telegramLinkCodeExpires: true,
       },
     });
     if (!user) return jsonError("User not found.", 404);
+
+    const pending =
+      user.telegramLinkCode &&
+      user.telegramLinkCodeExpires &&
+      user.telegramLinkCodeExpires.getTime() > Date.now();
 
     return {
       linked: Boolean(user.telegramVerifiedAt),
@@ -35,29 +42,51 @@ export async function GET() {
           ? user.telegramUserId.toString()
           : null,
       verifiedAt: user.telegramVerifiedAt,
+      pendingCode: pending ? user.telegramLinkCode : null,
+      pendingExpiresAt: pending ? user.telegramLinkCodeExpires!.toISOString() : null,
     };
   });
 }
 
 /**
- * POST → mints a fresh signed deep-link token and returns the `t.me/<bot>`
- * URL the browser should open in a new tab. The token is stateless, so we
- * don't persist anything on the user row at this point: the webhook
- * verifies the HMAC and writes the link only once Telegram echoes back.
+ * POST → mints a short random code (Telegram `?start=` max 64 chars), stores it
+ * on the user row, and returns the `t.me/<bot>` URL to open in a new tab.
  */
 export async function POST() {
   return withApi(async () => {
     const userId = await requireUserId();
-    const token = signLinkToken(userId);
-    const url = buildTelegramDeepLink(token);
-    return {
-      url,
-      token,
-      ttlMinutes: TELEGRAM_LINK_TTL_MINUTES,
-      expiresAt: new Date(
-        Date.now() + TELEGRAM_LINK_TTL_MINUTES * 60 * 1000,
-      ).toISOString(),
-    };
+    const expiresAt = new Date(
+      Date.now() + TELEGRAM_LINK_TTL_MINUTES * 60 * 1000,
+    );
+
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const code = generateTelegramLinkCode();
+      const owner = await db.user.findUnique({
+        where: { telegramLinkCode: code },
+        select: { id: true },
+      });
+      if (owner && owner.id !== userId) {
+        continue;
+      }
+
+      await db.user.update({
+        where: { id: userId },
+        data: {
+          telegramLinkCode: code,
+          telegramLinkCodeExpires: expiresAt,
+        },
+      });
+
+      const url = buildTelegramDeepLink(code);
+      return {
+        url,
+        code,
+        ttlMinutes: TELEGRAM_LINK_TTL_MINUTES,
+        expiresAt: expiresAt.toISOString(),
+      };
+    }
+
+    return jsonError("Could not mint a link code, try again.", 503);
   });
 }
 
@@ -76,6 +105,8 @@ export async function DELETE() {
         telegramUsername: null,
         telegramChatId: null,
         telegramVerifiedAt: null,
+        telegramLinkCode: null,
+        telegramLinkCodeExpires: null,
       },
     });
     return { ok: true };

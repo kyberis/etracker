@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  TELEGRAM_DEEP_LINK_START_MAX_LEN,
   TELEGRAM_LINK_TTL_MINUTES,
   buildTelegramDeepLink,
+  generateTelegramLinkCode,
   signLinkToken,
   verifyLinkToken,
 } from "./link";
@@ -85,6 +87,21 @@ describe("telegram/link", () => {
     });
   });
 
+  describe("generateTelegramLinkCode", () => {
+    it("fits Telegram deep-link start limit", () => {
+      const code = generateTelegramLinkCode();
+      expect(code.length).toBeGreaterThanOrEqual(12);
+      expect(code.length).toBeLessThanOrEqual(TELEGRAM_DEEP_LINK_START_MAX_LEN);
+      expect(/^[A-Za-z0-9_-]+$/.test(code)).toBe(true);
+    });
+
+    it("generates distinct values", () => {
+      const a = generateTelegramLinkCode();
+      const b = generateTelegramLinkCode();
+      expect(a).not.toBe(b);
+    });
+  });
+
   describe("buildTelegramDeepLink", () => {
     it("uses the configured bot username", () => {
       const url = buildTelegramDeepLink("token123");
@@ -102,6 +119,12 @@ describe("telegram/link", () => {
       expect(url).toBe(
         "https://t.me/ClaraTestBot?start=a_b%2Fc%2Bd",
       );
+    });
+
+    it("throws when start payload exceeds Telegram limit", () => {
+      expect(() =>
+        buildTelegramDeepLink("x".repeat(TELEGRAM_DEEP_LINK_START_MAX_LEN + 1)),
+      ).toThrow(/exceeds/);
     });
   });
 });

@@ -62,6 +62,9 @@ type TelegramStatus = {
   username: string | null;
   telegramUserId: string | null;
   verifiedAt: string | null;
+  /** Short link code is active until this instant (user opened t.me but has not finished Start). */
+  pendingCode: string | null;
+  pendingExpiresAt: string | null;
 };
 
 type SettingsManagerProps = {
@@ -603,10 +606,9 @@ function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
 
 /**
  * Telegram link card. Renders alongside the WhatsApp card in Integrations.
- * The user clicks "Conectar Telegram" → we mint a signed deep-link token and
- * open `t.me/<bot>?start=<token>` in a new tab. The Telegram client picks up
- * the token on tap and our webhook completes the link without the user
- * typing anything.
+ * The user clicks "Conectar Telegram" → we store a short `?start=` code and
+ * open `t.me/<bot>?start=<code>` in a new tab. Telegram's `start` limit is
+ * 64 characters, so we cannot use long signed tokens in the URL.
  */
 function TelegramLinkCard({ initial }: { initial: TelegramStatus }) {
   const tx = useTx();
@@ -615,12 +617,14 @@ function TelegramLinkCard({ initial }: { initial: TelegramStatus }) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function refresh() {
+  async function refresh(): Promise<TelegramStatus | null> {
     const res = await fetch("/api/settings/telegram");
     if (res.ok) {
       const data = (await res.json()) as TelegramStatus;
       setStatus(data);
+      return data;
     }
+    return null;
   }
 
   async function startLink() {
@@ -653,8 +657,8 @@ function TelegramLinkCard({ initial }: { initial: TelegramStatus }) {
       // Re-poll a few times so the UI updates once the webhook completes.
       for (let i = 0; i < 10; i++) {
         await new Promise((r) => setTimeout(r, 1500));
-        await refresh();
-        if (status.linked) break;
+        const next = await refresh();
+        if (next?.linked) break;
       }
     } finally {
       setBusy(false);

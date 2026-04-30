@@ -153,9 +153,10 @@ const ES: LocalisedMarketingContent = {
       date: "2026-04-30",
       title: "Clara también en Telegram",
       highlights: [
-        "Vinculá Telegram en un toque desde Configuración → Integraciones: te abrimos el bot con un link firmado y listo, sin códigos para tipear.",
+        "Vinculá Telegram desde Configuración → Integraciones: abrimos el bot con un enlace `t.me` y un código corto guardado en tu cuenta (Telegram solo acepta hasta 64 caracteres en `?start=`).",
         "Mismo cerebro que la web: la IA, las herramientas y el cupo diario son compartidos entre web, WhatsApp y Telegram. Mandá fotos del banco, notas de voz o texto, y Clara responde en castellano rioplatense o inglés según tu idioma.",
         "Los chats privados quedan listos hoy. Soporte de grupos (con menciones tipo `@clara`) llega pronto.",
+        "Si antes el bot no reaccionaba al tocar Iniciar, era por ese límite: ahora el flujo de vinculación usa un código que sí entra en el enlace profundo.",
       ],
     },
     {
@@ -360,9 +361,10 @@ const EN: LocalisedMarketingContent = {
       date: "2026-04-30",
       title: "Clara now on Telegram",
       highlights: [
-        "Link Telegram with one tap from Settings → Integrations: we open the bot with a signed deep link, no codes to type.",
+        "Link Telegram from Settings → Integrations: we open `t.me` with a short code stored on your row — Telegram caps the `?start=` deep-link payload at 64 characters.",
         "Same brain as the web: the AI, the tools and the daily quota are shared across web, WhatsApp and Telegram. Send bank screenshots, voice notes or text and Clara replies in your preferred language.",
         "Private chats land today. Group support (with `@clara` mentions) is on the way.",
+        "If tapping Start did nothing before, that limit was truncating the old signed token; linking now uses a short code that fits the URL.",
       ],
     },
     {

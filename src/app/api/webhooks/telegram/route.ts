@@ -303,6 +303,42 @@ async function handlePrivateMessage(message: TelegramMessageObject) {
   }
 }
 
+/** Persist Telegram identity + welcome message after a successful `/start` link. */
+async function completeTelegramLink(
+  userId: string,
+  message: TelegramMessageObject,
+  via: "short_code" | "signed_token",
+) {
+  const fromId = message.from?.id;
+  if (!fromId) {
+    log.error("telegram.start_no_from", { chatId: message.chat.id });
+    return;
+  }
+
+  await db.user.update({
+    where: { id: userId },
+    data: {
+      telegramUserId: BigInt(fromId),
+      telegramUsername: message.from?.username ?? null,
+      telegramChatId: BigInt(message.chat.id),
+      telegramVerifiedAt: new Date(),
+      telegramLinkCode: null,
+      telegramLinkCodeExpires: null,
+    },
+  });
+  log.info("telegram.link_ok", {
+    userId,
+    telegramUserId: fromId,
+    via,
+  });
+
+  const locale = await getUserLocale(userId);
+  const t = getTelegramStrings(locale);
+  await sendTelegramMessage(message.chat.id, t.welcomeLinked, {
+    replyMarkup: buildMenuKeyboard(locale),
+  });
+}
+
 async function handleStart(message: TelegramMessageObject, text: string) {
   const tokenPart = text.replace(/^\/start(?:@\w+)?\s*/i, "").trim();
 
@@ -324,10 +360,27 @@ async function handleStart(message: TelegramMessageObject, text: string) {
     return;
   }
 
-  const result = verifyLinkToken(tokenPart);
   const localeHint = await chatLocaleHint(message);
+
+  const linkedByCode = await db.user.findFirst({
+    where: {
+      telegramLinkCode: tokenPart,
+      telegramLinkCodeExpires: { gt: new Date() },
+    },
+    select: { id: true },
+  });
+
+  if (linkedByCode) {
+    await completeTelegramLink(linkedByCode.id, message, "short_code");
+    return;
+  }
+
+  const result = verifyLinkToken(tokenPart);
   if (!result.ok) {
-    log.info("telegram.link_invalid", { reason: result.reason });
+    log.info("telegram.link_invalid", {
+      reason: result.reason,
+      tokenLen: tokenPart.length,
+    });
     await sendTelegramMessage(
       message.chat.id,
       result.reason === "expired"
@@ -337,29 +390,7 @@ async function handleStart(message: TelegramMessageObject, text: string) {
     return;
   }
 
-  const userId = result.userId;
-  const fromId = message.from?.id;
-  if (!fromId) {
-    log.error("telegram.start_no_from", { chatId: message.chat.id });
-    return;
-  }
-
-  await db.user.update({
-    where: { id: userId },
-    data: {
-      telegramUserId: BigInt(fromId),
-      telegramUsername: message.from?.username ?? null,
-      telegramChatId: BigInt(message.chat.id),
-      telegramVerifiedAt: new Date(),
-    },
-  });
-  log.info("telegram.link_ok", { userId, telegramUserId: fromId });
-
-  const locale = await getUserLocale(userId);
-  const t = getTelegramStrings(locale);
-  await sendTelegramMessage(message.chat.id, t.welcomeLinked, {
-    replyMarkup: buildMenuKeyboard(locale),
-  });
+  await completeTelegramLink(result.userId, message, "signed_token");
 }
 
 async function handleMenu(message: TelegramMessageObject) {
