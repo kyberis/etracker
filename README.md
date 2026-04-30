@@ -224,6 +224,7 @@ vercel env pull .env.local   # trae VERCEL_OIDC_TOKEN; rotar cada ~12h
 | ------------------ | ------------------------------------------------------------------------ |
 | Google sign-in     | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                               |
 | WhatsApp / Twilio  | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`        |
+| Gráficos (WhatsApp) | `CLARA_OUTBOUND_CHART_IMAGES` (`0` para desactivar), `CLARA_QUICKCHART_BASE_URL` (QuickChart self-hosted, opcional) |
 | Voz WhatsApp       | `WHATSAPP_VOICE_REPLY=true`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`      |
 | Storage TTS        | `BLOB_READ_WRITE_TOKEN` (Vercel Blob)                                    |
 | Sincronización bancaria | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY`                     |

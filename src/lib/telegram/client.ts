@@ -9,6 +9,7 @@
  * `X-Telegram-Bot-Api-Secret-Token` header.
  */
 
+import { formatAgentMarkdownForTelegramHtml } from "@/lib/messaging/format-outbound";
 import { log } from "@/lib/log";
 
 const TELEGRAM_API_BASE = "https://api.telegram.org";
@@ -156,6 +157,111 @@ export async function downloadTelegramFile(
   const mediaType =
     res.headers.get("content-type") ?? "application/octet-stream";
   return { buffer, mediaType };
+}
+
+/** Prefer splitting HTML on paragraphs so tags are not chopped mid-message. */
+const HTML_CHUNK_TARGET = 3500;
+
+function chunkHtmlForTelegram(html: string): string[] {
+  if (html.length <= MAX_MESSAGE_LENGTH) return [html];
+  const out: string[] = [];
+  let rest = html;
+  while (rest.length > HTML_CHUNK_TARGET) {
+    let cut = rest.lastIndexOf("\n\n", HTML_CHUNK_TARGET);
+    if (cut < HTML_CHUNK_TARGET / 2) {
+      cut = rest.lastIndexOf("\n", HTML_CHUNK_TARGET);
+    }
+    if (cut < HTML_CHUNK_TARGET / 2) cut = HTML_CHUNK_TARGET;
+    out.push(rest.slice(0, cut).trimEnd());
+    rest = rest.slice(cut).trimStart();
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+
+function truncateTelegramCaption(html: string): string {
+  if (html.length <= 1024) return html;
+  return `${html.slice(0, 1018)}…`;
+}
+
+/**
+ * Send `sendPhoto` with an HTTPS URL (PNG/JPEG). Optional caption uses the same
+ * **bold** → `<b>` conversion as HTML messages.
+ */
+export async function sendTelegramPhotoFromUrl(
+  chatId: number | bigint,
+  photoUrl: string,
+  caption?: string,
+): Promise<void> {
+  if (!photoUrl.startsWith("https://")) return;
+  const cap = caption?.trim()
+    ? truncateTelegramCaption(formatAgentMarkdownForTelegramHtml(caption))
+    : undefined;
+  const body: Record<string, unknown> = {
+    chat_id: chatId.toString(),
+    photo: photoUrl,
+    ...(cap ? { caption: cap, parse_mode: "HTML" } : {}),
+  };
+  const result = await callTelegram<{ message_id: number }>("sendPhoto", body);
+  if (!result.ok) {
+    throw new Error(
+      `Telegram sendPhoto failed: ${result.description ?? "unknown"}`,
+    );
+  }
+}
+
+/**
+ * Send the assistant reply as HTML so **bold** from the model renders correctly.
+ */
+export async function sendTelegramHtmlMessage(
+  chatId: number | bigint,
+  text: string,
+  opts?: Omit<SendTelegramMessageOptions, "parseMode">,
+): Promise<void> {
+  const html = formatAgentMarkdownForTelegramHtml(text || "(sin respuesta)");
+  const chunks = chunkHtmlForTelegram(html);
+  for (let i = 0; i < chunks.length; i++) {
+    const isLast = i === chunks.length - 1;
+    const body: Record<string, unknown> = {
+      chat_id: chatId.toString(),
+      text: chunks[i],
+      parse_mode: "HTML",
+    };
+    if (opts?.disableWebPagePreview) body.disable_web_page_preview = true;
+    if (isLast && opts?.replyMarkup) body.reply_markup = opts.replyMarkup;
+
+    const result = await callTelegram<{ message_id: number }>(
+      "sendMessage",
+      body,
+    );
+    if (!result.ok) {
+      throw new Error(
+        `Telegram sendMessage failed: ${result.description ?? "unknown"}`,
+      );
+    }
+  }
+}
+
+/** Chart PNG URLs first (same pipeline as WhatsApp), then HTML prose. */
+export async function sendTelegramChartsThenHtmlMessage(
+  chatId: number | bigint,
+  opts: {
+    text: string;
+    chartImageUrls?: string[];
+    disableWebPagePreview?: boolean;
+    replyMarkup?: InlineKeyboardMarkup;
+  },
+): Promise<void> {
+  const urls =
+    opts.chartImageUrls?.filter((u) => u.startsWith("https://")) ?? [];
+  for (const url of urls.slice(0, 10)) {
+    await sendChatAction(chatId, "upload_photo");
+    await sendTelegramPhotoFromUrl(chatId, url);
+  }
+  await sendTelegramHtmlMessage(chatId, opts.text, {
+    disableWebPagePreview: opts.disableWebPagePreview,
+    replyMarkup: opts.replyMarkup,
+  });
 }
 
 /**

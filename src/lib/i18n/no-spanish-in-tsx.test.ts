@@ -31,6 +31,8 @@ const IGNORED_FILES = new Set<string>([
   // statically (no request context), so the metadata ships bilingual.
   // The body itself reads navigator.language from the client.
   "src/app/offline/page.tsx",
+  // Upgrade / donation copy is authored inline per locale (structured metadata).
+  "src/app/(marketing)/[lang]/upgrade/page.tsx",
 ]);
 
 function listTsxFiles(): string[] {

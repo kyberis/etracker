@@ -15,6 +15,8 @@ import {
   summarizeToolCalls,
   summarizeToolResults,
 } from "@/lib/ai/logger";
+import { chartSpecsToQuickChartUrls } from "@/lib/messaging/chart-quickchart-url";
+import { extractRenderChartSpecsFromSteps } from "@/lib/messaging/extract-render-chart-specs";
 import { db } from "@/lib/db";
 import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { getCurrentMonthKey } from "@/lib/months";
@@ -388,8 +390,8 @@ export async function streamExpenseAgent({
 }
 
 /**
- * One-shot text generation used by the WhatsApp webhook.
- * Returns the final assistant text after all tool calls have resolved.
+ * One-shot text generation used by WhatsApp and Telegram webhooks.
+ * Returns assistant text plus HTTPS chart image URLs when `renderChart` ran.
  */
 export async function generateExpenseAgentReply({
   userId,
@@ -401,7 +403,13 @@ export async function generateExpenseAgentReply({
   messages: ExpenseAgentMessages;
   source?: AgentSource;
   responseStyle?: ExpenseAgentResponseStyle;
-}): Promise<{ text: string; usage: ExpenseAgentUsage; model: string }> {
+}): Promise<{
+  text: string;
+  /** HTTPS PNG URLs for messaging channels (Twilio media / Telegram photo). */
+  chartImageUrls: string[];
+  usage: ExpenseAgentUsage;
+  model: string;
+}> {
   const user = await db.user.findUnique({
     where: { id: userId },
     select: {
@@ -463,8 +471,14 @@ export async function generateExpenseAgentReply({
     latencyMs: Date.now() - startedAt,
   });
 
+  const chartSpecs = extractRenderChartSpecsFromSteps(
+    result.steps as unknown[],
+  );
+  const chartImageUrls = chartSpecsToQuickChartUrls(chartSpecs);
+
   return {
     text: result.text.trim(),
+    chartImageUrls,
     usage: {
       inputTokens: result.totalUsage?.inputTokens,
       outputTokens: result.totalUsage?.outputTokens,

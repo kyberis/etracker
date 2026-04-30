@@ -1,5 +1,9 @@
 import twilio from "twilio";
 
+import { formatAgentMarkdownForWhatsapp } from "@/lib/messaging/format-outbound";
+
+export { formatAgentMarkdownForWhatsapp } from "@/lib/messaging/format-outbound";
+
 const WHATSAPP_PREFIX = "whatsapp:";
 
 function getClient() {
@@ -166,14 +170,28 @@ export function verifyTwilioWebhookRequest(
 export type SendTwilioWhatsappOptions = {
   /** Public HTTPS URL(s) of audio (e.g. MP3) for voice-note style replies. */
   voiceMediaUrls?: string[];
+  /** Chart PNG URLs (HTTPS), sent before text/voice (max 10 per Twilio message). */
+  chartMediaUrls?: string[];
 };
 
+function chunkText(value: string, max: number): string[] {
+  if (value.length <= max) return [value];
+  const out: string[] = [];
+  for (let i = 0; i < value.length; i += max) {
+    out.push(value.slice(i, i + max));
+  }
+  return out;
+}
+
 /**
- * Send a plain-text WhatsApp message via Twilio REST. Twilio caps each message
- * at 1600 chars, so we segment longer payloads.
+ * Send a WhatsApp message via Twilio REST. Outgoing text is normalized from
+ * the agent's **Markdown** bold to WhatsApp's *native* bold. Twilio caps each
+ * message at 1600 chars, so we segment longer payloads.
  *
  * With `voiceMediaUrls`, sends one message whose body is the first text chunk
  * and attaches the audio (WhatsApp shows it as a voice/media note).
+ *
+ * With `chartMediaUrls`, sends chart PNGs first (HTTPS URLs), then text/voice.
  */
 export async function sendTwilioWhatsapp(
   toPhone: string,
@@ -184,8 +202,47 @@ export async function sendTwilioWhatsapp(
   const from = getFrom();
   const to = withChannel(toPhone);
   const voiceUrls = opts?.voiceMediaUrls?.filter((u) => u.startsWith("https://")) ?? [];
+  const chartUrls =
+    opts?.chartMediaUrls?.filter((u) => u.startsWith("https://")) ?? [];
 
-  const chunks = chunkText(text || "(sin respuesta)", 1500);
+  const body = formatAgentMarkdownForWhatsapp(text || "(sin respuesta)");
+  const chunks = chunkText(body, 1500);
+
+  const MAX_WA_MEDIA = 10;
+  if (chartUrls.length > 0) {
+    for (let i = 0; i < chartUrls.length; i += MAX_WA_MEDIA) {
+      const batch = chartUrls.slice(i, i + MAX_WA_MEDIA);
+      const caption = batch.length === 1 ? "📊 Clara" : `📊 Clara (${batch.length})`;
+      try {
+        const result = await client.messages.create({
+          from,
+          to,
+          body: caption,
+          mediaUrl: batch,
+        });
+        console.log("[etracker.twilio] chart_ok", {
+          sid: result.sid,
+          to,
+          charts: batch.length,
+        });
+      } catch (error) {
+        const e = error as {
+          code?: number;
+          status?: number;
+          message?: string;
+          moreInfo?: string;
+        };
+        console.error("[etracker.twilio] chart_failed", {
+          to,
+          from,
+          code: e.code,
+          message: e.message,
+          moreInfo: e.moreInfo,
+        });
+        throw error;
+      }
+    }
+  }
 
   if (voiceUrls.length > 0) {
     const firstBody = chunks[0] ?? "(sin respuesta)";
@@ -306,13 +363,4 @@ export async function fetchTwilioMedia(
   const mediaType =
     res.headers.get("content-type") ?? "application/octet-stream";
   return { buffer, mediaType };
-}
-
-function chunkText(value: string, max: number): string[] {
-  if (value.length <= max) return [value];
-  const out: string[] = [];
-  for (let i = 0; i < value.length; i += max) {
-    out.push(value.slice(i, i + max));
-  }
-  return out;
 }

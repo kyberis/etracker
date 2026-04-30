@@ -20,6 +20,7 @@ import {
   downloadTelegramFile,
   getTelegramFileUrl,
   sendChatAction,
+  sendTelegramChartsThenHtmlMessage,
   sendTelegramMessage,
   verifyTelegramWebhookRequest,
 } from "@/lib/telegram/client";
@@ -646,6 +647,7 @@ async function respondToLinkedUserText(
   await persistMessage(userId, "user", text || t.imagePlaceholder, chatId);
 
   let reply = "";
+  let chartImageUrls: string[] = [];
   let modelUsed = "";
   try {
     const aiStarted = Date.now();
@@ -655,6 +657,7 @@ async function respondToLinkedUserText(
       source: "telegram",
     });
     reply = result.text;
+    chartImageUrls = result.chartImageUrls;
     modelUsed = result.model;
     log.info("telegram.agent_model_done", {
       userId,
@@ -678,7 +681,9 @@ async function respondToLinkedUserText(
 
   await persistMessage(userId, "assistant", reply, chatId);
 
-  await sendTelegramMessage(chatId, reply, {
+  await sendTelegramChartsThenHtmlMessage(chatId, {
+    text: reply,
+    chartImageUrls,
     disableWebPagePreview: true,
   });
 

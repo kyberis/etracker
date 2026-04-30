@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { candidateWebhookUrls } from "./twilio";
+import {
+  candidateWebhookUrls,
+  formatAgentMarkdownForWhatsapp,
+} from "./twilio";
 
 function buildRequest(
   url: string,
@@ -81,5 +84,17 @@ describe("candidateWebhookUrls", () => {
     const urls = candidateWebhookUrls(req);
     expect(urls).toContain("https://a.com/api/webhooks/whatsapp");
     expect(urls).toContain("https://b.com/api/webhooks/whatsapp");
+  });
+});
+
+describe("formatAgentMarkdownForWhatsapp", () => {
+  it("converts **bold** to WhatsApp *bold*", () => {
+    expect(
+      formatAgentMarkdownForWhatsapp("**2026-04**\n- Total: **EUR 10**"),
+    ).toBe("*2026-04*\n- Total: *EUR 10*");
+  });
+
+  it("leaves plain text unchanged", () => {
+    expect(formatAgentMarkdownForWhatsapp("Hello")).toBe("Hello");
   });
 });

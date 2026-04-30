@@ -350,12 +350,14 @@ async function respondToUser(
   await persistMessage(userId, "user", text || t.imagePlaceholder);
 
   let reply = "";
+  let chartImageUrls: string[] = [];
   try {
     const result = await generateExpenseAgentReply({
       userId,
       messages: [...history, userMessage],
     });
     reply = result.text;
+    chartImageUrls = result.chartImageUrls;
     await Promise.all([
       recordAgentTokens(userId, result.usage),
       recordAgentModelUsage(userId, result.model, result.usage),
@@ -387,9 +389,16 @@ async function respondToUser(
     if (mp3) {
       const uploaded = await uploadTtsAudioToBlob(Buffer.from(mp3));
       if (uploaded) {
-        voiceOpts = { voiceMediaUrls: [uploaded.url] };
+        voiceOpts = {
+          voiceMediaUrls: [uploaded.url],
+          ...(chartImageUrls.length > 0 ? { chartMediaUrls: chartImageUrls } : {}),
+        };
       }
     }
+  }
+
+  if (!voiceOpts && chartImageUrls.length > 0) {
+    voiceOpts = { chartMediaUrls: chartImageUrls };
   }
 
   await sendTwilioWhatsapp(phone, reply, voiceOpts);

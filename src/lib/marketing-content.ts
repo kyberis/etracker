@@ -149,6 +149,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.3.1",
+      date: "2026-04-30",
+      title: "Gráficos en WhatsApp y respuestas con formato en Telegram",
+      highlights: [
+        "Cuando el agente llama a renderChart, Clara arma URLs PNG (QuickChart) y las manda antes del texto por WhatsApp (Twilio) y por Telegram.",
+        "En Telegram las respuestas del agente usan HTML seguro: las **negritas** del modelo se ven bien sin Markdown crudo.",
+        "Podés desactivar las imágenes salientes con CLARA_OUTBOUND_CHART_IMAGES=0 o usar QuickChart self-hosted con CLARA_QUICKCHART_BASE_URL.",
+      ],
+    },
+    {
       version: "0.3.0",
       date: "2026-04-30",
       title: "Clara también en Telegram",
@@ -167,6 +177,14 @@ const ES: LocalisedMarketingContent = {
         "Cuando llegás al límite diario con Clara aparece un modal con dos opciones: donar lo que puedas (aporte único) o subir al plan Supporter por €7,99 al mes para llevar las consultas a 200 diarias.",
         "Pagos vía Stripe Checkout. El número de tarjeta nunca pasa por Clara. Cancelás la suscripción cuando quieras desde Configuración → Suscripción.",
         "Self-hosting sigue 100% gratis. La página de upgrade y el modal solo aparecen cuando un admin habilita la feature flag `quota_upsell` y las claves de Stripe están configuradas.",
+      ],
+    },
+    {
+      version: "0.1.1",
+      date: "2026-04-30",
+      title: "Negritas legibles en WhatsApp",
+      highlights: [
+        "Las respuestas del agente usaban **negritas** estilo Markdown; WhatsApp espera *una sola* asterisco. Ahora convertimos el formato al enviar, así los totales se ven en negrita en lugar de asteriscos sueltos.",
       ],
     },
     {
@@ -357,6 +375,16 @@ const EN: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.3.1",
+      date: "2026-04-30",
+      title: "Charts on WhatsApp and formatted replies on Telegram",
+      highlights: [
+        "When the agent calls renderChart, Clara builds PNG URLs (QuickChart) and sends them before the text on both WhatsApp (Twilio) and Telegram.",
+        "Telegram assistant replies use safe HTML so **bold** from the model renders correctly instead of raw Markdown.",
+        "Disable outbound chart images with CLARA_OUTBOUND_CHART_IMAGES=0 or point to a self-hosted QuickChart via CLARA_QUICKCHART_BASE_URL.",
+      ],
+    },
+    {
       version: "0.3.0",
       date: "2026-04-30",
       title: "Clara now on Telegram",
@@ -375,6 +403,14 @@ const EN: LocalisedMarketingContent = {
         "When you hit Clara's daily limit, a modal opens with two options: donate any amount (one-time) or upgrade to Supporter for €7.99/mo and raise your cap to 200 queries per day.",
         "Payments via Stripe Checkout. Card numbers never touch Clara. Cancel anytime from Settings → Subscription.",
         "Self-hosting stays 100% free. The upgrade page and modal only appear when an admin enables the `quota_upsell` feature flag and Stripe keys are configured.",
+      ],
+    },
+    {
+      version: "0.1.1",
+      date: "2026-04-30",
+      title: "Readable bold in WhatsApp",
+      highlights: [
+        "Agent replies used Markdown-style **bold**, but WhatsApp expects a single *asterisk* pair. We now convert on send so totals render bold instead of showing raw asterisks.",
       ],
     },
     {

@@ -19,7 +19,7 @@ export function getStripe(): Stripe | null {
   _stripe = new Stripe(key, {
     // Pinned to the SDK's bundled API version. Bumping the SDK rebumps
     // this constant — see Stripe API release notes before doing so.
-    apiVersion: "2025-10-29.clover",
+    apiVersion: "2026-03-25.dahlia",
     appInfo: {
       name: "Clara (etracker)",
       url: "https://github.com/kyberis/etracker",
