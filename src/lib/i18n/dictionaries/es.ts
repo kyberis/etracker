@@ -558,6 +558,9 @@ export const es = {
     empty: "Sin usuarios todavía.",
     analyticsLink: "Ver analytics",
     analyticsLinkDesc: "DAU, uso de IA, costos y ranking de usuarios.",
+    featureFlagsTitle: "Feature flags",
+    featureFlagsDescription:
+      "Activá o desactivá funciones experimentales globalmente. Cada flag puede tener overrides por usuario desde la tabla de usuarios.",
   },
 
   analytics: {

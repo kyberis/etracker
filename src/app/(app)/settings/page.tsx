@@ -1,5 +1,7 @@
 import { PageContainer } from "@/components/page-container";
 import { SettingsManager } from "@/components/settings-manager";
+import { SubscriptionCard } from "@/components/subscription-card";
+import { isUpsellActive } from "@/lib/billing/stripe";
 import { isGoogleAuthConfigured } from "@/lib/auth-providers";
 import { db } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
@@ -10,7 +12,8 @@ import { requireUserId } from "@/lib/session";
 async function loadSettingsData() {
   const userId = await requireUserId();
   const now = new Date();
-  const [user, banks, revolutConnection, apiTokens] = await Promise.all([
+  const [user, banks, revolutConnection, apiTokens, donationCount, upsellOn] =
+    await Promise.all([
     db.user.findUnique({
       where: { id: userId },
       select: {
@@ -24,6 +27,10 @@ async function loadSettingsData() {
         whatsappVerifiedAt: true,
         whatsappLinkCode: true,
         whatsappLinkCodeExpires: true,
+        stripeCustomerId: true,
+        subscriptionStatus: true,
+        subscriptionCurrentPeriodEnd: true,
+        dailyAgentMessageLimit: true,
         accounts: { select: { provider: true } },
       },
     }),
@@ -55,6 +62,8 @@ async function loadSettingsData() {
         createdAt: true,
       },
     }),
+    db.donation.count({ where: { userId } }),
+    isUpsellActive(userId),
   ]);
 
   if (!user) {
@@ -108,6 +117,15 @@ async function loadSettingsData() {
       revokedAt: t.revokedAt?.toISOString() ?? null,
       createdAt: t.createdAt.toISOString(),
     })),
+    subscription: {
+      status: user.subscriptionStatus,
+      currentPeriodEnd:
+        user.subscriptionCurrentPeriodEnd?.toISOString() ?? null,
+      hasDonated: donationCount > 0,
+      upsellActive: upsellOn,
+      hasStripeCustomer: Boolean(user.stripeCustomerId),
+      dailyAgentMessageLimit: user.dailyAgentMessageLimit,
+    },
   } as const;
 }
 
@@ -115,12 +133,31 @@ export default async function SettingsPage() {
   const [data, locale] = await Promise.all([loadSettingsData(), getLocale()]);
   const t = getDict(locale);
 
+  // Card is shown only when there's something to manage: the upsell flag is
+  // on for this user, OR they already have a Stripe customer (so they can
+  // see receipts / cancel even if the flag was flipped off later).
+  const showSubscriptionCard =
+    data.subscription.upsellActive ||
+    data.subscription.hasStripeCustomer ||
+    data.subscription.status === "active" ||
+    data.subscription.status === "trialing";
+
   return (
     <PageContainer className="space-y-6">
       <div className="space-y-1">
         <h1 className="font-display text-2xl font-semibold">{t.settings.pageTitle}</h1>
         <p className="text-muted-foreground text-sm">{t.settings.pageDescription}</p>
       </div>
+      {showSubscriptionCard ? (
+        <SubscriptionCard
+          status={data.subscription.status}
+          currentPeriodEnd={data.subscription.currentPeriodEnd}
+          hasDonated={data.subscription.hasDonated}
+          upsellActive={data.subscription.upsellActive}
+          hasStripeCustomer={data.subscription.hasStripeCustomer}
+          dailyAgentMessageLimit={data.subscription.dailyAgentMessageLimit}
+        />
+      ) : null}
       <SettingsManager
         initialUser={data.initialUser}
         initialWhatsapp={data.initialWhatsapp}

@@ -93,6 +93,17 @@ model User {
   activeDays               DailyActiveUser[]
   revolutConnection        RevolutConnection?
   apiTokens                ApiToken[]
+  /// Stripe customer id (lazy: created on first checkout). Optional so
+  /// self-hosters / users that never paid never get a customer record.
+  stripeCustomerId         String?             @unique
+  /// Mirror of Stripe subscription status: "active" | "trialing" | "past_due"
+  /// | "canceled" | null. Drives the "Supporter" pill and the settings card.
+  subscriptionStatus       String?
+  /// End of the current billing period (renews/cancels at this instant).
+  /// Surfaced in the settings UI; the webhook keeps it fresh.
+  subscriptionCurrentPeriodEnd DateTime?
+  donations                Donation[]
+  featureFlagOverrides     FeatureFlagOverride[]
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 }
@@ -333,6 +344,63 @@ model IgnoredTransaction {
   createdAt     DateTime          @default(now())
 
   @@unique([connectionId, transactionId])
+}
+
+/// One-off donation made via Stripe Checkout. Persisted from the
+/// `checkout.session.completed` webhook for receipts and for the future
+/// "thanks" page. Donations are non-refundable; no subscription side-effect.
+model Donation {
+  id                    String   @id @default(cuid())
+  userId                String
+  /// Stripe Checkout session id. Unique so webhook replays are idempotent.
+  stripeSessionId       String   @unique
+  /// PaymentIntent id from Stripe (kept for support/refund lookups).
+  stripePaymentIntentId String?
+  /// Amount in the smallest currency unit (cents for EUR).
+  amountCents           Int
+  /// ISO 4217 (3 letters). Today always "EUR"; kept as a column so we
+  /// don't paint ourselves into a corner if multi-currency lands later.
+  currency              String   @default("EUR")
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Global, admin-toggleable feature flag. Default state lives in the
+/// `FEATURE_FLAGS` registry in `src/lib/feature-flags.ts`; rows here only
+/// exist once an admin has flipped a flag at least once. `updatedBy` is
+/// the admin user id (audit trail).
+model FeatureFlag {
+  key       String   @id
+  enabled   Boolean  @default(false)
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+/// Per-user override for a feature flag. When present, takes precedence
+/// over the global value. Used to dogfood new flags as admin-only first.
+model FeatureFlagOverride {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  enabled   Boolean
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([key])
+}
+
+/// Idempotency log for Stripe webhook events. Inserted by the webhook
+/// handler **before** applying side effects; a duplicate event id makes
+/// the insert fail (P2002) and the handler returns 200 without re-running.
+model StripeWebhookEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+
+  @@index([type])
 }
 
 /// Personal Access Token (bearer) used by the user-scoped MCP server at

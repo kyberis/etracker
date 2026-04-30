@@ -29,6 +29,10 @@ import Image from "next/image";
 
 import { useBalance } from "@/components/balance-provider";
 import { ChatChart } from "@/components/chat-chart";
+import {
+  QuotaLimitDialog,
+  type QuotaUpsellPayload,
+} from "@/components/quota-limit-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -257,12 +261,56 @@ export function ChatExperience({
     requestOptsRef.current.activeMonth = activeMonth;
   }, [conversationMode, activeMonth]);
 
+  // 429 quota-limit modal payload. Set by the custom fetch below when the
+  // server returns `kind: "quota_limit"`; cleared by the dialog `onClose`.
+  const [quotaPayload, setQuotaPayload] = useState<QuotaUpsellPayload | null>(
+    null,
+  );
+  const quotaPayloadRef = useRef<
+    (payload: QuotaUpsellPayload) => void
+  >(() => undefined);
+  useEffect(() => {
+    quotaPayloadRef.current = (payload) => setQuotaPayload(payload);
+  }, []);
+
   /* eslint-disable react-hooks/refs -- prepareSendMessagesRequest runs when the transport POSTs */
   const chat = useMemo(
     () =>
       new Chat({
         transport: new DefaultChatTransport({
           api: "/api/chat",
+          // Custom fetch peeks at 429 responses with `kind: "quota_limit"`
+          // before handing them to the AI SDK so we can open the upsell
+          // modal. Other errors flow through the SDK's normal error path.
+          fetch: async (input, init) => {
+            const response = await fetch(input, init);
+            if (response.status === 429) {
+              try {
+                const data = (await response
+                  .clone()
+                  .json()) as Partial<QuotaUpsellPayload> & {
+                  kind?: string;
+                };
+                if (
+                  data?.kind === "quota_limit" &&
+                  typeof data.limit === "number" &&
+                  typeof data.used === "number" &&
+                  typeof data.resetAtUtc === "string" &&
+                  data.upsell
+                ) {
+                  quotaPayloadRef.current({
+                    limit: data.limit,
+                    used: data.used,
+                    resetAtUtc: data.resetAtUtc,
+                    upsell: data.upsell,
+                  });
+                }
+              } catch {
+                // Body wasn't JSON or didn't match — fall through to SDK.
+              }
+            }
+            return response;
+          },
           prepareSendMessagesRequest: ({ messages, body }) => ({
             body: {
               ...(body ?? {}),
@@ -938,6 +986,11 @@ export function ChatExperience({
       </div>
 
       {quota ? <QuotaBadge quota={quota} /> : null}
+
+      <QuotaLimitDialog
+        payload={quotaPayload}
+        onClose={() => setQuotaPayload(null)}
+      />
 
       {/* composer — stays pinned at the bottom of the flex column. With
           `min-h-dvh` on the AppShell + `interactive-widget=resizes-content`
@@ -1622,6 +1675,9 @@ function QuotaBadge({
   const tr = useTx();
   const low = quota.remaining > 0 && quota.remaining <= 3;
   const empty = quota.remaining === 0;
+  // Supporter tier raises the cap to 200 via the Stripe webhook; we infer
+  // the badge from the live limit so we don't need an extra round trip.
+  const supporter = quota.limit >= 200;
   const resetLocal = new Date(quota.resetAtUtc).toLocaleString(intlLocale(locale), {
     hour: "2-digit",
     minute: "2-digit",
@@ -1647,6 +1703,11 @@ function QuotaBadge({
           {quota.used}/{quota.limit}
         </span>
         <span className="text-muted-foreground/80">{tr({ es: "hoy", en: "today" })}</span>
+        {supporter ? (
+          <span className="bg-lilac/15 text-lilac rounded-full px-1.5 py-0 text-[10px] font-semibold">
+            {tr({ es: "Supporter", en: "Supporter" })}
+          </span>
+        ) : null}
       </div>
     </div>
   );

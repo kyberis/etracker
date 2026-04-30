@@ -1,4 +1,5 @@
 import { type UIMessage, convertToModelMessages, generateId } from "ai";
+import { NextResponse } from "next/server";
 
 import {
   type ExpenseAgentResponseStyle,
@@ -10,6 +11,7 @@ import {
   recordAgentModelUsage,
   recordAgentTokens,
 } from "@/lib/agent-quota";
+import { isUpsellActive } from "@/lib/billing/stripe";
 import { persistWebChatMessage } from "@/lib/chat/web-history";
 import { jsonError, withApi } from "@/lib/http";
 import { limitByUser } from "@/lib/rate-limit";
@@ -82,9 +84,26 @@ export async function POST(request: Request) {
           403,
         );
       }
-      const res = jsonError(
-        `Llegaste al límite diario de ${quota.limit} mensajes con el asistente. Se reinicia a las 00:00 UTC.`,
-        429,
+      // Structured 429: the chat client opens a richer modal when
+      // `upsell.subscription` or `upsell.donation` is true. Both are
+      // gated by `isUpsellActive` (Stripe envs + admin feature flag),
+      // so self-hosters / users without the flag still see the plain
+      // text-only path the modal renders.
+      const upsellOn = await isUpsellActive(userId);
+      const res = NextResponse.json(
+        {
+          error: `Llegaste al límite diario de ${quota.limit} mensajes con el asistente. Se reinicia a las 00:00 UTC.`,
+          kind: "quota_limit",
+          limit: quota.limit,
+          used: quota.used,
+          remaining: 0,
+          resetAtUtc: quota.resetAtUtc,
+          upsell: {
+            subscription: upsellOn,
+            donation: upsellOn,
+          },
+        },
+        { status: 429 },
       );
       const headers = quotaHeaders(quota);
       for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);

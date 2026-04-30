@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LineChart } from "lucide-react";
 
+import {
+  AdminFeatureFlagsTable,
+  type AdminFeatureFlag,
+} from "@/components/admin-feature-flags-table";
 import { AdminUsersTable, type AdminUser } from "@/components/admin-users-table";
 import { PageContainer } from "@/components/page-container";
 import {
@@ -14,6 +18,7 @@ import {
 import { getTodayUtcDate } from "@/lib/agent-quota";
 import { getAuthSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { listFeatureFlags } from "@/lib/feature-flags";
 import { getT } from "@/lib/i18n/server";
 
 /** Admin-only panel: list users, toggle isActive, edit dailyAgentMessageLimit. */
@@ -24,6 +29,15 @@ export default async function AdminPage() {
   }
 
   const today = getTodayUtcDate();
+  const featureFlags = await listFeatureFlags();
+  const initialFlags: AdminFeatureFlag[] = featureFlags.map((f) => ({
+    key: f.key,
+    description: f.description,
+    enabled: f.enabled,
+    defaultEnabled: f.defaultEnabled,
+    updatedAt: f.updatedAt,
+    updatedBy: f.updatedBy,
+  }));
   const users = await db.user.findMany({
     orderBy: { createdAt: "desc" },
     select: {
@@ -81,6 +95,16 @@ export default async function AdminPage() {
           </CardHeader>
         </Card>
       </Link>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.admin.featureFlagsTitle}</CardTitle>
+          <CardDescription>{t.admin.featureFlagsDescription}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminFeatureFlagsTable initialFlags={initialFlags} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

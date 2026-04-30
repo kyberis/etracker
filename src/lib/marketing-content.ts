@@ -104,7 +104,7 @@ const ES: LocalisedMarketingContent = {
     {
       question: "¿Cuánto cuesta?",
       answer:
-        "Clara es 100% gratis y open source bajo licencia MIT. Podés correr la versión hosteada por nosotros sin pagar, o self-hostearla en tu propio Vercel + Postgres. No tenemos suscripciones, ni precio por usuario, ni features pagas.",
+        "Clara es open source bajo licencia MIT y se puede self-hostear gratis. La versión hosteada por nosotros incluye 30 consultas diarias con la asistente sin pagar nada. Si te queda corto y querés ayudar a mantener la infraestructura, podés subirte al plan Supporter por €7,99 al mes (200 consultas diarias) o hacer un aporte único por el monto que quieras desde el chat. Donación y suscripción son opcionales: el producto sigue siendo gratis para la mayoría de la gente.",
     },
     {
       question: "¿Cómo procesa los PDFs y extractos bancarios?",
@@ -148,6 +148,16 @@ const ES: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.2.0",
+      date: "2026-04-30",
+      title: "Plan Supporter y donaciones",
+      highlights: [
+        "Cuando llegás al límite diario con Clara aparece un modal con dos opciones: donar lo que puedas (aporte único) o subir al plan Supporter por €7,99 al mes para llevar las consultas a 200 diarias.",
+        "Pagos vía Stripe Checkout. El número de tarjeta nunca pasa por Clara. Cancelás la suscripción cuando quieras desde Configuración → Suscripción.",
+        "Self-hosting sigue 100% gratis. La página de upgrade y el modal solo aparecen cuando un admin habilita la feature flag `quota_upsell` y las claves de Stripe están configuradas.",
+      ],
+    },
     {
       version: "0.1.0",
       date: "2026-04-28",
@@ -202,6 +212,13 @@ const ES: LocalisedMarketingContent = {
       body: [
         "Para entender tus mensajes, transcribir voz y procesar PDFs, Clara manda contenido a modelos de lenguaje a través de Vercel AI Gateway. Esos providers operan bajo políticas zero data retention: el contenido se procesa y se descarta, no se usa para entrenamiento.",
         "Los archivos que subís (PDFs, capturas) se almacenan en Vercel Blob el tiempo necesario para procesarlos y se borran después.",
+      ],
+    },
+    {
+      heading: "Pagos (Supporter y donaciones)",
+      body: [
+        "Si elegís suscribirte al plan Supporter o hacer una donación, el pago se procesa en Stripe (Stripe, Inc. / Stripe Payments Europe Ltd.). Stripe recibe lo necesario para cobrar: tu email, datos de la tarjeta y país. Clara nunca ve ni almacena el número de tu tarjeta.",
+        "Guardamos un identificador de cliente de Stripe asociado a tu cuenta y, en el caso de donaciones, el monto y la fecha del aporte para emitir recibos. Las donaciones son no reembolsables. La suscripción se renueva mensualmente y la cancelás cuando quieras desde Configuración → Suscripción.",
       ],
     },
     {
@@ -284,7 +301,7 @@ const EN: LocalisedMarketingContent = {
     {
       question: "How much does it cost?",
       answer:
-        "Clara is 100% free and open source under the MIT license. You can run the version we host for free, or self-host it on your own Vercel + Postgres. No subscriptions, no per-user pricing, no paid features.",
+        "Clara is open source under the MIT license and free to self-host. The version we host includes 30 free daily queries with the assistant. If that's tight and you want to help cover infrastructure, you can upgrade to the Supporter plan for €7.99/month (200 daily queries) or send a one-time donation in the amount of your choice from the chat. Donations and subscription are optional: the product is still free for most people.",
     },
     {
       question: "How does Clara process PDFs and bank statements?",
@@ -328,6 +345,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.2.0",
+      date: "2026-04-30",
+      title: "Supporter plan and donations",
+      highlights: [
+        "When you hit Clara's daily limit, a modal opens with two options: donate any amount (one-time) or upgrade to Supporter for €7.99/mo and raise your cap to 200 queries per day.",
+        "Payments via Stripe Checkout. Card numbers never touch Clara. Cancel anytime from Settings → Subscription.",
+        "Self-hosting stays 100% free. The upgrade page and modal only appear when an admin enables the `quota_upsell` feature flag and Stripe keys are configured.",
+      ],
+    },
     {
       version: "0.1.0",
       date: "2026-04-28",
@@ -382,6 +409,13 @@ const EN: LocalisedMarketingContent = {
       body: [
         "To understand your messages, transcribe voice and process PDFs, Clara sends content to language models through Vercel AI Gateway. Those providers operate under zero data retention: content is processed and discarded, not used for training.",
         "Files you upload (PDFs, screenshots) are stored on Vercel Blob only for the time needed to process them and are deleted afterwards.",
+      ],
+    },
+    {
+      heading: "Payments (Supporter and donations)",
+      body: [
+        "If you choose to subscribe to the Supporter plan or send a donation, payment is processed by Stripe (Stripe, Inc. / Stripe Payments Europe Ltd.). Stripe receives only what's needed to charge you: your email, card details and country. Clara never sees or stores your card number.",
+        "We keep a Stripe customer id linked to your account and, for donations, the amount and date of the contribution to issue receipts. Donations are non-refundable. The subscription renews monthly and you can cancel anytime from Settings → Subscription.",
       ],
     },
     {

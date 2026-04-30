@@ -9,8 +9,9 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 
 ## Live specs
 
-_None yet._ Add specs as features stabilise; the goal is one-per-domain
-coverage over time.
+- [`billing-and-quota-upsell`](billing-and-quota-upsell.md) — optional Stripe-backed
+  Supporter plan + one-time donations gated behind the `quota_upsell` feature flag.
+  Surfaces in chat 429, settings, public `/upgrade`.
 
 ## Suggested first specs (high signal, write when touching)
 

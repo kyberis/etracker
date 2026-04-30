@@ -7,6 +7,9 @@ Design docs capture cross-cutting decisions that aren't obvious from the code.
 - [core-beliefs](core-beliefs.md) — the non-negotiables (rioplatense voice,
   chat-first, OB read-only, AI Gateway routing, errors via `withApi()`,
   privacy, self-hostable).
+- [stripe-integration](stripe-integration.md) — provider choice, env vars,
+  webhook idempotency, type-version pinning, and the env+flag gating
+  matrix for the optional Supporter tier and donations.
 
 ## Suggested next docs (write when needed)
 

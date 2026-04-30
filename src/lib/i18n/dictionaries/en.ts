@@ -555,6 +555,9 @@ export const en: Dict = {
     empty: "No users yet.",
     analyticsLink: "View analytics",
     analyticsLinkDesc: "DAU, AI usage, cost and per-user ranking.",
+    featureFlagsTitle: "Feature flags",
+    featureFlagsDescription:
+      "Toggle experimental features globally. Each flag can have per-user overrides from the users table.",
   },
 
   analytics: {

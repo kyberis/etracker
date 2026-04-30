@@ -1,0 +1,285 @@
+"use client";
+
+import { Heart, Loader2, Zap } from "lucide-react";
+import { useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  DEFAULT_DONATION_CENTS,
+  MAX_DONATION_CENTS,
+  MIN_DONATION_CENTS,
+  SUPPORTER_DAILY_LIMIT,
+  SUPPORTER_PRICE_EUR_CENTS,
+} from "@/lib/billing/pricing";
+import { useTx } from "@/lib/i18n/client";
+
+export type QuotaUpsellPayload = {
+  limit: number;
+  used: number;
+  resetAtUtc: string;
+  upsell: {
+    subscription: boolean;
+    donation: boolean;
+  };
+};
+
+type Props = {
+  payload: QuotaUpsellPayload | null;
+  onClose: () => void;
+};
+
+function formatEur(cents: number): string {
+  const value = cents / 100;
+  return value.toLocaleString("es-AR", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+  });
+}
+
+/**
+ * Modal shown when `/api/chat` returns a 429 with `kind: "quota_limit"`.
+ * Two CTAs (only when their flag is true server-side):
+ *  - Donar: custom EUR amount, one-time payment via Stripe Checkout.
+ *  - Subir a 200/día: monthly subscription via Stripe Checkout.
+ *
+ * If both `upsell.*` flags are false (self-host or admin flag off) the
+ * modal degrades to a plain "you hit the limit" message — no CTAs,
+ * no commercial ask.
+ */
+export function QuotaLimitDialog({ payload, onClose }: Props) {
+  const tx = useTx();
+  const [donationEur, setDonationEur] = useState<string>(
+    String(DEFAULT_DONATION_CENTS / 100),
+  );
+  const [pending, setPending] = useState<"subscription" | "donation" | null>(
+    null,
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  if (!payload) return null;
+
+  const showDonation = payload.upsell.donation;
+  const showSubscription = payload.upsell.subscription;
+  const showCtas = showDonation || showSubscription;
+
+  const resetAt = new Date(payload.resetAtUtc);
+  const resetLabel = resetAt.toLocaleString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  async function startCheckout(
+    body: { mode: "subscription" } | { mode: "donation"; amountCents: number },
+  ) {
+    setError(null);
+    setPending(body.mode);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: "same-origin",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.url) {
+        setError(
+          data.error ??
+            tx({
+              es: "No pude abrir el pago. Probá de nuevo en un momento.",
+              en: "Could not open checkout. Try again in a moment.",
+            }),
+        );
+        setPending(null);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setError(
+        tx({
+          es: "No pude abrir el pago. Probá de nuevo en un momento.",
+          en: "Could not open checkout. Try again in a moment.",
+        }),
+      );
+      setPending(null);
+    }
+  }
+
+  function onDonate() {
+    const value = Number.parseFloat(donationEur.replace(",", "."));
+    if (!Number.isFinite(value) || value <= 0) {
+      setError(
+        tx({
+          es: "Ingresá un monto válido en euros.",
+          en: "Enter a valid amount in euros.",
+        }),
+      );
+      return;
+    }
+    const cents = Math.round(value * 100);
+    if (cents < MIN_DONATION_CENTS) {
+      setError(
+        tx({
+          es: `El monto mínimo es ${formatEur(MIN_DONATION_CENTS)}.`,
+          en: `Minimum amount is ${formatEur(MIN_DONATION_CENTS)}.`,
+        }),
+      );
+      return;
+    }
+    if (cents > MAX_DONATION_CENTS) {
+      setError(
+        tx({
+          es: `El monto máximo es ${formatEur(MAX_DONATION_CENTS)}.`,
+          en: `Maximum amount is ${formatEur(MAX_DONATION_CENTS)}.`,
+        }),
+      );
+      return;
+    }
+    void startCheckout({ mode: "donation", amountCents: cents });
+  }
+
+  return (
+    <Dialog
+      open={payload != null}
+      onOpenChange={(open: boolean) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {tx({
+              es: "Llegaste al límite de hoy",
+              en: "You've reached today's limit",
+            })}
+          </DialogTitle>
+          <DialogDescription>
+            {tx({
+              es: `Usaste ${payload.used} de ${payload.limit} consultas con Clara hoy. El contador se reinicia a las ${resetLabel} (00:00 UTC).`,
+              en: `You used ${payload.used} of ${payload.limit} Clara queries today. The counter resets at ${resetLabel} (00:00 UTC).`,
+            })}
+          </DialogDescription>
+        </DialogHeader>
+
+        {!showCtas ? (
+          <p className="text-muted-foreground text-sm">
+            {tx({
+              es: "Volvé mañana y seguimos.",
+              en: "Come back tomorrow and we keep going.",
+            })}
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-muted-foreground text-sm">
+              {tx({
+                es: "Si Clara te está sirviendo, tenés dos formas de seguir hoy y de ayudar a mantenerla viva:",
+                en: "If Clara is helping you, here are two ways to keep going today and help keep her alive:",
+              })}
+            </p>
+
+            {showSubscription ? (
+              <div className="ring-foreground/10 space-y-2 rounded-xl ring-1 p-3">
+                <div className="flex items-start gap-2">
+                  <Zap className="text-lilac mt-0.5 size-4" aria-hidden />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      {tx({
+                        es: `Subir a ${SUPPORTER_DAILY_LIMIT}/día`,
+                        en: `Upgrade to ${SUPPORTER_DAILY_LIMIT}/day`,
+                      })}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {tx({
+                        es: `Por ${formatEur(SUPPORTER_PRICE_EUR_CENTS)} al mes. Cancelás cuando quieras desde Configuración.`,
+                        en: `${formatEur(SUPPORTER_PRICE_EUR_CENTS)} per month. Cancel anytime from Settings.`,
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => startCheckout({ mode: "subscription" })}
+                  disabled={pending !== null}
+                >
+                  {pending === "subscription" ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                  ) : null}
+                  {tx({ es: "Suscribirme", en: "Subscribe" })}
+                </Button>
+              </div>
+            ) : null}
+
+            {showDonation ? (
+              <div className="ring-foreground/10 space-y-2 rounded-xl ring-1 p-3">
+                <div className="flex items-start gap-2">
+                  <Heart className="text-peach mt-0.5 size-4" aria-hidden />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      {tx({
+                        es: "Donar para mantener Clara",
+                        en: "Donate to keep Clara running",
+                      })}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {tx({
+                        es: "Aporte único, no es reembolsable. Va a infraestructura (servidores + IA).",
+                        en: "One-time, non-refundable. Covers infrastructure (servers + AI).",
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Label htmlFor="donation-amount" className="text-xs">
+                      {tx({ es: "Monto en EUR", en: "Amount in EUR" })}
+                    </Label>
+                    <Input
+                      id="donation-amount"
+                      type="number"
+                      min={MIN_DONATION_CENTS / 100}
+                      max={MAX_DONATION_CENTS / 100}
+                      step="0.01"
+                      value={donationEur}
+                      onChange={(e) => setDonationEur(e.currentTarget.value)}
+                      disabled={pending !== null}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onDonate}
+                    disabled={pending !== null}
+                  >
+                    {pending === "donation" ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                    ) : null}
+                    {tx({ es: "Donar", en: "Donate" })}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {error ? (
+          <p className="text-destructive text-sm" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}

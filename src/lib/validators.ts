@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  MAX_DONATION_CENTS,
+  MIN_DONATION_CENTS,
+} from "@/lib/billing/pricing";
+
 const monthRegex = /^\d{4}-\d{2}$/;
 
 const expenseCategoryValues = [
@@ -282,6 +287,27 @@ export const revolutIgnoreSchema = z.object({
 
 export const revolutDefaultBankSchema = z.object({
   bankId: z.string().min(1, "Bank is required."),
+});
+
+export const billingCheckoutSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("subscription") }),
+  z.object({
+    mode: z.literal("donation"),
+    amountCents: z
+      .number()
+      .int("El monto debe ser un entero (centavos).")
+      .min(MIN_DONATION_CENTS, `El monto mínimo es ${MIN_DONATION_CENTS / 100} EUR.`)
+      .max(MAX_DONATION_CENTS, `El monto máximo es ${MAX_DONATION_CENTS / 100} EUR.`),
+  }),
+]);
+
+export const adminFeatureFlagPatchSchema = z.object({
+  enabled: z.boolean(),
+});
+
+export const adminFeatureFlagOverrideSchema = z.object({
+  /** `null` removes the override (user falls back to global value). */
+  enabled: z.union([z.boolean(), z.null()]),
 });
 
 export const adminUpdateUserSchema = z
