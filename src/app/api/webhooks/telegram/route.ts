@@ -133,24 +133,33 @@ export async function POST(request: Request) {
     hasCallback: Boolean(update.callback_query),
   });
 
-  // We always ack first and run the heavy work in `waitUntil` so Telegram
-  // doesn't retry while we're talking to the model.
-  waitUntil(
-    (async () => {
-      try {
-        await dispatch(update);
-      } catch (error) {
-        log.error("telegram.dispatch_error", {
-          error: serializeError(error),
-        });
-      }
-    })(),
-  );
+  // IMPORTANT: On Vercel, `waitUntil` / fire-and-forget promises are not
+  // reliable for short outbound calls — the isolate is frozen right after the
+  // response is sent and the deferred work silently dies (we observed this
+  // on the WhatsApp webhook too; see whatsapp/route.ts for the post-mortem).
+  //
+  // Strategy:
+  //   - Lightweight paths (/start <token>, /help, /menu, /unlink, unlinked
+  //     welcome, group notice) → run inline before we respond. They're a
+  //     single DB read/write + one Telegram sendMessage, usually <1s, well
+  //     within Telegram's webhook timeout.
+  //   - Heavy AI path (free-form messages from linked users, photos, voice
+  //     notes) → schedule via `waitUntil` so we ack Telegram fast and don't
+  //     get retried while the model runs.
+  try {
+    await dispatchLight(update);
+  } catch (error) {
+    log.error("telegram.dispatch_error", { error: serializeError(error) });
+  }
 
   return ackResponse();
 }
 
-async function dispatch(update: TelegramUpdate) {
+/**
+ * Run everything that must complete before the HTTP response is flushed.
+ * For the AI-heavy path this also enqueues the slow work via `waitUntil`.
+ */
+async function dispatchLight(update: TelegramUpdate) {
   if (update.callback_query) {
     await handleCallback(update.callback_query);
     return;
@@ -207,7 +216,22 @@ async function handlePrivateMessage(message: TelegramMessageObject) {
     return;
   }
 
-  await respondToLinkedUser(linkedUser.id, message);
+  // The AI agent path can take 10–30s. Schedule it via `waitUntil` and ack
+  // Telegram immediately so it doesn't retry while the model is running.
+  // Capture the userId in a stable local; `linkedUser` is closed over but the
+  // outer request promise will resolve before this finishes.
+  const userId = linkedUser.id;
+  waitUntil(
+    (async () => {
+      try {
+        await respondToLinkedUser(userId, message);
+      } catch (error) {
+        log.error("telegram.linked_handler_error", {
+          error: serializeError(error),
+        });
+      }
+    })(),
+  );
 }
 
 async function handleStart(message: TelegramMessageObject, text: string) {
@@ -323,11 +347,20 @@ async function handleCallback(callback: TelegramCallbackQuery) {
   const prompt = callbackToPrompt(callback.data, locale);
   if (!prompt) return;
   // We translate the menu tap into a user-typed prompt so the AI sees the
-  // same shape it would for a normal message — no parallel router.
-  await respondToLinkedUserText(
-    linkedUser.id,
-    callback.message.chat.id,
-    prompt,
+  // same shape it would for a normal message — no parallel router. The model
+  // call is the slow part, so defer it via `waitUntil`.
+  const userId = linkedUser.id;
+  const chatId = callback.message.chat.id;
+  waitUntil(
+    (async () => {
+      try {
+        await respondToLinkedUserText(userId, chatId, prompt);
+      } catch (error) {
+        log.error("telegram.callback_handler_error", {
+          error: serializeError(error),
+        });
+      }
+    })(),
   );
 }
 
