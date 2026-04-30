@@ -36,7 +36,7 @@ const CHAT_MAX_RETRIES = Math.min(
   Math.max(4, Number.parseInt(process.env.AI_CHAT_MAX_RETRIES ?? "6", 10) || 6),
 );
 
-type AgentSource = "web" | "whatsapp";
+type AgentSource = "web" | "whatsapp" | "telegram";
 
 /** Web chat can switch tone; WhatsApp stays concise unless overridden. */
 export type ExpenseAgentResponseStyle = "concise" | "conversational";

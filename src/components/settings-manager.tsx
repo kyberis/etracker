@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Info, XCircle } from "lucide-react";
+import { CheckCircle2, Info, Send, XCircle } from "lucide-react";
 import { FormEvent, useState } from "react";
 
 import { ApiTokensCard } from "@/components/api-tokens-card";
@@ -57,9 +57,17 @@ type ApiTokenItem = {
   createdAt: string;
 };
 
+type TelegramStatus = {
+  linked: boolean;
+  username: string | null;
+  telegramUserId: string | null;
+  verifiedAt: string | null;
+};
+
 type SettingsManagerProps = {
   initialUser: UserSettings;
   initialWhatsapp: WhatsappStatus;
+  initialTelegram: TelegramStatus;
   initialBanks: BankOption[];
   initialRevolut: RevolutInitial;
   initialApiTokens: ApiTokenItem[];
@@ -114,6 +122,7 @@ function SectionHeader({
 export function SettingsManager({
   initialUser,
   initialWhatsapp,
+  initialTelegram,
   initialBanks,
   initialRevolut,
   initialApiTokens,
@@ -446,11 +455,12 @@ export function SettingsManager({
         <SectionHeader
           title={tx({ es: "Integraciones", en: "Integrations" })}
           description={tx({
-            es: "Vinculá WhatsApp, tu banco y conectá clientes MCP.",
-            en: "Link WhatsApp, your bank and connect MCP clients.",
+            es: "Vinculá Telegram, WhatsApp, tu banco y conectá clientes MCP.",
+            en: "Link Telegram, WhatsApp, your bank and connect MCP clients.",
           })}
         />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+          <TelegramLinkCard initial={initialTelegram} />
           <WhatsappLinkCard initial={initialWhatsapp} />
           <RevolutConnectionCard
             initialBanks={initialBanks}
@@ -583,6 +593,138 @@ function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
             </p>
           </div>
         ) : null}
+
+        {error ? <FormStatus tone="error">{error}</FormStatus> : null}
+        {feedback ? <FormStatus tone="success">{feedback}</FormStatus> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Telegram link card. Renders alongside the WhatsApp card in Integrations.
+ * The user clicks "Conectar Telegram" → we mint a signed deep-link token and
+ * open `t.me/<bot>?start=<token>` in a new tab. The Telegram client picks up
+ * the token on tap and our webhook completes the link without the user
+ * typing anything.
+ */
+function TelegramLinkCard({ initial }: { initial: TelegramStatus }) {
+  const tx = useTx();
+  const [status, setStatus] = useState<TelegramStatus>(initial);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh() {
+    const res = await fetch("/api/settings/telegram");
+    if (res.ok) {
+      const data = (await res.json()) as TelegramStatus;
+      setStatus(data);
+    }
+  }
+
+  async function startLink() {
+    setError(null);
+    setFeedback(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/settings/telegram", { method: "POST" });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        setError(
+          data.error ??
+            tx({
+              es: "No se pudo iniciar la vinculación.",
+              en: "Could not start the linking.",
+            }),
+        );
+        return;
+      }
+      const data = (await res.json()) as { url: string };
+      // We open in a new tab so the user can come back to settings without
+      // losing the in-progress link if Telegram doesn't auto-confirm.
+      window.open(data.url, "_blank", "noopener,noreferrer");
+      setFeedback(
+        tx({
+          es: "Abrí Telegram y tocá Iniciar para terminar la vinculación.",
+          en: "Open Telegram and tap Start to finish linking.",
+        }),
+      );
+      // Re-poll a few times so the UI updates once the webhook completes.
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        await refresh();
+        if (status.linked) break;
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unlink() {
+    if (
+      !confirm(
+        tx({
+          es: "¿Seguro que querés desvincular Telegram?",
+          en: "Are you sure you want to unlink Telegram?",
+        }),
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      await fetch("/api/settings/telegram", { method: "DELETE" });
+      setFeedback(
+        tx({
+          es: "Listo, Telegram desvinculado.",
+          en: "Done, Telegram unlinked.",
+        }),
+      );
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const linked = status.linked;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <span className="flex items-center gap-2">
+            <Send className="size-4" aria-hidden />
+            Telegram
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-muted-foreground text-sm">
+          {tx({
+            es: "Chateá con Clara desde Telegram: mandá fotos del banco, dictá gastos por audio o consultá tu mes desde el celular.",
+            en: "Chat with Clara from Telegram: send bank screenshots, dictate expenses by voice, or check your month from your phone.",
+          })}
+        </p>
+
+        {linked ? (
+          <div className="space-y-2">
+            <p className="text-sm">
+              {tx({ es: "Vinculado", en: "Linked" })}
+              {status.username ? (
+                <span className="text-muted-foreground"> · @{status.username}</span>
+              ) : null}
+            </p>
+            <Button variant="destructive" onClick={unlink} disabled={busy}>
+              {tx({ es: "Desvincular", en: "Unlink" })}
+            </Button>
+          </div>
+        ) : (
+          <Button onClick={startLink} disabled={busy}>
+            {busy
+              ? tx({ es: "Generando link…", en: "Generating link…" })
+              : tx({ es: "Conectar Telegram", en: "Connect Telegram" })}
+          </Button>
+        )}
 
         {error ? <FormStatus tone="error">{error}</FormStatus> : null}
         {feedback ? <FormStatus tone="success">{feedback}</FormStatus> : null}

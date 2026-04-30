@@ -59,6 +59,7 @@ src/
     fx/ i18n/          Currency + locale helpers
     mcp/               Public + per-user MCP servers
     revolut/           GoCardless Open Banking + AI classifier
+    telegram/          Bot API client + signed deep-link tokens + menu
     whatsapp/          Twilio + link-code helpers
     http.ts            withApi() wrapper used by every route handler
     log.ts             Structured logging (Sentry-ready)

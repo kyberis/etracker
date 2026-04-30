@@ -806,6 +806,8 @@ function StepWhatsapp({
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       {feedback ? <p className="text-good text-sm">{feedback}</p> : null}
 
+      <TelegramOnboardingButton locale={locale} />
+
       <p className="text-muted-foreground text-xs text-center">
         {pick(locale, {
           es: "Lo podés hacer más tarde desde Configuración.",
@@ -822,6 +824,64 @@ function StepWhatsapp({
         continueLabel={pick(locale, { es: "Listo", en: "Done" })}
         disabled={disabled}
       />
+    </div>
+  );
+}
+
+/**
+ * Inline Telegram CTA inside the WhatsApp onboarding step. Generates a signed
+ * deep-link token and opens `t.me/<bot>?start=<token>` in a new tab. We don't
+ * spend a dedicated step on it (the wizard already feels long); users that
+ * want Telegram as their primary channel still get there from Settings later.
+ */
+function TelegramOnboardingButton({ locale }: { locale: Locale }) {
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function start() {
+    setError(null);
+    setFeedback(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/settings/telegram", { method: "POST" });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        setError(
+          data.error ??
+            pick(locale, {
+              es: "No se pudo iniciar Telegram.",
+              en: "Could not start Telegram.",
+            }),
+        );
+        return;
+      }
+      const data = (await res.json()) as { url: string };
+      window.open(data.url, "_blank", "noopener,noreferrer");
+      setFeedback(
+        pick(locale, {
+          es: "Abrí Telegram y tocá Iniciar.",
+          en: "Open Telegram and tap Start.",
+        }),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="border-border/60 bg-muted/20 space-y-2 rounded-xl border p-3 text-center">
+      <p className="text-muted-foreground text-xs">
+        {pick(locale, {
+          es: "¿Preferís Telegram? También podés vincular el bot.",
+          en: "Prefer Telegram? You can link the bot too.",
+        })}
+      </p>
+      <Button onClick={start} disabled={busy} size="sm" variant="outline">
+        {busy
+          ? pick(locale, { es: "Generando…", en: "Generating…" })
+          : pick(locale, { es: "Conectar Telegram", en: "Connect Telegram" })}
+      </Button>
+      {error ? <p className="text-destructive text-xs">{error}</p> : null}
+      {feedback ? <p className="text-good text-xs">{feedback}</p> : null}
     </div>
   );
 }

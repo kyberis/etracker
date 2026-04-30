@@ -57,6 +57,14 @@ model User {
   whatsappVerifiedAt       DateTime?
   whatsappLinkCode         String?
   whatsappLinkCodeExpires  DateTime?
+  /// Telegram identity once the user has linked the bot to this account. We
+  /// key on `telegramUserId` (Telegram's stable numeric id) and remember the
+  /// `chat_id` of the private chat so outbound messages don't need a lookup.
+  /// `telegramUsername` is informational (it can change at any time).
+  telegramUserId           BigInt?             @unique
+  telegramUsername         String?
+  telegramChatId           BigInt?
+  telegramVerifiedAt       DateTime?
   /// Reglas del usuario para el asistente e importaciones (Revolut / fotos): qué no importar, categorías, etc.
   expenseImportInstructions String?
   /// Marca cuándo se mostró por primera vez el mensaje de bienvenida del asistente. Null = todavía no se saludó.
@@ -87,6 +95,7 @@ model User {
   monthRecords             MonthRecord[]
   monthExpenseLines        MonthExpenseLine[]
   whatsappMessages         WhatsappMessage[]
+  telegramMessages         TelegramMessage[]
   webChatMessages          WebChatMessage[]
   agentUsage               AgentMessageUsage[]
   agentModelUsage          AgentDailyModelUsage[]
@@ -195,6 +204,25 @@ model WhatsappMessage {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+/// Conversation history for the Telegram channel. Mirrors `WhatsappMessage`
+/// but keeps `chatId` and `isGroup` so a future "Clara in groups" feature can
+/// share the same table. Today the webhook only stores rows for private 1:1
+/// chats; group threads are dropped on the floor.
+model TelegramMessage {
+  id                String   @id @default(cuid())
+  userId            String
+  role              String   // "user" | "assistant"
+  text              String
+  chatId            BigInt
+  isGroup           Boolean  @default(false)
+  telegramMessageId BigInt?
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([chatId])
 }
 
 /// Conversation history for the web chat (`/app`). We persist the full

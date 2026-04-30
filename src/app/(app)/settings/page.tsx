@@ -27,6 +27,9 @@ async function loadSettingsData() {
         whatsappVerifiedAt: true,
         whatsappLinkCode: true,
         whatsappLinkCodeExpires: true,
+        telegramUserId: true,
+        telegramUsername: true,
+        telegramVerifiedAt: true,
         stripeCustomerId: true,
         subscriptionStatus: true,
         subscriptionCurrentPeriodEnd: true,
@@ -97,6 +100,18 @@ async function loadSettingsData() {
         ? user.whatsappLinkCodeExpires!.toISOString()
         : null,
     },
+    initialTelegram: {
+      linked: Boolean(user.telegramVerifiedAt),
+      username: user.telegramVerifiedAt ? user.telegramUsername : null,
+      // BigInt → string so Next.js can serialise it across the RSC boundary.
+      telegramUserId:
+        user.telegramVerifiedAt && user.telegramUserId !== null
+          ? user.telegramUserId.toString()
+          : null,
+      verifiedAt: user.telegramVerifiedAt
+        ? user.telegramVerifiedAt.toISOString()
+        : null,
+    },
     initialBanks: banks.map((b) => ({ id: b.id, name: b.name })),
     initialRevolut: revolutConnection
       ? ({
@@ -161,6 +176,7 @@ export default async function SettingsPage() {
       <SettingsManager
         initialUser={data.initialUser}
         initialWhatsapp={data.initialWhatsapp}
+        initialTelegram={data.initialTelegram}
         initialBanks={data.initialBanks}
         initialRevolut={data.initialRevolut}
         initialApiTokens={data.initialApiTokens}

@@ -12,6 +12,9 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`billing-and-quota-upsell`](billing-and-quota-upsell.md) — optional Stripe-backed
   Supporter plan + one-time donations gated behind the `quota_upsell` feature flag.
   Surfaces in chat 429, settings, public `/upgrade`.
+- [`telegram`](telegram.md) — second conversational channel for Clara: HMAC-signed
+  deep-link vinculation, private-chat-only handler, reuses the same agent loop,
+  tools, history window and daily quota as the web chat.
 
 ## Suggested first specs (high signal, write when touching)
 

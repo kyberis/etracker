@@ -10,6 +10,9 @@ Design docs capture cross-cutting decisions that aren't obvious from the code.
 - [stripe-integration](stripe-integration.md) — provider choice, env vars,
   webhook idempotency, type-version pinning, and the env+flag gating
   matrix for the optional Supporter tier and donations.
+- [telegram-deep-link-tokens](telegram-deep-link-tokens.md) — why the Telegram
+  channel uses stateless HMAC-signed `?start=<token>` deep links instead of
+  a DB-backed code, threat model, and rotation notes.
 
 ## Suggested next docs (write when needed)
 

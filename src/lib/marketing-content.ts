@@ -149,6 +149,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.3.0",
+      date: "2026-04-30",
+      title: "Clara también en Telegram",
+      highlights: [
+        "Vinculá Telegram en un toque desde Configuración → Integraciones: te abrimos el bot con un link firmado y listo, sin códigos para tipear.",
+        "Mismo cerebro que la web: la IA, las herramientas y el cupo diario son compartidos entre web, WhatsApp y Telegram. Mandá fotos del banco, notas de voz o texto, y Clara responde en castellano rioplatense o inglés según tu idioma.",
+        "Los chats privados quedan listos hoy. Soporte de grupos (con menciones tipo `@clara`) llega pronto.",
+      ],
+    },
+    {
       version: "0.2.0",
       date: "2026-04-30",
       title: "Plan Supporter y donaciones",
@@ -345,6 +355,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.3.0",
+      date: "2026-04-30",
+      title: "Clara now on Telegram",
+      highlights: [
+        "Link Telegram with one tap from Settings → Integrations: we open the bot with a signed deep link, no codes to type.",
+        "Same brain as the web: the AI, the tools and the daily quota are shared across web, WhatsApp and Telegram. Send bank screenshots, voice notes or text and Clara replies in your preferred language.",
+        "Private chats land today. Group support (with `@clara` mentions) is on the way.",
+      ],
+    },
     {
       version: "0.2.0",
       date: "2026-04-30",
