@@ -109,6 +109,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const requestStarted = Date.now();
+
   // Verify the secret first so unauthenticated callers can't even consume
   // a few cycles of JSON parsing.
   if (!verifyTelegramWebhookRequest(request)) {
@@ -128,11 +130,13 @@ export async function POST(request: Request) {
     return ackResponse();
   }
 
+  const inboundMeta = summarizeInboundUpdate(update);
   log.info("telegram.inbound", {
     updateId: update.update_id,
     hasMessage: Boolean(update.message),
     hasEditedMessage: Boolean(update.edited_message),
     hasCallback: Boolean(update.callback_query),
+    ...inboundMeta,
   });
 
   // IMPORTANT: On Vercel Fluid Compute, **plain fire-and-forget promises**
@@ -153,17 +157,36 @@ export async function POST(request: Request) {
     log.error("telegram.dispatch_error", { error: serializeError(error) });
   }
 
+  log.info("telegram.request_complete", {
+    updateId: update.update_id,
+    ms: Date.now() - requestStarted,
+  });
+
   return ackResponse();
 }
 
 /** Full inbound pipeline — must finish before we ack Telegram. */
 async function dispatchLight(update: TelegramUpdate) {
   if (update.callback_query) {
+    log.info("telegram.dispatch_route", {
+      updateId: update.update_id,
+      route: "callback_query",
+      callbackDataPreview: previewText(
+        update.callback_query.data ?? "",
+        64,
+      ),
+    });
     await handleCallback(update.callback_query);
     return;
   }
   const message = update.message ?? update.edited_message;
-  if (!message) return;
+  if (!message) {
+    log.warn("telegram.dispatch_skip", {
+      updateId: update.update_id,
+      reason: "no_message_body",
+    });
+    return;
+  }
 
   const chatType = message.chat.type;
 
@@ -172,7 +195,14 @@ async function dispatchLight(update: TelegramUpdate) {
   // when the bot is explicitly addressed (mention or reply) — otherwise we
   // ignore to avoid spamming groups.
   if (chatType !== "private") {
-    if (isAddressedToBot(message)) {
+    const addressed = isAddressedToBot(message);
+    log.info("telegram.dispatch_route", {
+      updateId: update.update_id,
+      route: "non_private",
+      chatType,
+      addressedToBot: addressed,
+    });
+    if (addressed) {
       await sendTelegramMessage(
         message.chat.id,
         getTelegramStrings(await chatLocaleHint(message)).groupNotice,
@@ -181,45 +211,94 @@ async function dispatchLight(update: TelegramUpdate) {
     return;
   }
 
+  log.info("telegram.dispatch_route", {
+    updateId: update.update_id,
+    route: "private_message",
+    chatId: String(message.chat.id),
+    fromId: message.from?.id,
+  });
+
   await handlePrivateMessage(message);
 }
 
 async function handlePrivateMessage(message: TelegramMessageObject) {
   const text = (message.text ?? message.caption ?? "").trim();
+  const fromId = message.from?.id;
 
   // /start <token> is the link path. Also support a bare `/start` for
   // already-linked users so the bot greets them sensibly.
   if (text.startsWith("/start")) {
+    log.info("telegram.private_path", {
+      path: "start",
+      fromId,
+      chatId: String(message.chat.id),
+      hasToken: text.trim().length > "/start".length,
+    });
     await handleStart(message, text);
     return;
   }
 
   if (text === "/help" || text === "/menu") {
+    log.info("telegram.private_path", {
+      path: text === "/help" ? "help" : "menu",
+      fromId,
+      chatId: String(message.chat.id),
+    });
     await handleMenu(message);
     return;
   }
 
   if (text === "/unlink") {
+    log.info("telegram.private_path", {
+      path: "unlink",
+      fromId,
+      chatId: String(message.chat.id),
+    });
     await handleUnlink(message);
     return;
   }
 
   // Look up the linked user. If none, prompt them to link from the web.
-  const linkedUser = await findUserByTelegramId(message.from?.id);
+  const linkedUser = await findUserByTelegramId(fromId);
+  log.info("telegram.link_lookup", {
+    fromId,
+    linked: Boolean(linkedUser),
+    userId: linkedUser?.id,
+    textPreview: previewText(text, 80),
+    textLen: text.length,
+    hasPhoto: Boolean(message.photo?.length),
+    hasVoice: Boolean(message.voice ?? message.audio),
+  });
+
   if (!linkedUser) {
+    log.info("telegram.reply_path", {
+      kind: "welcome_not_linked",
+      chatId: String(message.chat.id),
+    });
     await sendTelegramMessage(
       message.chat.id,
       getTelegramStrings(await chatLocaleHint(message)).welcomeNotLinked,
     );
+    log.info("telegram.outbound_sent", {
+      kind: "welcome_not_linked",
+      chatId: String(message.chat.id),
+    });
     return;
   }
 
   const userId = linkedUser.id;
+  log.info("telegram.reply_path", {
+    kind: "linked_agent",
+    userId,
+    chatId: String(message.chat.id),
+  });
   try {
     await respondToLinkedUser(userId, message);
+    log.info("telegram.linked_handler_done", { userId });
   } catch (error) {
     log.error("telegram.linked_handler_error", {
       error: serializeError(error),
+      userId,
     });
   }
 }
@@ -324,27 +403,52 @@ async function handleUnlink(message: TelegramMessageObject) {
 }
 
 async function handleCallback(callback: TelegramCallbackQuery) {
-  if (!callback.message || !callback.data) return;
+  if (!callback.message || !callback.data) {
+    log.warn("telegram.callback_skip", {
+      hasMessage: Boolean(callback.message),
+      hasData: Boolean(callback.data),
+    });
+    return;
+  }
   const linkedUser = await findUserByTelegramId(callback.from.id);
+  log.info("telegram.callback_lookup", {
+    fromId: callback.from.id,
+    linked: Boolean(linkedUser),
+    dataPreview: previewText(callback.data, 64),
+  });
+
   if (!linkedUser) {
     await sendTelegramMessage(
       callback.message.chat.id,
       getTelegramStrings(await chatLocaleHint(callback.message)).welcomeNotLinked,
     );
+    log.info("telegram.outbound_sent", {
+      kind: "welcome_not_linked_callback",
+      chatId: String(callback.message.chat.id),
+    });
     return;
   }
   const locale = await getUserLocale(linkedUser.id);
   const prompt = callbackToPrompt(callback.data, locale);
-  if (!prompt) return;
+  if (!prompt) {
+    log.warn("telegram.callback_no_prompt", {
+      dataPreview: previewText(callback.data, 64),
+      locale,
+    });
+    return;
+  }
   // We translate the menu tap into a user-typed prompt so the AI sees the
   // same shape it would for a normal message — no parallel router.
   const userId = linkedUser.id;
   const chatId = callback.message.chat.id;
+  log.info("telegram.callback_agent", { userId, promptPreview: previewText(prompt, 80) });
   try {
     await respondToLinkedUserText(userId, chatId, prompt);
+    log.info("telegram.callback_handler_done", { userId });
   } catch (error) {
     log.error("telegram.callback_handler_error", {
       error: serializeError(error),
+      userId,
     });
   }
 }
@@ -359,6 +463,11 @@ async function respondToLinkedUser(
 
   // Photo: take the largest variant Telegram returned.
   if (message.photo && message.photo.length > 0) {
+    log.info("telegram.respond_branch", {
+      userId,
+      branch: "photo",
+      captionLen: text.length,
+    });
     const largest = message.photo[message.photo.length - 1];
     const fileUrl = await getTelegramFileUrl(largest.file_id);
     if (!fileUrl) {
@@ -380,6 +489,7 @@ async function respondToLinkedUser(
   // Voice / audio: transcribe with Whisper, then forward as text.
   const audio = message.voice ?? message.audio;
   if (audio) {
+    log.info("telegram.respond_branch", { userId, branch: "voice_or_audio" });
     const fileUrl = await getTelegramFileUrl(audio.file_id);
     if (!fileUrl) {
       await sendTelegramMessage(message.chat.id, t.audioDownloadFailed);
@@ -408,13 +518,27 @@ async function respondToLinkedUser(
   }
 
   if (message.document) {
+    log.info("telegram.respond_branch", { userId, branch: "document_unsupported" });
     await sendTelegramMessage(message.chat.id, t.unsupportedMedia);
     return;
   }
 
   if (text) {
+    log.info("telegram.respond_branch", {
+      userId,
+      branch: "text",
+      textPreview: previewText(text, 80),
+    });
     await respondToLinkedUserText(userId, message.chat.id, text);
+    return;
   }
+
+  log.warn("telegram.respond_empty", {
+    userId,
+    chatId: String(message.chat.id),
+    hint:
+      "No text/caption and no photo/voice — sticker or unsupported content?",
+  });
 }
 
 async function respondToLinkedUserText(
@@ -423,16 +547,43 @@ async function respondToLinkedUserText(
   text: string,
   image?: { mediaType: string; buffer: Buffer },
 ) {
+  const pipelineStarted = Date.now();
   const locale = await getUserLocale(userId);
   const t = getTelegramStrings(locale);
 
   const quota = await consumeAgentQuota(userId);
+  log.info("telegram.agent_quota", {
+    userId,
+    ok: quota.ok,
+    ...(quota.ok ?
+      {
+        used: quota.used,
+        limit: quota.limit,
+        remaining: quota.remaining,
+      }
+    : quota.reason === "limit" ?
+      {
+        reason: "limit" as const,
+        used: quota.used,
+        limit: quota.limit,
+      }
+    : { reason: "disabled" as const }),
+  });
+
   if (!quota.ok) {
     if (quota.reason === "disabled") {
       await sendTelegramMessage(chatId, t.accountDisabled);
+      log.info("telegram.outbound_sent", {
+        kind: "quota_disabled",
+        chatId: String(chatId),
+      });
       return;
     }
     await sendTelegramMessage(chatId, quotaLimitMessage(locale, quota.limit));
+    log.info("telegram.outbound_sent", {
+      kind: "quota_exhausted",
+      chatId: String(chatId),
+    });
     return;
   }
 
@@ -440,6 +591,13 @@ async function respondToLinkedUserText(
   await sendChatAction(chatId, "typing");
 
   const history = await loadHistory(userId);
+  log.info("telegram.agent_start", {
+    userId,
+    historyTurns: history.length,
+    hasImage: Boolean(image),
+    textPreview: previewText(text, 80),
+  });
+
   const userMessage: ModelMessage = image
     ? {
         role: "user",
@@ -457,13 +615,23 @@ async function respondToLinkedUserText(
   await persistMessage(userId, "user", text || t.imagePlaceholder, chatId);
 
   let reply = "";
+  let modelUsed = "";
   try {
+    const aiStarted = Date.now();
     const result = await generateExpenseAgentReply({
       userId,
       messages: [...history, userMessage],
       source: "telegram",
     });
     reply = result.text;
+    modelUsed = result.model;
+    log.info("telegram.agent_model_done", {
+      userId,
+      ms: Date.now() - aiStarted,
+      model: result.model,
+      replyLen: reply.length,
+      usage: result.usage,
+    });
     await Promise.all([
       recordAgentTokens(userId, result.usage),
       recordAgentModelUsage(userId, result.model, result.usage),
@@ -481,6 +649,14 @@ async function respondToLinkedUserText(
 
   await sendTelegramMessage(chatId, reply, {
     disableWebPagePreview: true,
+  });
+
+  log.info("telegram.outbound_sent", {
+    kind: "assistant_reply",
+    chatId: String(chatId),
+    model: modelUsed || undefined,
+    replyLen: reply.length,
+    pipelineMs: Date.now() - pipelineStarted,
   });
 }
 
@@ -567,4 +743,28 @@ function serializeError(error: unknown): unknown {
     return { name: error.name, message: error.message, stack: error.stack };
   }
   return error;
+}
+
+/** Redacted one-line preview for logs (no raw newlines). */
+function previewText(value: string, max = 72): string {
+  const oneLine = value.replace(/\s+/g, " ").trim();
+  if (oneLine.length <= max) return oneLine;
+  return `${oneLine.slice(0, max)}…`;
+}
+
+/** Extra fields for `telegram.inbound` so we can grep a single line in Vercel. */
+function summarizeInboundUpdate(update: TelegramUpdate): Record<string, unknown> {
+  const msg = update.message ?? update.edited_message;
+  const text = (msg?.text ?? msg?.caption ?? "").trim();
+  return {
+    chatType: msg?.chat.type,
+    chatId: msg ? String(msg.chat.id) : undefined,
+    fromId: msg?.from?.id,
+    isBot: msg?.from?.is_bot,
+    textLen: text.length,
+    textPreview: text ? previewText(text, 64) : undefined,
+    hasPhoto: Boolean(msg?.photo?.length),
+    hasVoice: Boolean(msg?.voice ?? msg?.audio),
+    hasDocument: Boolean(msg?.document),
+  };
 }
