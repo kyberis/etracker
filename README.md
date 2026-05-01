@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="public/clara-avatar-simple.png" width="120" alt="Clara — asistente financiera con IA" />
+<img src="public/clara-avatar-simple.png" width="120" alt="Clara Lovelace — asistente financiera con IA" />
 
-# Clara AI Assistant
+# Clara Lovelace
 
 ### Tu plata, finalmente clara.
 
@@ -19,7 +19,7 @@
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#-contributing)
 
-**[Live demo](https://clara.trefolio.com) · [Quick start](#-quick-start) · [Features](#-una-asistente-no-una-planilla) · [MCP](#-tu-propio-ai-puede-hablar-con-clara-mcp) · [Contributing](#-contributing)**
+**[Live demo](https://clara.trefolio.com) · [Quick start](#-quick-start) · [Features](#-una-asistente-no-una-planilla) · [MCP](#-tu-propio-ai-puede-hablar-con-clara-mcp) · [English README](./README.en.md) · [Contributing](#-contributing)**
 
 </div>
 
@@ -165,19 +165,11 @@ flowchart LR
 
 El wrapper centralizado `withApi()` en [`src/lib/http.ts`](src/lib/http.ts) maneja errores Zod, errores Prisma y códigos de negocio (`UNAUTHORIZED`, …) para que los route handlers sean pequeños y consistentes.
 
-## 🧠 What makes Clara technically interesting
+## 🧠 Qué hace a Clara Lovelace técnicamente interesante
 
-- **Real tool-calling agent, not string parsing** — 33 Zod-typed tools execute
-  straight against Prisma; the model plans, calls tools, and stops under a
-  fixed step budget (`stopWhen: stepCountIs(8)` in
-  [`src/lib/ai/run-expense-agent.ts`](src/lib/ai/run-expense-agent.ts)).
-- **MCP as a first-class surface** — public discovery at `/api/mcp` plus a
-  per-user server at `/api/mcp/user` with PAT auth, destructive parity
-  (`confirm: true`), and per-user rate limits so a leaked key cannot burn your
-  quota silently.
-- **Production-grade multimodal** — PDFs, bank screenshots and Telegram voice
-  notes share one extraction path; structured JSON logs carry `traceId`,
-  tokens and estimated USD per step for cost attribution via AI Gateway tags.
+- **Agente real con tool-calling, sin parseo de strings** — 33 tools tipadas con Zod ejecutan directo contra Prisma; el modelo planifica, llama tools y para bajo un presupuesto fijo de pasos (`stopWhen: stepCountIs(8)` en [`src/lib/ai/run-expense-agent.ts`](src/lib/ai/run-expense-agent.ts)).
+- **MCP como superficie de primera clase** — discovery público en `/api/mcp` más un servidor por usuario en `/api/mcp/user` con auth PAT, paridad destructiva (`confirm: true`), y rate limits por usuario para que una clave filtrada no queme tu cuota en silencio.
+- **Multimodal de producción** — PDFs, capturas de banco y notas de voz de Telegram comparten un pipeline de extracción; los logs JSON estructurados llevan `traceId`, tokens y USD estimado por paso para atribuir costos vía AI Gateway tags.
 
 ## 📁 Estructura del repo
 
@@ -314,11 +306,11 @@ Clara es una app vanilla Next.js + Postgres. Corre en **cualquier cosa** que pue
 
 Las integraciones opcionales (Vercel AI Gateway, Blob, Runtime Cache) todas degradan gracefully — sin ellas, la app igual funciona, solo sin features de IA / lookups cacheados.
 
-## 💡 Sobre Clara
+## 💡 Sobre Clara Lovelace
 
 El nombre es un homenaje doble: a la idea de **claridad** — el objetivo del producto es que tu plata _quede clara_ — y a **Ada Lovelace**, matemática del siglo XIX que escribió el primer algoritmo de la historia, décadas antes de que existiera una computadora capaz de ejecutarlo. Ella entendió que las máquinas podían hacer más que calcular: podían razonar.
 
-Clara nace del mismo espíritu: que la inteligencia, bien aplicada, transforma datos crudos en decisiones claras. Tus extractos bancarios son solo números — Clara los convierte en un panorama de tu vida financiera.
+Clara Lovelace nace del mismo espíritu: que la inteligencia, bien aplicada, transforma datos crudos en decisiones claras. Tus extractos bancarios son solo números — Clara los convierte en un panorama de tu vida financiera.
 
 Construida por el equipo detrás de [trefolio.com](https://trefolio.com).
 

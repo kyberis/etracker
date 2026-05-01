@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="public/clara-avatar-simple.png" width="120" alt="Clara — AI personal finance assistant" />
+<img src="public/clara-avatar-simple.png" width="120" alt="Clara Lovelace — AI personal finance assistant" />
 
-# Clara AI Assistant
+# Clara Lovelace
 
 ### Your money, finally clear.
 
@@ -15,7 +15,7 @@ Send a bank screenshot, a PDF, or a voice note on Telegram: Clara extracts movem
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 
-**[Live demo](https://clara.trefolio.com)** · **[Quick start](#-quick-start)** · **[Environment variables](#%EF%B8%8F-environment-variables-step-by-step)** · **[Deploy](#%EF%B8%8F-deploy)** · **[MCP](#-mcp-endpoints)** · **[Contributing](./CONTRIBUTING.md)**
+**[Live demo](https://clara.trefolio.com)** · **[Quick start](#-quick-start)** · **[Environment variables](#%EF%B8%8F-environment-variables-step-by-step)** · **[Deploy](#%EF%B8%8F-deploy)** · **[MCP](#-mcp-endpoints)** · **[About](#-about-clara-lovelace)** · **[Contributing](./CONTRIBUTING.md)**
 
 </div>
 
@@ -559,6 +559,16 @@ Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CO
 ## 🙏 Credits
 
 Built on the shoulders of giants: [Next.js](https://nextjs.org) · [React](https://react.dev) · [Vercel](https://vercel.com) · [Vercel AI SDK](https://sdk.vercel.ai) · [Prisma](https://www.prisma.io) · [PostgreSQL](https://www.postgresql.org) · [Tailwind CSS](https://tailwindcss.com) · [shadcn/ui](https://ui.shadcn.com) · [NextAuth.js](https://next-auth.js.org) · [Zod](https://zod.dev) · [Telegram Bot API](https://core.telegram.org/bots/api) · [OpenAI](https://openai.com) · [Upstash](https://upstash.com) · [Vitest](https://vitest.dev)
+
+---
+
+## 💡 About Clara Lovelace
+
+The name is a double tribute: to the idea of **clarity** — the product's goal is that your finances finally _become clear_ — and to **Ada Lovelace**, the nineteenth-century mathematician who wrote the first algorithm in history, decades before a machine existed that could run it. She understood that machines could do more than calculate: they could reason.
+
+Clara Lovelace was born from that same spirit: that intelligence, well applied, transforms raw data into clear decisions. Your bank statements are just numbers — Clara turns them into a picture of your financial life.
+
+Built by the team behind [trefolio.com](https://trefolio.com).
 
 ---
 
