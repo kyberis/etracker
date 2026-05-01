@@ -3,9 +3,19 @@
  * round-trip GET. Mirrors trefolio's pattern (jose + Resend + a `purpose`
  * claim) without taking a runtime dependency on that codebase.
  *
- * The JWT is signed with `NEXTAUTH_SECRET`, which is already required for
- * NextAuth itself, so self-hosters get verification "for free" once they
- * configure Resend.
+ * Env vars are intentionally aligned with trefolio so the same Vercel
+ * project configuration works on both sides:
+ *   - `RESEND_API_KEY`           — Resend secret (shared with trefolio).
+ *   - `RESEND_FROM_ADDRESS`      — sender; defaults to a Clara subdomain.
+ *   - `APP_BASE_URL`             — preferred public base URL for absolute
+ *                                  links. Falls back to `NEXT_PUBLIC_APP_URL`
+ *                                  and finally `NEXTAUTH_URL` for older
+ *                                  Clara deploys.
+ *   - `APP_SESSION_SECRET`       — preferred JWT signing secret. Falls back
+ *                                  to `NEXTAUTH_SECRET`, which NextAuth
+ *                                  already requires, so self-hosters get
+ *                                  verification "for free" once Resend is
+ *                                  configured.
  *
  * Behaviour when Resend is not configured (`RESEND_API_KEY` missing):
  *  - We do **not** silently mark the user as verified.
@@ -26,21 +36,23 @@ const VERIFICATION_TOKEN_TTL_SECONDS = 60 * 60 * 24; // 24h
 const PURPOSE = "clara_email_verification";
 
 function getSecret(): Uint8Array {
-  const secret = process.env.NEXTAUTH_SECRET;
+  const secret =
+    process.env.APP_SESSION_SECRET || process.env.NEXTAUTH_SECRET;
   if (!secret) {
     throw new Error(
-      "NEXTAUTH_SECRET is required to sign verification tokens. Set it in your .env.",
+      "APP_SESSION_SECRET (or NEXTAUTH_SECRET) is required to sign verification tokens. Set it in your .env.",
     );
   }
   return new TextEncoder().encode(secret);
 }
 
 function getBaseUrl(): string {
-  return (
+  const candidate =
+    process.env.APP_BASE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXTAUTH_URL ||
-    "http://localhost:3000"
-  );
+    "http://localhost:3000";
+  return candidate.replace(/\/$/, "");
 }
 
 function getFromAddress(): string {

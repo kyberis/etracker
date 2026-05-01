@@ -19,10 +19,12 @@ export async function GET(request: Request) {
   return withApi(async () => {
     const url = new URL(request.url);
     const token = url.searchParams.get("token");
-    const baseUrl =
+    const baseUrl = (
+      process.env.APP_BASE_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
       process.env.NEXTAUTH_URL ||
-      url.origin;
+      url.origin
+    ).replace(/\/$/, "");
 
     if (!token) {
       return NextResponse.redirect(`${baseUrl}/login?error=VerificationFailed`);

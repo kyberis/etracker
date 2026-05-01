@@ -155,6 +155,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.4.2",
+      date: "2026-05-01",
+      title: "Mismos env vars de email que trefolio",
+      highlights: [
+        "Clara ahora lee `APP_BASE_URL` y `APP_SESSION_SECRET` además de `NEXT_PUBLIC_APP_URL` / `NEXTAUTH_SECRET`. Si self-hosteás Clara junto a trefolio, podés reutilizar las mismas variables sin renombrar nada.",
+        "Los emails de verificación siguen saliendo por Resend con el mismo `RESEND_API_KEY` y `RESEND_FROM_ADDRESS` que ya configuraste en trefolio.",
+        "Se documentó la equivalencia en `.env.example` para que al levantar un nuevo deploy sepas exactamente qué pegar.",
+      ],
+    },
+    {
       version: "0.4.1",
       date: "2026-05-01",
       title: "Passkeys + ojito para mostrar la contraseña",
@@ -432,6 +442,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.4.2",
+      date: "2026-05-01",
+      title: "Email env vars aligned with trefolio",
+      highlights: [
+        "Clara now reads `APP_BASE_URL` and `APP_SESSION_SECRET` in addition to `NEXT_PUBLIC_APP_URL` / `NEXTAUTH_SECRET`. If you self-host Clara alongside trefolio you can reuse the same variables without renaming anything.",
+        "Verification emails still go out via Resend using the same `RESEND_API_KEY` and `RESEND_FROM_ADDRESS` you already configured for trefolio.",
+        "The equivalence is documented in `.env.example` so spinning up a new deploy is copy-paste.",
+      ],
+    },
     {
       version: "0.4.1",
       date: "2026-05-01",
