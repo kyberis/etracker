@@ -66,6 +66,17 @@ Most are the same thing dressed up: rows, categories, reports — pretty for two
 
 ---
 
+## 🖼️ Screenshots
+
+| | |
+|---|---|
+| ![Hero](./public/screenshots/hero-landing.png) | ![Features](./public/screenshots/features.png) |
+| **Landing** — chat preview + month tiles | **Features** — an assistant, not a spreadsheet |
+| ![MCP](./public/screenshots/mcp-claude-desktop.png) | ![Telegram](./public/screenshots/telegram-chart.png) |
+| **MCP** — your own AI talking to Clara from Claude Desktop / Cursor | **Telegram** — inline charts when they actually help |
+
+---
+
 ## 🚀 Quick start
 
 > **Prerequisites:** Node.js 22+, npm, a PostgreSQL 16 database (Docker below works).

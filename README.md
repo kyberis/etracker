@@ -92,19 +92,12 @@ Tools disponibles: `getProfile`, `listBanks`, `listExpenseTemplates`, `listMonth
 
 ## 🖼️ Screenshots
 
-Assets viven en [`public/screenshots/`](./public/screenshots/) (1280×800). Los
-PNG commiteados son **placeholders con copy** para que el README y LinkedIn
-tengan paths estables; reemplazalos por capturas reales desde
-[clara.trefolio.com](https://clara.trefolio.com) cuando quieras máximo polish.
-
 | | |
 |---|---|
-| ![Month dashboard](./public/screenshots/dashboard-month.png) | ![Chat + bank](./public/screenshots/chat-bank-screenshot.png) |
-| **Month dashboard** — planificado / pagado / balance | **Chat** — extracto del banco + confirmación antes de guardar |
-| ![Telegram voice](./public/screenshots/chat-voice-telegram.png) | ![MCP Claude](./public/screenshots/mcp-claude-desktop.png) |
-| **Telegram** — nota de voz | **MCP** — Claude Desktop (o Cursor) contra `/api/mcp/user` |
-| ![Savings](./public/screenshots/savings-ledger.png) | ![Architecture](./public/screenshots/architecture.png) |
-| **Savings ledger** — movimientos del sistema | **Architecture** — resumen visual (ver Mermaid abajo) |
+| ![Hero](./public/screenshots/hero-landing.png) | ![Features](./public/screenshots/features.png) |
+| **Landing** — chat preview + tiles de ingresos/planificado/pagado | **Features** — una asistente, no una planilla |
+| ![MCP](./public/screenshots/mcp-claude-desktop.png) | ![Telegram](./public/screenshots/telegram-chart.png) |
+| **MCP** — tu propio AI hablándole a Clara desde Claude Desktop / Cursor | **Telegram** — chat con gráficos inline cuando suman |
 
 ## 🚀 Quick start
 
