@@ -94,12 +94,16 @@ Tools disponibles: `getProfile`, `listBanks`, `listExpenseTemplates`, `listMonth
 
 <table>
 <tr>
-<td width="50%" align="center">
-<img src="./public/screenshots/mobile-chat.png" alt="Web chat — clara.trefolio.com" width="320" />
+<td width="33%" align="center">
+<img src="./public/screenshots/mobile-chat.png" alt="Web chat — clara.trefolio.com" width="280" />
 <br/><strong>Web chat</strong> — anotá un gasto, pedí un roast o adjuntá un PDF
 </td>
-<td width="50%" align="center">
-<img src="./public/screenshots/telegram-chart.png" alt="Telegram — gráficos inline" width="320" />
+<td width="33%" align="center">
+<img src="./public/screenshots/roast.png" alt="Clara haciendo un roast del mes" width="280" />
+<br/><strong>Roast</strong> — Clara con la verdad financiera sin filtro
+</td>
+<td width="33%" align="center">
+<img src="./public/screenshots/telegram-chart.png" alt="Telegram — gráficos inline" width="280" />
 <br/><strong>Telegram</strong> — chat con gráficos inline cuando suman
 </td>
 </tr>

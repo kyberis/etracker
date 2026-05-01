@@ -70,12 +70,16 @@ Most are the same thing dressed up: rows, categories, reports — pretty for two
 
 <table>
 <tr>
-<td width="50%" align="center">
-<img src="./public/screenshots/mobile-chat.png" alt="Web chat — clara.trefolio.com" width="320" />
+<td width="33%" align="center">
+<img src="./public/screenshots/mobile-chat.png" alt="Web chat — clara.trefolio.com" width="280" />
 <br/><strong>Web chat</strong> — log an expense, ask for a roast, or attach a PDF
 </td>
-<td width="50%" align="center">
-<img src="./public/screenshots/telegram-chart.png" alt="Telegram — inline charts" width="320" />
+<td width="33%" align="center">
+<img src="./public/screenshots/roast.png" alt="Clara roasting your month" width="280" />
+<br/><strong>Roast</strong> — Clara delivers the unfiltered truth about your spending
+</td>
+<td width="33%" align="center">
+<img src="./public/screenshots/telegram-chart.png" alt="Telegram — inline charts" width="280" />
 <br/><strong>Telegram</strong> — inline charts when they actually help
 </td>
 </tr>
