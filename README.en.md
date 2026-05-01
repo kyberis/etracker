@@ -68,12 +68,18 @@ Most are the same thing dressed up: rows, categories, reports — pretty for two
 
 ## 🖼️ Screenshots
 
-| | |
-|---|---|
-| ![Hero](./public/screenshots/hero-landing.png) | ![Features](./public/screenshots/features.png) |
-| **Landing** — chat preview + month tiles | **Features** — an assistant, not a spreadsheet |
-| ![MCP](./public/screenshots/mcp-claude-desktop.png) | ![Telegram](./public/screenshots/telegram-chart.png) |
-| **MCP** — your own AI talking to Clara from Claude Desktop / Cursor | **Telegram** — inline charts when they actually help |
+<table>
+<tr>
+<td width="50%" align="center">
+<img src="./public/screenshots/mobile-chat.png" alt="Web chat — clara.trefolio.com" width="320" />
+<br/><strong>Web chat</strong> — log an expense, ask for a roast, or attach a PDF
+</td>
+<td width="50%" align="center">
+<img src="./public/screenshots/telegram-chart.png" alt="Telegram — inline charts" width="320" />
+<br/><strong>Telegram</strong> — inline charts when they actually help
+</td>
+</tr>
+</table>
 
 ---
 

@@ -92,12 +92,18 @@ Tools disponibles: `getProfile`, `listBanks`, `listExpenseTemplates`, `listMonth
 
 ## 🖼️ Screenshots
 
-| | |
-|---|---|
-| ![Hero](./public/screenshots/hero-landing.png) | ![Features](./public/screenshots/features.png) |
-| **Landing** — chat preview + tiles de ingresos/planificado/pagado | **Features** — una asistente, no una planilla |
-| ![MCP](./public/screenshots/mcp-claude-desktop.png) | ![Telegram](./public/screenshots/telegram-chart.png) |
-| **MCP** — tu propio AI hablándole a Clara desde Claude Desktop / Cursor | **Telegram** — chat con gráficos inline cuando suman |
+<table>
+<tr>
+<td width="50%" align="center">
+<img src="./public/screenshots/mobile-chat.png" alt="Web chat — clara.trefolio.com" width="320" />
+<br/><strong>Web chat</strong> — anotá un gasto, pedí un roast o adjuntá un PDF
+</td>
+<td width="50%" align="center">
+<img src="./public/screenshots/telegram-chart.png" alt="Telegram — gráficos inline" width="320" />
+<br/><strong>Telegram</strong> — chat con gráficos inline cuando suman
+</td>
+</tr>
+</table>
 
 ## 🚀 Quick start
 
