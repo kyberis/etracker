@@ -4,6 +4,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { format, parse } from "date-fns";
 import {
   CalendarDays,
+  HandCoins,
   Landmark,
   ListChecks,
   LogOut,
@@ -68,6 +69,12 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
       label: t.header.nav.expenses,
       icon: ListChecks,
       match: (p: string) => p === "/expenses" || p.startsWith("/expenses/"),
+    },
+    {
+      href: "/incomes",
+      label: t.header.nav.incomes,
+      icon: HandCoins,
+      match: (p: string) => p === "/incomes" || p.startsWith("/incomes/"),
     },
     {
       href: "/savings",

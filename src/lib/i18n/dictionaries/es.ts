@@ -56,6 +56,7 @@ export const es = {
     nav: {
       banks: "Bancos",
       expenses: "Plantillas",
+      incomes: "Ingresos",
       savings: "Ahorros",
       settings: "Configuración",
       about: "Sobre Clara",
@@ -473,6 +474,35 @@ export const es = {
     indefinite: "indefinida",
   },
 
+  incomes: {
+    pageTitle: "Plantillas de ingreso",
+    pageDescription:
+      "Las plantillas describen un ingreso recurrente (sueldo, alquiler que cobrás) o uno puntual (un freelance que ya sabés que va a entrar). Cada mes recibe una copia editable; tildás cuando entra la plata.",
+    addIncome: "Agregar plantilla",
+    name: "Nombre",
+    amount: "Monto",
+    bank: "Banco",
+    isRecurring: "Recurrente",
+    startMonth: "Mes inicial",
+    endMonth: "Mes final",
+    endMonthHint: "Vacío = sigue indefinidamente.",
+    category: "Categoría",
+    save: "Guardar",
+    saving: "Guardando…",
+    edit: "Editar",
+    delete: "Borrar",
+    deleteConfirm: (name: string) =>
+      `¿Borrar la plantilla ${name}? Las líneas mensuales ya creadas no se borran.`,
+    saveError: "No se pudo guardar la plantilla.",
+    deleteError: "No se pudo borrar la plantilla.",
+    empty: "Todavía no creaste plantillas de ingreso.",
+    perMonth: "/mes",
+    oneOff: "puntual",
+    activeFrom: (m: string) => `Activa desde ${m}`,
+    untilMonth: (m: string) => `hasta ${m}`,
+    indefinite: "indefinida",
+  },
+
   savings: {
     pageTitle: "Ahorros",
     pageDescription:
@@ -490,6 +520,10 @@ export const es = {
     monthFor: (label: string) => `Mes · ${label}`,
     addLine: "Agregar gasto",
     addLineDialogTitle: "Nuevo gasto",
+    addIncomeDialogTitle: "Nuevo cobro",
+    incomesChronoTitle: "Cobros del mes",
+    pendingIncomesFromTemplates: "Cobros pendientes desde plantillas",
+    addIncomePlaceholderName: "Sueldo de junio",
     paid: "Pagado",
     unpaid: "Pendiente",
     markPaid: "Marcar como pagado",

@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
 import { useBalance } from "@/components/balance-provider";
+import { MonthAddIncomeDialog } from "@/components/month/month-add-income-dialog";
 import { MonthAddLineDialog } from "@/components/month/month-add-line-dialog";
 import { MonthBankTotals } from "@/components/month/month-bank-totals";
+import { MonthIncomesChronological } from "@/components/month/month-incomes-chronological";
 import { MonthLinesChronological } from "@/components/month/month-lines-chronological";
 import { MonthSummary } from "@/components/month/month-summary";
 import { Button } from "@/components/ui/button";
@@ -24,7 +26,11 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/format";
 import { dateLocale } from "@/lib/i18n/format";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
-import type { MonthLinePayload, MonthPageDataWithRecord } from "@/lib/month-page-types";
+import type {
+  MonthIncomeLinePayload,
+  MonthLinePayload,
+  MonthPageDataWithRecord,
+} from "@/lib/month-page-types";
 import { isInvestmentCategory } from "@/lib/validators";
 
 type MonthDashboardProps = {
@@ -58,18 +64,30 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   // (set state during render, gated on a ref) and replaces the heavy `key=…`
   // prop the page used to pass to remount us on every change.
   const [expenses, setExpenses] = useState(data.expenses);
-  const [income, setIncome] = useState(data.income);
+  const [incomes, setIncomes] = useState<MonthIncomeLinePayload[]>(data.incomes);
   const [carryoverFromPrev, setCarryoverFromPrev] = useState(data.carryoverFromPrev);
   const [carryoverPrompt, setCarryoverPrompt] = useState(data.carryoverPrompt);
   const [carryoverBusy, setCarryoverBusy] = useState<
     null | "addToIncome" | "setAside" | "coverFromSavings" | "carryDebt"
   >(null);
   const [carryoverError, setCarryoverError] = useState<string | null>(null);
-  const [incomeDraft, setIncomeDraft] = useState(String(data.income));
   const [dismissedPending, setDismissedPending] = useState(false);
+  const [dismissedIncomePending, setDismissedIncomePending] = useState(false);
 
-  const [savingIncome, setSavingIncome] = useState(false);
-  const [incomeError, setIncomeError] = useState<string | null>(null);
+  // Diálogo "agregar cobro al mes". Igual que el de gastos pero con `received`.
+  const [addIncomeName, setAddIncomeName] = useState("");
+  const [addIncomeAmount, setAddIncomeAmount] = useState("");
+  const [addIncomeBankId, setAddIncomeBankId] = useState("");
+  const [addIncomeCategory, setAddIncomeCategory] = useState("OTROS");
+  const [addIncomeCurrency, setAddIncomeCurrency] = useState(data.primaryCurrency);
+  const [addIncomeFxRateDraft, setAddIncomeFxRateDraft] = useState("");
+  const [addIncomeReceived, setAddIncomeReceived] = useState(true);
+  const [addIncomeBusy, setAddIncomeBusy] = useState(false);
+  const [addIncomeError, setAddIncomeError] = useState<string | null>(null);
+  const [addIncomeDialogOpen, setAddIncomeDialogOpen] = useState(false);
+
+  const [mergingIncomePending, setMergingIncomePending] = useState(false);
+  const [mergeIncomeError, setMergeIncomeError] = useState<string | null>(null);
 
   // Aporte mensual a ahorro (informativo). NO afecta el balance del mes;
   // solo declara cuánto el usuario está dedicando a la pila global.
@@ -87,10 +105,10 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   if (lastMonth !== data.month) {
     setLastMonth(data.month);
     setExpenses(data.expenses);
-    setIncome(data.income);
+    setIncomes(data.incomes);
     setCarryoverFromPrev(data.carryoverFromPrev);
-    setIncomeDraft(String(data.income));
     setDismissedPending(false);
+    setDismissedIncomePending(false);
     setCarryoverPrompt(data.carryoverPrompt);
     setCarryoverError(null);
     setSavingsBalance(data.savings);
@@ -128,6 +146,21 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     return { planned, paid, remaining: planned - paid, investment };
   }, [expenses]);
 
+  // Income totals derivados del estado local: el server provee el initial
+  // pero al togglear `received` o agregar un cobro queremos feedback óptico
+  // sin esperar al `router.refresh()`. Misma lógica que `totals` para gastos.
+  const incomeTotals = useMemo(() => {
+    let received = 0;
+    let expected = 0;
+    for (const line of incomes) {
+      const amount = Number(line.amountConverted);
+      expected += amount;
+      if (line.received) received += amount;
+    }
+    return { expected, received, pending: expected - received };
+  }, [incomes]);
+
+  const income = incomeTotals.received;
   const effectiveIncome = income + carryoverFromPrev;
   const balance = effectiveIncome - totals.planned;
 
@@ -184,32 +217,94 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     refreshBalance();
   }
 
-  async function saveIncomeWithAmount(amount: number) {
-    const parsedIncome = Number(amount);
-    if (Number.isNaN(parsedIncome) || parsedIncome < 0) {
-      setIncomeError(tx({ es: "Ingreso debe ser 0 o positivo.", en: "Income must be zero or positive." }));
-      return;
-    }
-    setSavingIncome(true);
-    setIncomeError(null);
-    const response = await fetch(`/api/months/${data.month}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: parsedIncome }),
-    });
-    setSavingIncome(false);
+  async function toggleIncomeReceived(lineId: string, nextReceived: boolean) {
+    setIncomes((current) =>
+      current.map((item) =>
+        item.id === lineId ? { ...item, received: nextReceived } : item,
+      ),
+    );
+    const response = await fetch(
+      `/api/months/${data.month}/incomes/${lineId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ received: nextReceived }),
+      },
+    );
     if (!response.ok) {
-      const payload = (await response.json()) as { error?: string };
-      setIncomeError(payload.error ?? tx({ es: "No se pudo guardar.", en: "Could not save." }));
+      setIncomes((current) =>
+        current.map((item) =>
+          item.id === lineId ? { ...item, received: !nextReceived } : item,
+        ),
+      );
       return;
     }
-    setIncome(parsedIncome);
-    setIncomeDraft(String(parsedIncome));
     refreshBalance();
   }
 
-  async function saveIncome() {
-    await saveIncomeWithAmount(Number(incomeDraft));
+  function openAddIncomeDialog() {
+    setAddIncomeError(null);
+    setAddIncomeName("");
+    setAddIncomeAmount("");
+    setAddIncomeBankId("");
+    setAddIncomeCategory("OTROS");
+    setAddIncomeCurrency(data.primaryCurrency);
+    setAddIncomeFxRateDraft("");
+    setAddIncomeReceived(true);
+    setAddIncomeDialogOpen(true);
+  }
+
+  async function onAddIncome(e: FormEvent) {
+    e.preventDefault();
+    setAddIncomeError(null);
+    setAddIncomeBusy(true);
+    const trimmedFxRate = addIncomeFxRateDraft.trim();
+    const res = await fetch(`/api/months/${data.month}/incomes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: addIncomeName,
+        amount: Number(addIncomeAmount),
+        ...(addIncomeBankId ? { bankId: addIncomeBankId } : {}),
+        category: addIncomeCategory,
+        currency: addIncomeCurrency || data.primaryCurrency,
+        ...(trimmedFxRate ? { fxRate: Number(trimmedFxRate) } : {}),
+        received: addIncomeReceived,
+      }),
+    });
+    setAddIncomeBusy(false);
+    if (!res.ok) {
+      const p = (await res.json()) as { error?: string };
+      setAddIncomeError(
+        p.error ?? tx({ es: "No se pudo agregar.", en: "Could not add." }),
+      );
+      return;
+    }
+    setAddIncomeDialogOpen(false);
+    refreshBalance();
+    router.refresh();
+  }
+
+  async function onMergePendingIncomeTemplates() {
+    setMergeIncomeError(null);
+    setMergingIncomePending(true);
+    // Reusamos el mismo endpoint de gastos: el handler también vuelca las
+    // plantillas de ingresos cuando lo invoca el agente, pero acá la UI quiere
+    // explícito sobre la pata de income. Hacemos POST a un nuevo endpoint
+    // dedicado o reusamos el de gastos? Por ahora: llamamos a ambos.
+    const res = await fetch(`/api/months/${data.month}/merge-templates`, {
+      method: "POST",
+    });
+    setMergingIncomePending(false);
+    if (!res.ok) {
+      const p = (await res.json()) as { error?: string };
+      setMergeIncomeError(
+        p.error ?? tx({ es: "No se pudo agregar.", en: "Could not add." }),
+      );
+      return;
+    }
+    refreshBalance();
+    router.refresh();
   }
 
   async function onAddExpense(e: FormEvent) {
@@ -523,6 +618,92 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </Card>
       ) : null}
 
+      {data.pendingIncomesFromTemplates.length > 0 && !dismissedIncomePending ? (
+        <Card className="border-good/40 bg-lime/15">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              {tx({
+                es: "Cobros nuevos en plantillas",
+                en: "New income in templates",
+              })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              {tx({
+                es:
+                  data.pendingIncomesFromTemplates.length === 1
+                    ? `Hay un ingreso recurrente que aplica a este mes y todavía no está cargado. Sumalo si querés que figure con el resto.`
+                    : `Hay ${data.pendingIncomesFromTemplates.length} ingresos que aplican a este mes y todavía no están cargados. Sumalos si querés que figuren con el resto.`,
+                en:
+                  data.pendingIncomesFromTemplates.length === 1
+                    ? `There is one recurring income that applies to this month but is not loaded yet. Add it if you want it listed.`
+                    : `There are ${data.pendingIncomesFromTemplates.length} incomes that apply to this month but are not loaded yet. Add them if you want them listed.`,
+              })}
+            </p>
+            <ul className="text-muted-foreground list-inside list-disc text-xs">
+              {data.pendingIncomesFromTemplates.map((p) => (
+                <li key={p.templateId}>
+                  {p.name}{" "}
+                  <span className="text-good tabular-nums">
+                    {formatCurrency(Number(p.amount), data.primaryCurrency, locale)}
+                  </span>
+                  {p.bankName ? <> · {p.bankName}</> : null}
+                </li>
+              ))}
+            </ul>
+            {mergeIncomeError ? (
+              <p className="text-destructive text-sm">{mergeIncomeError}</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => void onMergePendingIncomeTemplates()}
+                disabled={mergingIncomePending}
+              >
+                {mergingIncomePending
+                  ? tx({ es: "Agregando…", en: "Adding…" })
+                  : tx({ es: "Agregar al mes", en: "Add to month" })}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setDismissedIncomePending(true)}
+                disabled={mergingIncomePending}
+              >
+                {tx({ es: "Ahora no", en: "Not now" })}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {data.isCurrentMonth ? (
+        <MonthAddIncomeDialog
+          open={addIncomeDialogOpen}
+          onOpenChange={setAddIncomeDialogOpen}
+          banks={data.banks}
+          name={addIncomeName}
+          amount={addIncomeAmount}
+          bankId={addIncomeBankId}
+          category={addIncomeCategory}
+          currency={addIncomeCurrency}
+          fxRateDraft={addIncomeFxRateDraft}
+          received={addIncomeReceived}
+          primaryCurrency={data.primaryCurrency}
+          adding={addIncomeBusy}
+          error={addIncomeError}
+          onChangeName={setAddIncomeName}
+          onChangeAmount={setAddIncomeAmount}
+          onChangeBankId={setAddIncomeBankId}
+          onChangeCategory={setAddIncomeCategory}
+          onChangeCurrency={setAddIncomeCurrency}
+          onChangeFxRateDraft={setAddIncomeFxRateDraft}
+          onChangeReceived={setAddIncomeReceived}
+          onSubmit={onAddIncome}
+        />
+      ) : null}
+
       {data.isCurrentMonth && data.banks.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           {tx({
@@ -572,17 +753,15 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
 
       <MonthSummary
         income={income}
-        incomeDraft={incomeDraft}
-        onIncomeDraftChange={setIncomeDraft}
-        onSaveIncome={saveIncome}
-        savingIncome={savingIncome}
-        incomeError={incomeError}
+        incomeExpected={incomeTotals.expected}
+        incomePending={incomeTotals.pending}
         carryoverFromPrev={carryoverFromPrev}
         savings={savingsBalance}
         totals={totals}
         balance={balance}
         pendingByBank={pendingByBank}
         currency={data.primaryCurrency}
+        onAddIncome={data.isCurrentMonth ? openAddIncomeDialog : undefined}
       />
 
       <Card className="border-lilac/40 bg-lilac/10">
@@ -710,30 +889,24 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </DialogContent>
       </Dialog>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">
-            {tx({
-              es: "Ingreso en otros meses (reciente)",
-              en: "Income in other months (recent)",
-            })}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="text-muted-foreground text-sm">
-            {tx({
-              es: "Ingreso por defecto (meses nuevos):",
-              en: "Default income (new months):",
-            })}{" "}
-            <span className="text-good font-bold">
-              {formatCurrency(data.defaultIncome, data.primaryCurrency, locale)}
-            </span>
-          </div>
-          {data.incomeHistory.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              {tx({ es: "Nada más aún.", en: "Nothing else yet." })}
-            </p>
-          ) : (
+      <MonthIncomesChronological
+        incomes={incomes}
+        primaryCurrency={data.primaryCurrency}
+        onToggleReceived={toggleIncomeReceived}
+        editable={data.isCurrentMonth}
+      />
+
+      {data.incomeHistory.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">
+              {tx({
+                es: "Ingreso recibido en otros meses",
+                en: "Received income in other months",
+              })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
             <div className="space-y-2">
               {data.incomeHistory.map((entry) => (
                 <div
@@ -745,27 +918,15 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                       locale: dateLocale(locale),
                     })}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-good font-bold">
-                      {formatCurrency(entry.amount, data.primaryCurrency, locale)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIncomeDraft(String(entry.amount));
-                        void saveIncomeWithAmount(entry.amount);
-                      }}
-                      className="border-input hover:bg-muted h-7 rounded-md border px-2 text-xs"
-                    >
-                      {tx({ es: "Usar en este mes", en: "Use for this month" })}
-                    </button>
-                  </div>
+                  <span className="text-good font-bold">
+                    {formatCurrency(entry.amount, data.primaryCurrency, locale)}
+                  </span>
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <MonthBankTotals
         bankTotals={liveBankTotals}

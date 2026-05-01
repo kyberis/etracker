@@ -1,4 +1,9 @@
-import { Prisma, SavingsMovementKind, type ExpenseCategory } from "@prisma/client";
+import {
+  Prisma,
+  SavingsMovementKind,
+  type ExpenseCategory,
+  type IncomeCategory,
+} from "@prisma/client";
 import { tool } from "ai";
 import { z } from "zod";
 
@@ -13,6 +18,7 @@ import {
 import { FxUnavailableError, convertToPrimary, fetchFxRate } from "@/lib/fx/rates";
 import {
   applyPrevMonthLeftoverDecision,
+  mergePendingTemplateIncomeLinesIntoMonth,
   mergePendingTemplateLinesIntoMonth,
 } from "@/lib/month-bucket";
 import { loadMonthPageData } from "@/lib/month-page-data";
@@ -34,6 +40,8 @@ import {
   currencySchema,
   expenseCategoryOptions,
   expenseSchema,
+  incomeCategoryOptions,
+  incomeSchema,
 } from "@/lib/validators";
 import { expireYearTimeline } from "@/lib/year-timeline-data";
 
@@ -56,6 +64,7 @@ const monthKey = z
   .regex(/^\d{4}-\d{2}$/u, "Mes en formato yyyy-MM (p. ej. 2026-04).");
 const optionalMonthKey = monthKey.optional();
 const categoryEnum = z.enum(expenseCategoryOptions);
+const incomeCategoryEnum = z.enum(incomeCategoryOptions);
 
 /** Matches DB practical limit; avoids oversized prompts. */
 const MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS = 12_000;
@@ -76,7 +85,7 @@ export function buildExpenseTools(userId: string) {
   return {
     getMonthState: tool({
       description:
-        "Lee el estado del usuario para un mes (yyyy-MM). Si no se pasa mes, usa el mes actual. Devuelve `primaryCurrency`, ingreso, carryover del mes anterior, líneas (cada una con su moneda original + monto convertido), totales planificado/pagado/restante (en moneda principal), balance (ingreso + carryover − planificado), pila de ahorros del usuario y, si aplica, `carryoverPrompt` con el sobrante del mes anterior pendiente de decisión.",
+        "Lee el estado del usuario para un mes (yyyy-MM). Si no se pasa mes, usa el mes actual. Devuelve `primaryCurrency`, ingreso recibido, ingreso previsto, líneas de ingreso (cada cobro con su moneda original + monto convertido + flag `received`), carryover del mes anterior, líneas de gasto, totales planificado/pagado/restante (en moneda principal), balance (ingreso recibido + carryover − planificado), pila de ahorros y, si aplica, `carryoverPrompt` con el saldo del mes anterior pendiente de decisión.",
       inputSchema: z.object({ month: optionalMonthKey }),
       execute: async ({ month }) => {
         const target = month ?? getCurrentMonthKey();
@@ -102,6 +111,8 @@ export function buildExpenseTools(userId: string) {
           primaryCurrency: data.primaryCurrency,
           isCurrentMonth: data.isCurrentMonth,
           income: data.income,
+          incomeExpected: data.incomeExpected,
+          incomeTotals: data.incomeTotals,
           carryoverFromPrev: data.carryoverFromPrev,
           effectiveIncome: data.effectiveIncome,
           savings: data.savings,
@@ -110,7 +121,10 @@ export function buildExpenseTools(userId: string) {
           totals: data.totals,
           balance: data.balance,
           summaryText:
-            `Ingreso ${data.primaryCurrency} ${formatMoney(data.income)}` +
+            `Ingreso recibido ${data.primaryCurrency} ${formatMoney(data.income)}` +
+            (data.incomeTotals.pending > 0
+              ? ` (+ ${data.primaryCurrency} ${formatMoney(data.incomeTotals.pending)} previsto sin recibir)`
+              : "") +
             (data.carryoverFromPrev > 0
               ? ` (+ ${data.primaryCurrency} ${formatMoney(data.carryoverFromPrev)} carryover)`
               : "") +
@@ -120,7 +134,9 @@ export function buildExpenseTools(userId: string) {
           banks: data.banks,
           bankTotals: data.bankTotals,
           expenses: data.expenses,
+          incomes: data.incomes,
           pendingFromTemplates: data.pendingFromTemplates,
+          pendingIncomesFromTemplates: data.pendingIncomesFromTemplates,
         };
       },
     }),
@@ -745,39 +761,542 @@ export function buildExpenseTools(userId: string) {
       },
     }),
 
-    setMonthIncome: tool({
+    listIncomeTemplates: tool({
       description:
-        "Setea el ingreso (income) de un mes específico (yyyy-MM). Reemplaza el valor existente por el monto pasado. " +
-        "Requiere que el mes ya exista (si no, llamá createMonthIfNeeded primero). " +
-        "Usalo cuando el usuario diga 'mi ingreso este mes es X', 'cobré X', 'ganaste X de sueldo', etc. " +
-        "Para gastos individuales NO uses esto: usá addMonthLine. Para cambiar una línea de gasto usá updateMonthLine.",
-      inputSchema: z.object({
-        month: optionalMonthKey,
-        amount: z
-          .number()
-          .min(0)
-          .describe("Monto del ingreso del mes (en la moneda del usuario, sin signo)."),
-      }),
-      execute: async ({ month, amount }) => {
-        const target = month ?? getCurrentMonthKey();
-        const monthStart = toMonthStart(parseMonthKey(target));
-        const existing = await db.monthRecord.findFirst({
-          where: { userId, month: monthStart },
+        "Lista las plantillas de ingreso del usuario (recurrentes y de un solo mes). Útil cuando " +
+        "el usuario habla de 'mi sueldo', 'lo que cobro de alquiler', 'el freelance fijo', etc.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const incomes = await db.income.findMany({
+          where: { userId },
+          orderBy: { name: "asc" },
+          include: { bank: { select: { id: true, name: true } } },
         });
-        if (!existing) {
-          return {
-            error:
-              "El mes no está configurado todavía. Llamá createMonthIfNeeded antes de setear el ingreso.",
-          };
+        return {
+          incomes: incomes.map((i) => ({
+            id: i.id,
+            name: i.name,
+            amount: i.amount.toString(),
+            currency: i.currency,
+            category: i.category,
+            isRecurring: i.isRecurring,
+            startMonth: formatMonthKey(i.startMonth),
+            endMonth: i.endMonth ? formatMonthKey(i.endMonth) : null,
+            bank: i.bank,
+          })),
+        };
+      },
+    }),
+
+    createIncomeTemplate: tool({
+      description:
+        "Crea una plantilla de ingreso (recurrente o puntual). Usalo cuando el usuario te cuente " +
+        "un cobro fijo: sueldo mensual, alquiler que cobra, freelance retainer, etc. " +
+        "`bankId` es OPCIONAL (los cobros no siempre se asocian a una cuenta — si el usuario no " +
+        "lo aclara, dejalo vacío). Para ingresos en moneda distinta a la principal, pasá " +
+        "`currency`. `category` ayuda a clasificar (SUELDO, FREELANCE, NEGOCIO, INVERSIONES, " +
+        "ALQUILER, BONO, REEMBOLSO, REGALO, OTROS).",
+      inputSchema: z.object({
+        name: z.string().min(1).max(120),
+        amount: z.number().positive(),
+        bankId: z.string().min(1).optional(),
+        isRecurring: z.boolean().default(true),
+        startMonth: monthKey,
+        endMonth: optionalMonthKey,
+        category: incomeCategoryEnum.optional().default("OTROS"),
+        currency: currencySchema.optional(),
+      }),
+      execute: async (input) => {
+        const payload = incomeSchema.parse({
+          ...input,
+          bankId: input.bankId ?? undefined,
+          endMonth: input.endMonth ?? undefined,
+        });
+        if (payload.bankId) {
+          const bank = await db.bank.findFirst({
+            where: { id: payload.bankId, userId },
+            select: { id: true },
+          });
+          if (!bank) return { error: "El banco indicado no existe." };
         }
-        const updated = await db.monthRecord.update({
-          where: { id: existing.id },
-          data: { income: new Prisma.Decimal(amount.toFixed(2)) },
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: { primaryCurrency: true },
+        });
+        if (!user) return { error: "Usuario no encontrado." };
+
+        const created = await db.income.create({
+          data: {
+            userId,
+            bankId: payload.bankId ?? null,
+            name: payload.name.trim(),
+            amount: new Prisma.Decimal(payload.amount.toFixed(2)),
+            currency: payload.currency ?? user.primaryCurrency,
+            isRecurring: payload.isRecurring,
+            startMonth: parseMonthKey(payload.startMonth),
+            endMonth: payload.endMonth ? parseMonthKey(payload.endMonth) : null,
+            category: payload.category,
+          },
+          include: { bank: { select: { name: true } } },
         });
         return {
           ok: true as const,
-          month: target,
-          income: Number(updated.income),
+          income: {
+            id: created.id,
+            name: created.name,
+            amount: created.amount.toString(),
+            currency: created.currency,
+            isRecurring: created.isRecurring,
+            startMonth: formatMonthKey(created.startMonth),
+            endMonth: created.endMonth ? formatMonthKey(created.endMonth) : null,
+            bankName: created.bank?.name ?? null,
+            category: created.category,
+          },
+        };
+      },
+    }),
+
+    updateIncomeTemplate: tool({
+      description:
+        "Actualiza una plantilla de ingreso existente. Pasá solo los campos a modificar " +
+        "(nombre, monto, banco, moneda, categoría, recurrencia, mes de inicio/fin). " +
+        "Pasá `bankId=null` para desasociar el banco. No materializa cambios sobre meses ya " +
+        "creados; los meses futuros (o los que se sincronicen con `mergePendingTemplates`) " +
+        "tomarán los nuevos valores.",
+      inputSchema: z.object({
+        id: z.string().min(1),
+        name: z.string().min(1).max(120).optional(),
+        amount: z.number().positive().optional(),
+        bankId: z.union([z.string().min(1), z.null()]).optional(),
+        isRecurring: z.boolean().optional(),
+        startMonth: optionalMonthKey,
+        endMonth: monthKey.nullable().optional(),
+        category: incomeCategoryEnum.optional(),
+        currency: currencySchema.optional(),
+      }),
+      execute: async ({
+        id,
+        name,
+        amount,
+        bankId,
+        isRecurring,
+        startMonth,
+        endMonth,
+        category,
+        currency,
+      }) => {
+        const existing = await db.income.findFirst({ where: { id, userId } });
+        if (!existing) return { error: "La plantilla indicada no existe." };
+
+        const data: {
+          name?: string;
+          amount?: Prisma.Decimal;
+          bankId?: string | null;
+          isRecurring?: boolean;
+          startMonth?: Date;
+          endMonth?: Date | null;
+          category?: IncomeCategory;
+          currency?: string;
+        } = {};
+        if (name !== undefined) data.name = name.trim();
+        if (amount !== undefined) {
+          data.amount = new Prisma.Decimal(amount.toFixed(2));
+        }
+        if (category !== undefined) data.category = category as IncomeCategory;
+        if (currency !== undefined) data.currency = currency;
+        if (isRecurring !== undefined) data.isRecurring = isRecurring;
+        if (startMonth !== undefined) data.startMonth = parseMonthKey(startMonth);
+        if (endMonth !== undefined) {
+          data.endMonth = endMonth === null ? null : parseMonthKey(endMonth);
+        }
+        if (bankId !== undefined) {
+          if (bankId === null) {
+            data.bankId = null;
+          } else {
+            const bank = await db.bank.findFirst({
+              where: { id: bankId, userId },
+              select: { id: true },
+            });
+            if (!bank) return { error: "El banco indicado no existe." };
+            data.bankId = bankId;
+          }
+        }
+
+        if (Object.keys(data).length === 0) {
+          return { error: "Nada para actualizar." };
+        }
+
+        const nextRecurring = data.isRecurring ?? existing.isRecurring;
+        const nextStart = data.startMonth ?? existing.startMonth;
+        const nextEnd = data.endMonth !== undefined ? data.endMonth : existing.endMonth;
+        if (!nextRecurring && nextEnd) {
+          return { error: "Las plantillas puntuales no pueden tener endMonth." };
+        }
+        if (nextEnd && nextEnd < nextStart) {
+          return { error: "endMonth tiene que ser >= startMonth." };
+        }
+
+        const updated = await db.income.update({
+          where: { id },
+          data,
+          include: { bank: { select: { name: true } } },
+        });
+        return {
+          ok: true as const,
+          income: {
+            id: updated.id,
+            name: updated.name,
+            amount: updated.amount.toString(),
+            currency: updated.currency,
+            isRecurring: updated.isRecurring,
+            startMonth: formatMonthKey(updated.startMonth),
+            endMonth: updated.endMonth ? formatMonthKey(updated.endMonth) : null,
+            bankId: updated.bankId,
+            bankName: updated.bank?.name ?? null,
+            category: updated.category,
+          },
+        };
+      },
+    }),
+
+    deleteIncomeTemplate: tool({
+      description:
+        "Borra una plantilla de ingreso. Las líneas (`MonthIncomeLine`) ya materializadas en " +
+        "meses existentes se preservan y simplemente quedan desvinculadas (`templateId=null`). " +
+        "Pedí confirmación verbal al usuario antes de llamar este tool.",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      execute: async ({ id }) => {
+        const existing = await db.income.findFirst({
+          where: { id, userId },
+          select: { id: true, name: true },
+        });
+        if (!existing) return { error: "La plantilla indicada no existe." };
+
+        const lineCount = await db.monthIncomeLine.count({
+          where: { templateId: id, userId },
+        });
+        await db.income.delete({ where: { id } });
+        return {
+          ok: true as const,
+          deleted: { id: existing.id, name: existing.name },
+          detachedLineCount: lineCount,
+        };
+      },
+    }),
+
+    addIncomeLine: tool({
+      description:
+        "Registra un cobro PUNTUAL en el mes en curso (no crea plantilla). Solo se permite el " +
+        "mes en curso. Usalo cuando el usuario diga 'cobré X', 'me pagaron $Y', 'me " +
+        "transfirieron $Z de freelance', 'me llegó el bono', 'me devolvieron plata', etc. " +
+        "Por defecto la línea se crea como **recibida** (`received=true`) porque el usuario " +
+        "está reportando algo que ya entró. Pasá `received=false` SOLO si aclara que todavía " +
+        "está esperando el pago (p. ej. 'la próxima quincena cobro X'). " +
+        "`bankId` es OPCIONAL: si el usuario no lo aclara, dejalo vacío. " +
+        "Si el cobro está en otra moneda que la principal, pasá `currency` (ISO 4217). " +
+        "Las líneas son únicas por (usuario, fecha, descripción, monto, moneda): " +
+        "si ya existe una idéntica el tool devuelve `duplicate=true` sin crear nada.",
+      inputSchema: z.object({
+        name: z.string().min(1).max(120),
+        amount: z.number().positive(),
+        bankId: z.string().min(1).optional(),
+        category: incomeCategoryEnum.optional().default("OTROS"),
+        received: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Si la plata ya entró. Default true porque el usuario suele reportar cobros hechos.",
+          ),
+        currency: currencySchema
+          .optional()
+          .describe(
+            "ISO 4217. Default = moneda principal del usuario. Pasala cuando el usuario diga 'cobré en USD/ARS/EUR'.",
+          ),
+        fxRate: z
+          .number()
+          .positive()
+          .optional()
+          .describe(
+            "Override manual del tipo de cambio. Útil para casos como dólar blue/MEP cuando el cobro entra en moneda distinta a la principal.",
+          ),
+        occurredOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .optional()
+          .describe(
+            "Fecha real del cobro (yyyy-MM-dd). Default = hoy. Pasala si el usuario indica una fecha distinta.",
+          ),
+      }),
+      execute: async (input) => {
+        const month = getCurrentMonthKey();
+        const monthStart = toMonthStart(parseMonthKey(month));
+        const [user, record] = await Promise.all([
+          db.user.findUnique({
+            where: { id: userId },
+            select: { primaryCurrency: true },
+          }),
+          db.monthRecord.findFirst({ where: { userId, month: monthStart } }),
+        ]);
+        if (!user) return { error: "Usuario no encontrado." };
+        if (!record) {
+          return {
+            error:
+              "El mes en curso no está configurado todavía. Pedíle al usuario crearlo con createMonthIfNeeded.",
+          };
+        }
+        let bankName: string | null = null;
+        if (input.bankId) {
+          const bank = await db.bank.findFirst({
+            where: { id: input.bankId, userId },
+            select: { id: true, name: true },
+          });
+          if (!bank) return { error: "El banco indicado no existe." };
+          bankName = bank.name;
+        }
+
+        let converted;
+        try {
+          converted = await convertToPrimary({
+            amount: input.amount,
+            currency: input.currency ?? user.primaryCurrency,
+            primary: user.primaryCurrency,
+            fxRate: input.fxRate,
+          });
+        } catch (error) {
+          if (error instanceof FxUnavailableError) {
+            return {
+              error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate y volvé a intentar pasando "fxRate".`,
+            };
+          }
+          throw error;
+        }
+
+        const occurredOn = parseIsoDate(input.occurredOn) ?? todayUtcDate();
+        let line;
+        try {
+          line = await db.monthIncomeLine.create({
+            data: {
+              userId,
+              monthRecordId: record.id,
+              templateId: null,
+              bankId: input.bankId ?? null,
+              name: input.name.trim(),
+              occurredOn,
+              amount: converted.amount,
+              currency: converted.currency,
+              fxRate: converted.fxRate,
+              amountConverted: converted.amountConverted,
+              category: input.category as IncomeCategory,
+              received: input.received,
+            },
+          });
+        } catch (error) {
+          if (isUniqueViolation(error)) {
+            return {
+              ok: true as const,
+              duplicate: true as const,
+              note:
+                "Ya existía un cobro con esa fecha, descripción y monto. No lo dupliqué.",
+            };
+          }
+          throw error;
+        }
+        await expireYearTimeline(userId, monthStart.getUTCFullYear());
+        return {
+          ok: true as const,
+          duplicate: false as const,
+          line: {
+            id: line.id,
+            month,
+            name: line.name,
+            amount: line.amount.toString(),
+            currency: line.currency,
+            fxRate: line.fxRate.toString(),
+            amountConverted: line.amountConverted.toString(),
+            primaryCurrency: user.primaryCurrency,
+            bankName,
+            category: line.category,
+            received: line.received,
+            occurredOn: line.occurredOn.toISOString().slice(0, 10),
+          },
+        };
+      },
+    }),
+
+    updateIncomeLine: tool({
+      description:
+        "Actualiza una línea de ingreso del mes. Campos editables: `received`, `amount`, " +
+        "`name`, `currency`, `fxRate`, `bankId`, `category`, `occurredOn`. " +
+        "Útil para confirmar que un cobro previsto ya entró (`received=true`), corregir " +
+        "monto/fecha, o moverlo a otro banco/categoría. Si pasás `currency` o `fxRate`, " +
+        "recalculamos `amountConverted`; si solo cambia `amount` y la moneda no varía, " +
+        "mantenemos el rate ya fijado.",
+      inputSchema: z.object({
+        id: z.string().min(1),
+        received: z.boolean().optional(),
+        amount: z.number().positive().optional(),
+        name: z.string().min(1).max(120).optional(),
+        currency: currencySchema.optional(),
+        fxRate: z.number().positive().optional(),
+        bankId: z.union([z.string().min(1), z.null()]).optional(),
+        category: incomeCategoryEnum.optional(),
+        occurredOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .optional(),
+      }),
+      execute: async ({
+        id,
+        received,
+        amount,
+        name,
+        currency,
+        fxRate,
+        bankId,
+        category,
+        occurredOn,
+      }) => {
+        const existing = await db.monthIncomeLine.findFirst({
+          where: { id, userId },
+          include: { monthRecord: { select: { month: true } } },
+        });
+        if (!existing) return { error: "Línea de ingreso no encontrada." };
+
+        const data: {
+          received?: boolean;
+          amount?: Prisma.Decimal;
+          name?: string;
+          currency?: string;
+          fxRate?: Prisma.Decimal;
+          amountConverted?: Prisma.Decimal;
+          bankId?: string | null;
+          category?: IncomeCategory;
+          occurredOn?: Date;
+        } = {};
+        if (received !== undefined) data.received = received;
+        if (name !== undefined) data.name = name.trim();
+        if (category !== undefined) data.category = category as IncomeCategory;
+
+        if (occurredOn !== undefined) {
+          const parsed = parseIsoDate(occurredOn);
+          if (!parsed) return { error: "occurredOn inválido (yyyy-MM-dd)." };
+          data.occurredOn = parsed;
+        }
+
+        if (bankId !== undefined) {
+          if (bankId === null) {
+            data.bankId = null;
+          } else {
+            const bank = await db.bank.findFirst({
+              where: { id: bankId, userId },
+              select: { id: true },
+            });
+            if (!bank) return { error: "El banco indicado no existe." };
+            data.bankId = bankId;
+          }
+        }
+
+        const amountChanged = amount !== undefined;
+        const currencyChanged = currency !== undefined;
+        const rateChanged = fxRate !== undefined;
+        if (amountChanged || currencyChanged || rateChanged) {
+          const user = await db.user.findUnique({
+            where: { id: userId },
+            select: { primaryCurrency: true },
+          });
+          if (!user) return { error: "Usuario no encontrado." };
+          const nextCurrency = currency ?? existing.currency;
+          const nextAmount = amount ?? Number(existing.amount);
+          const useExistingRate =
+            !currencyChanged &&
+            !rateChanged &&
+            amountChanged &&
+            nextCurrency.toUpperCase() === existing.currency.toUpperCase();
+          try {
+            const converted = await convertToPrimary({
+              amount: nextAmount,
+              currency: nextCurrency,
+              primary: user.primaryCurrency,
+              fxRate: useExistingRate ? existing.fxRate : fxRate,
+            });
+            data.amount = converted.amount;
+            data.currency = converted.currency;
+            data.fxRate = converted.fxRate;
+            data.amountConverted = converted.amountConverted;
+          } catch (error) {
+            if (error instanceof FxUnavailableError) {
+              return {
+                error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate y volvé a intentar pasando "fxRate".`,
+              };
+            }
+            throw error;
+          }
+        }
+
+        if (Object.keys(data).length === 0) {
+          return { error: "Nada para actualizar." };
+        }
+
+        let updated;
+        try {
+          updated = await db.monthIncomeLine.update({ where: { id }, data });
+        } catch (error) {
+          if (isUniqueViolation(error)) {
+            return {
+              error:
+                "Ya hay un cobro con esa fecha, descripción y monto; no puedo dejar dos idénticos.",
+            };
+          }
+          throw error;
+        }
+        await expireYearTimeline(
+          userId,
+          existing.monthRecord.month.getUTCFullYear(),
+        );
+        return {
+          ok: true as const,
+          line: {
+            id: updated.id,
+            name: updated.name,
+            amount: updated.amount.toString(),
+            currency: updated.currency,
+            fxRate: updated.fxRate.toString(),
+            amountConverted: updated.amountConverted.toString(),
+            received: updated.received,
+            bankId: updated.bankId,
+            category: updated.category,
+            occurredOn: updated.occurredOn.toISOString().slice(0, 10),
+          },
+        };
+      },
+    }),
+
+    deleteIncomeLine: tool({
+      description:
+        "Borra una línea de ingreso del mes (`MonthIncomeLine`). No toca la plantilla " +
+        "original. Pedí confirmación verbal al usuario antes de llamar este tool.",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      execute: async ({ id }) => {
+        const existing = await db.monthIncomeLine.findFirst({
+          where: { id, userId },
+          include: { monthRecord: { select: { month: true } } },
+        });
+        if (!existing) return { error: "Línea de ingreso no encontrada." };
+
+        await db.monthIncomeLine.delete({ where: { id } });
+        await expireYearTimeline(
+          userId,
+          existing.monthRecord.month.getUTCFullYear(),
+        );
+        return {
+          ok: true as const,
+          deleted: {
+            id: existing.id,
+            name: existing.name,
+            amount: existing.amount.toString(),
+            currency: existing.currency,
+          },
         };
       },
     }),
@@ -824,12 +1343,21 @@ export function buildExpenseTools(userId: string) {
 
     mergePendingTemplates: tool({
       description:
-        "Vuelca las plantillas vigentes que aún no están en el mes a la línea del mes (idempotente).",
+        "Vuelca las plantillas (gastos + ingresos) vigentes que aún no están en el mes a las " +
+        "líneas correspondientes (idempotente). Devuelve el conteo de líneas creadas por cada " +
+        "tipo (`addedExpenses`, `addedIncomes`).",
       inputSchema: z.object({ month: monthKey }),
       execute: async ({ month }) => {
         try {
-          const result = await mergePendingTemplateLinesIntoMonth(userId, month);
-          return { ok: true, ...result };
+          const [expenses, incomes] = await Promise.all([
+            mergePendingTemplateLinesIntoMonth(userId, month),
+            mergePendingTemplateIncomeLinesIntoMonth(userId, month),
+          ]);
+          return {
+            ok: true,
+            addedExpenses: expenses.added,
+            addedIncomes: incomes.added,
+          };
         } catch (e) {
           if (e instanceof Error && e.message === "NO_RECORD") {
             return { error: "El mes no está configurado." };

@@ -12,6 +12,9 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`billing-and-quota-upsell`](billing-and-quota-upsell.md) — optional Stripe-backed
   Supporter plan + one-time donations gated behind the `quota_upsell` feature flag.
   Surfaces in chat 429, settings, public `/upgrade`.
+- [`income`](income.md) — multi-source monthly income via recurring `Income`
+  templates and per-month `MonthIncomeLine` lines. Mirrors the expense data
+  model; deprecates the old single `MonthRecord.income` field.
 - [`savings`](savings.md) — global savings pile backed by an immutable ledger
   (`SavingsMovement`). Monthly informational contribution, carry-over deposits,
   debt coverage on negative months, manual deposits/withdrawals. REST + agent

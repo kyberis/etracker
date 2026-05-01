@@ -1,5 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { ExpenseCategory, Prisma, SavingsMovementKind } from "@prisma/client";
+import {
+  ExpenseCategory,
+  IncomeCategory,
+  Prisma,
+  SavingsMovementKind,
+} from "@prisma/client";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
@@ -20,13 +25,17 @@ import {
   setMonthlySavingsContribution as setMonthlySavingsContributionService,
 } from "@/lib/savings";
 import { expireYearTimeline, getYearTimelineData } from "@/lib/year-timeline-data";
-import { expenseCategoryOptions } from "@/lib/validators";
+import {
+  expenseCategoryOptions,
+  incomeCategoryOptions,
+} from "@/lib/validators";
 
 const monthKeySchema = z
   .string()
   .regex(/^\d{4}-\d{2}$/, "Mes inválido. Usá yyyy-MM (ej. 2026-04).");
 
 const categorySchema = z.enum(expenseCategoryOptions);
+const incomeCategorySchema = z.enum(incomeCategoryOptions);
 
 function toMoney(value: number | string): Prisma.Decimal {
   const decimal = new Prisma.Decimal(value);
@@ -164,6 +173,55 @@ export function registerUserMcp(server: McpServer): void {
     },
   );
 
+  server.registerResource(
+    "incomes",
+    "ada://user/incomes",
+    {
+      title: "Plantillas de ingreso",
+      description:
+        "Plantillas (Income) recurrentes y puntuales del usuario: sueldos, alquileres cobrados, freelance fijo, etc.",
+      mimeType: "application/json",
+    },
+    async (uri, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) {
+        return {
+          contents: [
+            { uri: uri.href, mimeType: "text/plain", text: "Unauthorized." },
+          ],
+        };
+      }
+      const incomes = await db.income.findMany({
+        where: { userId },
+        orderBy: [{ isRecurring: "desc" }, { name: "asc" }],
+        include: { bank: { select: { id: true, name: true } } },
+      });
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(
+              incomes.map((i) => ({
+                id: i.id,
+                name: i.name,
+                amount: Number(i.amount),
+                currency: i.currency,
+                category: i.category,
+                isRecurring: i.isRecurring,
+                startMonth: formatMonthKey(i.startMonth),
+                endMonth: i.endMonth ? formatMonthKey(i.endMonth) : null,
+                bank: i.bank,
+              })),
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
   // ── Tools: read ─────────────────────────────────────────────────────────
 
   server.registerTool(
@@ -259,7 +317,7 @@ export function registerUserMcp(server: McpServer): void {
     {
       title: "Listar meses",
       description:
-        "Devuelve los últimos N meses con bucket creado, con balance, ingresos y total de gastos.",
+        "Devuelve los últimos N meses con bucket creado, con balance, ingreso recibido (sum de líneas con `received=true`), ingreso previsto (todas las líneas) y total de gastos.",
       inputSchema: {
         limit: z.number().int().min(1).max(36).default(12),
       },
@@ -271,22 +329,38 @@ export function registerUserMcp(server: McpServer): void {
         where: { userId },
         orderBy: { month: "desc" },
         take: limit,
-        include: { lines: { select: { amount: true, paid: true } } },
+        include: {
+          lines: { select: { amountConverted: true, paid: true } },
+          incomeLines: {
+            select: { amountConverted: true, received: true },
+          },
+        },
       });
       const result = records.map((r) => {
-        const total = r.lines.reduce((s, l) => s + Number(l.amount), 0);
+        const total = r.lines.reduce(
+          (s, l) => s + Number(l.amountConverted),
+          0,
+        );
         const paid = r.lines
           .filter((l) => l.paid)
-          .reduce((s, l) => s + Number(l.amount), 0);
-        const income = Number(r.income);
+          .reduce((s, l) => s + Number(l.amountConverted), 0);
+        const incomeReceived = r.incomeLines
+          .filter((l) => l.received)
+          .reduce((s, l) => s + Number(l.amountConverted), 0);
+        const incomeExpected = r.incomeLines.reduce(
+          (s, l) => s + Number(l.amountConverted),
+          0,
+        );
         return {
           month: formatMonthKey(r.month),
-          income,
+          income: incomeReceived,
+          incomeExpected,
           totalExpense: total,
           paidExpense: paid,
           remainingExpense: total - paid,
-          balance: income - total,
+          balance: incomeReceived - total,
           lineCount: r.lines.length,
+          incomeLineCount: r.incomeLines.length,
         };
       });
       return jsonContent(result);
@@ -298,7 +372,7 @@ export function registerUserMcp(server: McpServer): void {
     {
       title: "Detalle de un mes",
       description:
-        "Devuelve líneas de gasto, balance e ingresos del mes indicado (yyyy-MM).",
+        "Devuelve líneas de gasto, líneas de ingreso, balance e ingresos del mes indicado (yyyy-MM). El balance usa solo ingresos `received=true`.",
       inputSchema: {
         month: monthKeySchema,
       },
@@ -314,6 +388,10 @@ export function registerUserMcp(server: McpServer): void {
             include: { bank: { select: { name: true, color: true } } },
             orderBy: [{ paid: "asc" }, { name: "asc" }],
           },
+          incomeLines: {
+            include: { bank: { select: { name: true, color: true } } },
+            orderBy: [{ received: "asc" }, { name: "asc" }],
+          },
         },
       });
       if (!record) {
@@ -321,27 +399,52 @@ export function registerUserMcp(server: McpServer): void {
           `El mes ${month} no está creado todavía. Usá el dashboard web para crear el bucket o pedí que se genere desde plantillas.`,
         );
       }
-      const total = record.lines.reduce((s, l) => s + Number(l.amount), 0);
+      const total = record.lines.reduce(
+        (s, l) => s + Number(l.amountConverted),
+        0,
+      );
       const paid = record.lines
         .filter((l) => l.paid)
-        .reduce((s, l) => s + Number(l.amount), 0);
-      const income = Number(record.income);
+        .reduce((s, l) => s + Number(l.amountConverted), 0);
+      const incomeReceived = record.incomeLines
+        .filter((l) => l.received)
+        .reduce((s, l) => s + Number(l.amountConverted), 0);
+      const incomeExpected = record.incomeLines.reduce(
+        (s, l) => s + Number(l.amountConverted),
+        0,
+      );
       return jsonContent({
         month,
-        income,
+        income: incomeReceived,
+        incomeExpected,
         totalExpense: total,
         paidExpense: paid,
         remainingExpense: total - paid,
-        balance: income - total,
+        balance: incomeReceived - total,
         lines: record.lines.map((l) => ({
           id: l.id,
           name: l.name,
           amount: Number(l.amount),
+          amountConverted: Number(l.amountConverted),
+          currency: l.currency,
           category: l.category,
           paid: l.paid,
           bankId: l.bankId,
           bankName: l.bank.name,
           templateId: l.templateId,
+        })),
+        incomeLines: record.incomeLines.map((l) => ({
+          id: l.id,
+          name: l.name,
+          amount: Number(l.amount),
+          amountConverted: Number(l.amountConverted),
+          currency: l.currency,
+          category: l.category,
+          received: l.received,
+          bankId: l.bankId,
+          bankName: l.bank?.name ?? null,
+          templateId: l.templateId,
+          occurredOn: l.occurredOn.toISOString().slice(0, 10),
         })),
       });
     },
@@ -362,7 +465,10 @@ export function registerUserMcp(server: McpServer): void {
       const start = toMonthStart(parseMonthKey(month));
       const record = await db.monthRecord.findFirst({
         where: { userId, month: start },
-        include: { lines: { select: { amount: true, paid: true } } },
+        include: {
+          lines: { select: { amountConverted: true, paid: true } },
+          incomeLines: { select: { amountConverted: true, received: true } },
+        },
       });
       if (!record) {
         return jsonContent({
@@ -373,11 +479,16 @@ export function registerUserMcp(server: McpServer): void {
           balance: null,
         });
       }
-      const total = record.lines.reduce((s, l) => s + Number(l.amount), 0);
+      const total = record.lines.reduce(
+        (s, l) => s + Number(l.amountConverted),
+        0,
+      );
       const paid = record.lines
         .filter((l) => l.paid)
-        .reduce((s, l) => s + Number(l.amount), 0);
-      const income = Number(record.income);
+        .reduce((s, l) => s + Number(l.amountConverted), 0);
+      const income = record.incomeLines
+        .filter((l) => l.received)
+        .reduce((s, l) => s + Number(l.amountConverted), 0);
       return jsonContent({
         month,
         income,
@@ -702,6 +813,263 @@ export function registerUserMcp(server: McpServer): void {
           note: result.movement.note,
           occurredOn: result.movement.occurredOn.toISOString().slice(0, 10),
         },
+      });
+    },
+  );
+
+  // ── Tools: ingresos ─────────────────────────────────────────────────────
+
+  server.registerTool(
+    "listIncomeTemplates",
+    {
+      title: "Listar plantillas de ingreso",
+      description:
+        "Plantillas (Income) recurrentes y puntuales que definen el catálogo de ingresos del usuario.",
+      inputSchema: {
+        bankId: z.string().optional(),
+      },
+    },
+    async ({ bankId }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const templates = await db.income.findMany({
+        where: { userId, ...(bankId ? { bankId } : {}) },
+        include: { bank: { select: { name: true } } },
+        orderBy: [{ isRecurring: "desc" }, { name: "asc" }],
+      });
+      return jsonContent(
+        templates.map((t) => ({
+          id: t.id,
+          name: t.name,
+          amount: Number(t.amount),
+          currency: t.currency,
+          category: t.category,
+          isRecurring: t.isRecurring,
+          startMonth: formatMonthKey(t.startMonth),
+          endMonth: t.endMonth ? formatMonthKey(t.endMonth) : null,
+          bankId: t.bankId,
+          bankName: t.bank?.name ?? null,
+        })),
+      );
+    },
+  );
+
+  server.registerTool(
+    "addIncomeTemplate",
+    {
+      title: "Crear plantilla de ingreso",
+      description:
+        "Crea una plantilla (Income). Si `isRecurring` es true, se proyecta a cada mes nuevo. Si es false, aplica solo al mes en `startMonth`. `bankId` es opcional.",
+      inputSchema: {
+        name: z.string().min(1).max(120),
+        amount: z.number().positive(),
+        bankId: z.string().min(1).optional(),
+        category: incomeCategorySchema.default("OTROS"),
+        currency: z
+          .string()
+          .regex(/^[A-Za-z]{3}$/u, "Currency must be a 3-letter ISO code.")
+          .optional(),
+        isRecurring: z.boolean().default(true),
+        startMonth: monthKeySchema,
+        endMonth: monthKeySchema.optional(),
+      },
+    },
+    async (
+      {
+        name,
+        amount,
+        bankId,
+        category,
+        currency,
+        isRecurring,
+        startMonth,
+        endMonth,
+      },
+      extra,
+    ) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      if (bankId) {
+        const bank = await db.bank.findFirst({ where: { id: bankId, userId } });
+        if (!bank) return errContent("Banco no encontrado.");
+      }
+      if (!isRecurring && endMonth) {
+        return errContent("Los ingresos puntuales no pueden tener endMonth.");
+      }
+      if (endMonth && endMonth < startMonth) {
+        return errContent("endMonth tiene que ser >= startMonth.");
+      }
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { primaryCurrency: true },
+      });
+      if (!user) return errContent("Usuario no encontrado.");
+      const created = await db.income.create({
+        data: {
+          userId,
+          bankId: bankId ?? null,
+          name,
+          amount: toMoney(amount),
+          currency: (currency ?? user.primaryCurrency).toUpperCase(),
+          category: category as IncomeCategory,
+          isRecurring,
+          startMonth: toMonthStart(parseMonthKey(startMonth)),
+          endMonth: endMonth ? toMonthStart(parseMonthKey(endMonth)) : null,
+        },
+      });
+      return jsonContent({
+        ok: true,
+        id: created.id,
+        message: `Plantilla de ingreso "${name}" creada. Aplica desde ${startMonth}${endMonth ? ` hasta ${endMonth}` : isRecurring ? " en adelante" : " (solo ese mes)"}.`,
+      });
+    },
+  );
+
+  server.registerTool(
+    "addIncomeToMonth",
+    {
+      title: "Agregar cobro a un mes",
+      description:
+        "Agrega una línea de ingreso al mes indicado (sin crear plantilla). Útil para cobros puntuales (freelance, bonos, regalos). `bankId` es opcional. Por defecto `received=false` (previsto); el usuario lo confirma cuando entra la plata.",
+      inputSchema: {
+        month: monthKeySchema,
+        bankId: z.string().min(1).optional(),
+        name: z.string().min(1).max(120),
+        amount: z.number().positive(),
+        category: incomeCategorySchema.default("OTROS"),
+        received: z.boolean().default(false),
+        occurredOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .optional(),
+      },
+    },
+    async (
+      { month, bankId, name, amount, category, received, occurredOn },
+      extra,
+    ) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const start = toMonthStart(parseMonthKey(month));
+      const [bank, monthRecord, user] = await Promise.all([
+        bankId
+          ? db.bank.findFirst({ where: { id: bankId, userId } })
+          : Promise.resolve(null),
+        db.monthRecord.findFirst({ where: { userId, month: start } }),
+        db.user.findUnique({
+          where: { id: userId },
+          select: { primaryCurrency: true },
+        }),
+      ]);
+      if (bankId && !bank) return errContent("Banco no encontrado.");
+      if (!monthRecord) {
+        return errContent(
+          `El mes ${month} no tiene bucket. Creá el mes desde el dashboard web primero.`,
+        );
+      }
+      const primaryCurrency = user?.primaryCurrency ?? "USD";
+      const moneyAmount = toMoney(amount);
+      const occurredOnDate = parseIsoDate(occurredOn) ?? todayUtcDate();
+      let line;
+      try {
+        line = await db.monthIncomeLine.create({
+          data: {
+            userId,
+            monthRecordId: monthRecord.id,
+            bankId: bankId ?? null,
+            name,
+            occurredOn: occurredOnDate,
+            amount: moneyAmount,
+            currency: primaryCurrency,
+            fxRate: toMoney(1),
+            amountConverted: moneyAmount,
+            category: category as IncomeCategory,
+            received,
+          },
+        });
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          return jsonContent({
+            ok: true,
+            duplicate: true,
+            message: `Ya existía un cobro idéntico ("${name}", $${fmt(amount)}) en esa fecha; no lo dupliqué.`,
+          });
+        }
+        throw error;
+      }
+      const year = start.getUTCFullYear();
+      await expireYearTimeline(userId, year);
+      return jsonContent({
+        ok: true,
+        duplicate: false,
+        id: line.id,
+        message: `Agregué cobro "${name}" por $${fmt(amount)} a ${month}.`,
+      });
+    },
+  );
+
+  server.registerTool(
+    "markIncomeReceived",
+    {
+      title: "Marcar cobro como recibido",
+      description:
+        "Pone una línea de ingreso del mes como recibida/no recibida. El balance del mes solo cuenta las recibidas.",
+      inputSchema: {
+        lineId: z.string().min(1),
+        received: z.boolean(),
+      },
+    },
+    async ({ lineId, received }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const line = await db.monthIncomeLine.findUnique({
+        where: { id: lineId },
+        include: { monthRecord: { select: { userId: true, month: true } } },
+      });
+      if (!line || line.monthRecord.userId !== userId) {
+        return errContent("Línea de ingreso no encontrada.");
+      }
+      await db.monthIncomeLine.update({
+        where: { id: lineId },
+        data: { received },
+      });
+      await expireYearTimeline(userId, line.monthRecord.month.getUTCFullYear());
+      return jsonContent({
+        ok: true,
+        lineId,
+        received,
+        message: received
+          ? `Marqué "${line.name}" como recibido.`
+          : `"${line.name}" vuelve a estar como previsto.`,
+      });
+    },
+  );
+
+  server.registerTool(
+    "deleteIncomeLine",
+    {
+      title: "Eliminar línea de ingreso",
+      description:
+        "Borra una línea de ingreso (`MonthIncomeLine`) de un mes específico. No toca la plantilla original.",
+      inputSchema: {
+        lineId: z.string().min(1),
+      },
+    },
+    async ({ lineId }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const line = await db.monthIncomeLine.findUnique({
+        where: { id: lineId },
+        include: { monthRecord: { select: { userId: true, month: true } } },
+      });
+      if (!line || line.monthRecord.userId !== userId) {
+        return errContent("Línea de ingreso no encontrada.");
+      }
+      await db.monthIncomeLine.delete({ where: { id: lineId } });
+      await expireYearTimeline(userId, line.monthRecord.month.getUTCFullYear());
+      return jsonContent({
+        ok: true,
+        message: `Eliminé "${line.name}".`,
       });
     },
   );

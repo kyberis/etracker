@@ -1,12 +1,7 @@
-import { Prisma } from "@prisma/client";
-
-import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
 import { loadMonthPageData } from "@/lib/month-page-data";
-import { parseMonthKey, toMonthStart } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
-import { monthlyIncomeSchema, monthParamSchema } from "@/lib/validators";
-import { expireYearTimeline } from "@/lib/year-timeline-data";
+import { monthParamSchema } from "@/lib/validators";
 
 export async function GET(_request: Request, context: { params: Promise<{ month: string }> }) {
   return withApi(async () => {
@@ -17,35 +12,20 @@ export async function GET(_request: Request, context: { params: Promise<{ month:
   });
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ month: string }> }) {
+/**
+ * Antes este endpoint editaba `MonthRecord.income` (un único `Decimal` por
+ * mes). A partir de la release que introdujo el modelo de ingresos
+ * itemizado, el ingreso del mes vive como `MonthIncomeLine` y se manipula
+ * vía `/api/months/[month]/incomes`. Devolvemos 410 Gone para que callers
+ * viejos (incluido cualquier MCP cliente) reciban una señal explícita y
+ * migren — no intentamos crear una línea sintética acá porque eso oculta el
+ * cambio de modelo y mezcla totales viejos con líneas nuevas.
+ */
+export async function PATCH() {
   return withApi(async () => {
-    const userId = await requireUserId();
-    const { month: monthParam } = await context.params;
-    const { month: monthKey } = monthParamSchema.parse({ month: monthParam });
-    const month = toMonthStart(parseMonthKey(monthKey));
-
-    const body = await request.json();
-    const payload = monthlyIncomeSchema.parse(body);
-
-    const existing = await db.monthRecord.findFirst({
-      where: { userId, month },
-    });
-    if (!existing) {
-      return jsonError("Month not set up. Create the month first.", 404);
-    }
-
-    const record = await db.monthRecord.update({
-      where: { id: existing.id },
-      data: {
-        income: new Prisma.Decimal(payload.amount.toFixed(2)),
-      },
-    });
-
-    await expireYearTimeline(userId, month.getUTCFullYear());
-
-    return {
-      month: monthKey,
-      income: Number(record.income),
-    };
+    return jsonError(
+      "Este endpoint fue retirado. Usá POST /api/months/[month]/incomes para registrar un cobro o PATCH /api/months/[month]/incomes/[id] para editarlo.",
+      410,
+    );
   });
 }

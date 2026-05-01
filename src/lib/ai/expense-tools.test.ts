@@ -29,6 +29,20 @@ vi.mock("@/lib/db", () => ({
       delete: vi.fn(),
       count: vi.fn(),
     },
+    income: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      count: vi.fn(),
+    },
+    monthIncomeLine: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      count: vi.fn(),
+    },
     user: { findUnique: vi.fn() },
     monthRecord: { findFirst: vi.fn() },
   },
@@ -120,6 +134,11 @@ describe("buildExpenseTools — registered surface", () => {
       "deleteExpenseTemplate",
       "deleteMonthLine",
       "getFxRate",
+      // Income tools mirror the expense ones.
+      "createIncomeTemplate",
+      "updateIncomeTemplate",
+      "deleteIncomeTemplate",
+      "addIncomeLine",
     ] as const) {
       expect(t[name]).toBeDefined();
       expect(typeof (t[name] as { execute: unknown }).execute).toBe("function");
@@ -342,6 +361,137 @@ describe("expense templates", () => {
       deleted: { id: "tpl_1", name: "Spotify" },
       detachedLineCount: 3,
     });
+  });
+});
+
+// ── income tools ────────────────────────────────────────────────────────────
+
+describe("income tools", () => {
+  const PRIMARY = "EUR";
+  const today = new Date();
+  const monthStart = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1),
+  );
+
+  beforeEach(() => {
+    vi.mocked(db.user.findUnique).mockResolvedValue({
+      primaryCurrency: PRIMARY,
+    } as never);
+    vi.mocked(db.monthRecord.findFirst).mockResolvedValue({
+      id: "mr_current",
+      month: monthStart,
+    } as never);
+    vi.mocked(fetchFxRate).mockResolvedValue(new Prisma.Decimal("1.0"));
+  });
+
+  it("creates an income template scoped to the bound user", async () => {
+    vi.mocked(db.bank.findFirst).mockResolvedValue({ id: "bank_1" } as never);
+    vi.mocked(db.income.create).mockResolvedValue({
+      id: "inc_1",
+      name: "Sueldo",
+      amount: new Prisma.Decimal("1500.00"),
+      currency: "EUR",
+      isRecurring: true,
+      startMonth: new Date(Date.UTC(2026, 4, 1)),
+      endMonth: null,
+      bankId: "bank_1",
+      bank: { name: "Galicia" },
+      category: "SUELDO",
+    } as never);
+
+    const result = await tools().createIncomeTemplate.execute!(
+      {
+        name: " Sueldo ",
+        amount: 1500,
+        bankId: "bank_1",
+        isRecurring: true,
+        startMonth: "2026-05",
+        category: "SUELDO",
+      } as never,
+      execOpts,
+    );
+
+    expect(db.income.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: USER_ID,
+          name: "Sueldo",
+          category: "SUELDO",
+          bankId: "bank_1",
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      income: { id: "inc_1", name: "Sueldo", category: "SUELDO" },
+    });
+  });
+
+  it("addIncomeLine records a freelance payment as received by default", async () => {
+    vi.mocked(db.monthIncomeLine.create).mockResolvedValue({
+      id: "iline_1",
+      name: "Freelance",
+      amount: new Prisma.Decimal("250.00"),
+      currency: "EUR",
+      fxRate: new Prisma.Decimal("1.0000000000"),
+      amountConverted: new Prisma.Decimal("250.00"),
+      occurredOn: new Date(Date.UTC(2026, 4, 12)),
+      category: "FREELANCE",
+      received: true,
+    } as never);
+
+    const result = await tools().addIncomeLine.execute!(
+      {
+        name: "Freelance",
+        amount: 250,
+        category: "FREELANCE",
+        received: true,
+      } as never,
+      execOpts,
+    );
+
+    expect(db.monthIncomeLine.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: USER_ID,
+        monthRecordId: "mr_current",
+        templateId: null,
+        bankId: null,
+        name: "Freelance",
+        currency: PRIMARY,
+        category: "FREELANCE",
+        received: true,
+      }),
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      duplicate: false,
+      line: { id: "iline_1", name: "Freelance", received: true },
+    });
+  });
+
+  it("addIncomeLine surfaces duplicate=true on unique violation", async () => {
+    vi.mocked(db.monthIncomeLine.create).mockRejectedValue(uniqueViolation());
+
+    const result = await tools().addIncomeLine.execute!(
+      { name: "Sueldo", amount: 1500 } as never,
+      execOpts,
+    );
+
+    expect(result).toMatchObject({ ok: true, duplicate: true });
+  });
+
+  it("addIncomeLine errors when the current month has no record", async () => {
+    vi.mocked(db.monthRecord.findFirst).mockResolvedValueOnce(null);
+
+    const result = await tools().addIncomeLine.execute!(
+      { name: "Sueldo", amount: 1500 } as never,
+      execOpts,
+    );
+
+    expect(result).toMatchObject({
+      error: expect.stringContaining("createMonthIfNeeded") as unknown,
+    });
+    expect(db.monthIncomeLine.create).not.toHaveBeenCalled();
   });
 });
 

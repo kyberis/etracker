@@ -4,6 +4,9 @@ import {
   carryoverDecisionSchema,
   currencySchema,
   expenseSchema,
+  incomeSchema,
+  monthIncomeLineCreateSchema,
+  monthIncomeLineUpdateSchema,
   monthlySavingsContributionSchema,
   onboardingSchema,
   savingsMovementCreateSchema,
@@ -51,6 +54,79 @@ describe("validators", () => {
     it("requires a positive amount", () => {
       expect(() => expenseSchema.parse({ ...base, amount: 0 })).toThrow();
       expect(() => expenseSchema.parse({ ...base, amount: -5 })).toThrow();
+    });
+  });
+
+  describe("incomeSchema", () => {
+    const base = {
+      name: "Sueldo",
+      amount: 1500,
+      isRecurring: true,
+      startMonth: "2026-01",
+      category: "SUELDO",
+    } as const;
+
+    it("accepts a recurring income without bank or currency", () => {
+      const parsed = incomeSchema.parse(base);
+      expect(parsed.bankId).toBeUndefined();
+      expect(parsed.category).toBe("SUELDO");
+    });
+
+    it("normalises empty bankId to undefined", () => {
+      const parsed = incomeSchema.parse({ ...base, bankId: "  " });
+      expect(parsed.bankId).toBeUndefined();
+    });
+
+    it("rejects an end month that precedes start", () => {
+      expect(() =>
+        incomeSchema.parse({ ...base, endMonth: "2025-12" }),
+      ).toThrow(/End month must be after start month/);
+    });
+
+    it("rejects an end month on a one-off income", () => {
+      expect(() =>
+        incomeSchema.parse({ ...base, isRecurring: false, endMonth: "2026-06" }),
+      ).toThrow(/One-off incomes cannot have an end month/);
+    });
+
+    it("requires a positive amount", () => {
+      expect(() => incomeSchema.parse({ ...base, amount: 0 })).toThrow();
+      expect(() => incomeSchema.parse({ ...base, amount: -5 })).toThrow();
+    });
+  });
+
+  describe("monthIncomeLineCreateSchema", () => {
+    it("accepts the minimal payload (name + amount)", () => {
+      const parsed = monthIncomeLineCreateSchema.parse({
+        name: "Freelance",
+        amount: 250,
+      });
+      expect(parsed.category).toBe("OTROS");
+      expect(parsed.received).toBeUndefined();
+    });
+
+    it("rejects malformed occurredOn", () => {
+      expect(
+        monthIncomeLineCreateSchema.safeParse({
+          name: "Freelance",
+          amount: 250,
+          occurredOn: "01/05/2026",
+        }).success,
+      ).toBe(false);
+    });
+  });
+
+  describe("monthIncomeLineUpdateSchema", () => {
+    it("allows toggling received without other fields", () => {
+      expect(
+        monthIncomeLineUpdateSchema.safeParse({ received: true }).success,
+      ).toBe(true);
+    });
+
+    it("allows null bankId to detach the bank", () => {
+      expect(
+        monthIncomeLineUpdateSchema.safeParse({ bankId: null }).success,
+      ).toBe(true);
     });
   });
 

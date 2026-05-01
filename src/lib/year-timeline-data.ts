@@ -68,14 +68,29 @@ async function buildYearTimelineData(
       userId,
       month: { gte: yearStart, lt: yearEndExclusive },
     },
-    include: { lines: { select: { amount: true } } },
+    include: {
+      lines: { select: { amountConverted: true } },
+      // Solo `received` cuenta como ingreso del mes para la timeline; los
+      // previstos sin confirmar no inflan el chart anual.
+      incomeLines: {
+        where: { received: true },
+        select: { amountConverted: true },
+      },
+    },
   });
 
   const byKey = new Map(
     yearRecords.map((r) => {
       const key = formatMonthKey(r.month);
-      const totalExpense = r.lines.reduce((s, l) => s + Number(l.amount), 0);
-      return [key, { income: Number(r.income), totalExpense }];
+      const totalExpense = r.lines.reduce(
+        (s, l) => s + Number(l.amountConverted),
+        0,
+      );
+      const income = r.incomeLines.reduce(
+        (s, l) => s + Number(l.amountConverted),
+        0,
+      );
+      return [key, { income, totalExpense }];
     }),
   );
 

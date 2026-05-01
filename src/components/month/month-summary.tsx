@@ -1,9 +1,9 @@
 "use client";
 
-import { TrendingUp } from "lucide-react";
+import { Plus, TrendingUp } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/format";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
@@ -11,12 +11,12 @@ import { cn } from "@/lib/utils";
 type PendingByBank = { bankId: string; bankName: string; pending: number };
 
 type Props = {
+  /** Total recibido este mes (sum líneas con `received=true`). */
   income: number;
-  incomeDraft: string;
-  onIncomeDraftChange: (value: string) => void;
-  onSaveIncome: () => void | Promise<void>;
-  savingIncome: boolean;
-  incomeError: string | null;
+  /** Total previsto este mes (sum todas las líneas). */
+  incomeExpected: number;
+  /** Cuántos cobros previstos quedan sin recibir (para CTA "previsto"). */
+  incomePending: number;
   /** Amount carried over from the previous month (already part of the saldo). */
   carryoverFromPrev: number;
   /** Cumulative savings pile across all "set aside" decisions. */
@@ -26,21 +26,21 @@ type Props = {
   pendingByBank: PendingByBank[];
   /** Primary currency for income/totals/balance — defaults to the user's. */
   currency: string;
+  /** Abrir el diálogo "Agregar cobro al mes". Solo se pasa en el mes en curso. */
+  onAddIncome?: () => void;
 };
 
 export function MonthSummary({
   income,
-  incomeDraft,
-  onIncomeDraftChange,
-  onSaveIncome,
-  savingIncome,
-  incomeError,
+  incomeExpected,
+  incomePending,
   carryoverFromPrev,
   savings,
   totals,
   balance,
   pendingByBank,
   currency,
+  onAddIncome,
 }: Props) {
   const locale = useLocale();
   const t = useT();
@@ -53,8 +53,16 @@ export function MonthSummary({
         <CardHeader className="pb-2">
           <CardTitle className="text-muted-foreground text-sm">{t.month.summaryIncome}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="text-good num text-xl">{fmt(effectiveIncome)}</div>
+        <CardContent className="space-y-1">
+          <div
+            className="text-good num text-xl"
+            title={tx({
+              es: "Suma de los cobros confirmados este mes (incluye carryover si lo hay)",
+              en: "Sum of received income this month (includes carryover when present)",
+            })}
+          >
+            {fmt(effectiveIncome)}
+          </div>
           {carryoverFromPrev > 0 ? (
             <p className="text-muted-foreground text-xs">
               {tx({
@@ -63,25 +71,34 @@ export function MonthSummary({
               })}
             </p>
           ) : null}
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={incomeDraft}
-              onChange={(event) => onIncomeDraftChange(event.target.value)}
-              className="h-8"
-            />
-            <button
+          {incomePending > 0 ? (
+            <p className="text-warn text-xs">
+              {tx({
+                es: `+ ${fmt(incomePending)} previsto sin confirmar`,
+                en: `+ ${fmt(incomePending)} expected, not yet received`,
+              })}
+            </p>
+          ) : null}
+          {incomeExpected === 0 && onAddIncome ? (
+            <p className="text-muted-foreground text-xs">
+              {tx({
+                es: "Sin ingresos cargados todavía.",
+                en: "No income recorded yet.",
+              })}
+            </p>
+          ) : null}
+          {onAddIncome ? (
+            <Button
               type="button"
-              onClick={() => void onSaveIncome()}
-              disabled={savingIncome}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 h-8 rounded-md px-3 text-sm disabled:opacity-50"
+              variant="ghost"
+              size="sm"
+              className="text-good hover:text-good -ml-2 h-7 px-2 text-xs"
+              onClick={onAddIncome}
             >
-              {savingIncome ? "…" : t.common.save}
-            </button>
-          </div>
-          {incomeError ? <p className="text-destructive text-sm">{incomeError}</p> : null}
+              <Plus className="mr-1 size-3" />
+              {tx({ es: "Agregar cobro", en: "Add income" })}
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -157,8 +174,8 @@ export function MonthSummary({
             balance >= 0 ? "text-good" : "text-bad",
           )}
           title={tx({
-            es: "Ingreso (incluye carryover) − gastos planificados",
-            en: "Income (includes carryover) − planned expenses",
+            es: "Ingreso recibido (incluye carryover) − gastos planificados",
+            en: "Received income (includes carryover) − planned expenses",
           })}
         >
           {fmt(balance)}

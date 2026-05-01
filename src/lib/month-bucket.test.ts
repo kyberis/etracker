@@ -74,7 +74,9 @@ function mockPrevMonthBalance({
   carryover: number;
   paidLines: number[];
 }) {
-  // The second call to findFirst comes from getPrevMonthBalance.
+  // The second call to findFirst comes from getPrevMonthBalance. We model
+  // the new income-as-lines world by emitting a single received line for
+  // the legacy aggregate `income` value.
   mockDb.monthRecord.findFirst.mockResolvedValueOnce({
     id: PREV_MONTH_RECORD_ID,
     month: new Date(Date.UTC(2026, 3, 1)),
@@ -84,20 +86,34 @@ function mockPrevMonthBalance({
       amountConverted: new Prisma.Decimal(amount.toFixed(2)),
       paid: true,
     })),
+    incomeLines:
+      income > 0
+        ? [
+            {
+              amountConverted: new Prisma.Decimal(income.toFixed(2)),
+              received: true,
+            },
+          ]
+        : [],
   });
 }
 
 describe("getPrevMonthBalance", () => {
-  it("returns the signed balance (income + carryover − paid)", async () => {
+  it("returns the signed balance (received income + carryover − paid)", async () => {
     mockDb.monthRecord.findFirst.mockResolvedValueOnce({
       id: "mr_prev",
       month: new Date(Date.UTC(2026, 3, 1)),
-      income: new Prisma.Decimal("1000"),
+      income: new Prisma.Decimal("0"), // legacy column ignored
       carryoverFromPrev: new Prisma.Decimal("0"),
       lines: [
         { amountConverted: new Prisma.Decimal("400"), paid: true },
         { amountConverted: new Prisma.Decimal("300"), paid: true },
         { amountConverted: new Prisma.Decimal("999"), paid: false },
+      ],
+      incomeLines: [
+        { amountConverted: new Prisma.Decimal("700"), received: true },
+        { amountConverted: new Prisma.Decimal("300"), received: true },
+        { amountConverted: new Prisma.Decimal("9999"), received: false },
       ],
     });
     const result = await getPrevMonthBalance(USER, new Date(Date.UTC(2026, 4, 1)));
@@ -108,16 +124,33 @@ describe("getPrevMonthBalance", () => {
     });
   });
 
-  it("returns negative balance when paid > available", async () => {
+  it("returns negative balance when paid > received income", async () => {
     mockDb.monthRecord.findFirst.mockResolvedValueOnce({
       id: "mr_prev",
       month: new Date(Date.UTC(2026, 3, 1)),
-      income: new Prisma.Decimal("500"),
+      income: new Prisma.Decimal("0"),
       carryoverFromPrev: new Prisma.Decimal("0"),
       lines: [{ amountConverted: new Prisma.Decimal("750"), paid: true }],
+      incomeLines: [{ amountConverted: new Prisma.Decimal("500"), received: true }],
     });
     const result = await getPrevMonthBalance(USER, new Date(Date.UTC(2026, 4, 1)));
     expect(result?.amount).toBe(-250);
+  });
+
+  it("ignores income lines that have not been received", async () => {
+    mockDb.monthRecord.findFirst.mockResolvedValueOnce({
+      id: "mr_prev",
+      month: new Date(Date.UTC(2026, 3, 1)),
+      income: new Prisma.Decimal("0"),
+      carryoverFromPrev: new Prisma.Decimal("0"),
+      lines: [],
+      incomeLines: [
+        { amountConverted: new Prisma.Decimal("1000"), received: false },
+        { amountConverted: new Prisma.Decimal("250"), received: true },
+      ],
+    });
+    const result = await getPrevMonthBalance(USER, new Date(Date.UTC(2026, 4, 1)));
+    expect(result?.amount).toBe(250);
   });
 });
 

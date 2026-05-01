@@ -33,12 +33,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ month: string 
       db.monthRecord.findFirst({
         where: { userId, month: monthStart },
         select: {
-          income: true,
           carryoverFromPrev: true,
           // Only fields we need for the totals; avoids loading bank rows.
           // We aggregate `amountConverted` so totals are always in the user's
           // primary currency regardless of per-line currency.
           lines: { select: { amountConverted: true, paid: true } },
+          // Income lines: la fuente de verdad de cuánto entró (received) y
+          // cuánto se espera (todas).
+          incomeLines: { select: { amountConverted: true, received: true } },
         },
       }),
       db.user.findUnique({ where: { id: userId }, select: { primaryCurrency: true } }),
@@ -65,7 +67,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ month: string 
       planned += amount;
       if (line.paid) paid += amount;
     }
-    const income = Number(record.income);
+    let income = 0;
+    for (const line of record.incomeLines) {
+      if (line.received) income += Number(line.amountConverted);
+    }
     const carryoverFromPrev = Number(record.carryoverFromPrev);
 
     return {

@@ -4,17 +4,23 @@ import { getBanksCached } from "@/lib/cache/banks";
 import {
   getPrevMonthBalance,
   listPendingTemplateExpensesForMonth,
+  listPendingTemplateIncomesForMonth,
 } from "@/lib/month-bucket";
 import { formatMonthKey, isCurrentMonthKey, parseMonthKey, toMonthStart } from "@/lib/months";
 
 import { db } from "./db";
-import type { CarryoverPrompt, MonthLinePayload, MonthPageData } from "./month-page-types";
+import type {
+  CarryoverPrompt,
+  MonthIncomeLinePayload,
+  MonthLinePayload,
+  MonthPageData,
+} from "./month-page-types";
 
 export async function loadMonthPageData(userId: string, monthKey: string): Promise<MonthPageData> {
   const monthStart = parseMonthKey(monthKey);
   const monthForQuery = toMonthStart(monthStart);
 
-  const [user, monthRecord, banks, incomeHistory] = await Promise.all([
+  const [user, monthRecord, banks, incomeHistoryRows] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
       select: { monthlyIncome: true, primaryCurrency: true, savings: true },
@@ -29,23 +35,36 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
           include: { bank: true },
           orderBy: { createdAt: "desc" },
         },
+        incomeLines: {
+          include: { bank: true },
+          orderBy: { createdAt: "desc" },
+        },
       },
     }),
     getBanksCached(userId),
+    // Histórico de ingresos: últimos 12 meses con SUM(amountConverted) de
+    // líneas recibidas. Reemplaza la lectura del campo legacy
+    // `MonthRecord.income`.
     db.monthRecord.findMany({
       where: { userId },
       orderBy: { month: "desc" },
       take: 12,
-      select: { month: true, income: true },
+      select: {
+        month: true,
+        incomeLines: {
+          where: { received: true },
+          select: { amountConverted: true },
+        },
+      },
     }),
   ]);
 
   const defaultIncome = user ? Number(user.monthlyIncome) : 0;
   const primaryCurrency = user?.primaryCurrency ?? "USD";
   const savings = user ? Number(user.savings) : 0;
-  const history = incomeHistory.map((e) => ({
-    month: formatMonthKey(e.month),
-    amount: Number(e.income),
+  const history = incomeHistoryRows.map((m) => ({
+    month: formatMonthKey(m.month),
+    amount: m.incomeLines.reduce((s, l) => s + Number(l.amountConverted), 0),
   }));
 
   const isCurrentMonth = isCurrentMonthKey(monthKey);
@@ -60,9 +79,31 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     };
   }
 
-  const income = Number(monthRecord.income);
+  const incomes: MonthIncomeLinePayload[] = monthRecord.incomeLines.map((line) => ({
+    id: line.id,
+    name: line.name,
+    amount: line.amount.toString(),
+    currency: line.currency,
+    fxRate: line.fxRate.toString(),
+    amountConverted: line.amountConverted.toString(),
+    bankId: line.bankId,
+    bankName: line.bank?.name ?? null,
+    received: line.received,
+    category: line.category,
+    occurredOn: line.occurredOn.toISOString().slice(0, 10),
+    createdAt: line.createdAt.toISOString(),
+  }));
+
+  const incomeReceived = incomes.reduce(
+    (s, l) => (l.received ? s + Number(l.amountConverted) : s),
+    0,
+  );
+  const incomeExpectedTotal = incomes.reduce(
+    (s, l) => s + Number(l.amountConverted),
+    0,
+  );
   const carryoverFromPrev = Number(monthRecord.carryoverFromPrev);
-  const effectiveIncome = income + carryoverFromPrev;
+  const effectiveIncome = incomeReceived + carryoverFromPrev;
   const expenses: MonthLinePayload[] = monthRecord.lines.map((line) => ({
     id: line.id,
     name: line.name,
@@ -126,11 +167,19 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
       .map((l) => l.templateId)
       .filter((id): id is string => Boolean(id)),
   );
-  const pendingFromTemplates = await listPendingTemplateExpensesForMonth(
-    userId,
-    monthKey,
-    existingTemplateIds,
+  const existingIncomeTemplateIds = new Set(
+    monthRecord.incomeLines
+      .map((l) => l.templateId)
+      .filter((id): id is string => Boolean(id)),
   );
+  const [pendingFromTemplates, pendingIncomesFromTemplates] = await Promise.all([
+    listPendingTemplateExpensesForMonth(userId, monthKey, existingTemplateIds),
+    listPendingTemplateIncomesForMonth(
+      userId,
+      monthKey,
+      existingIncomeTemplateIds,
+    ),
+  ]);
 
   // Aporte mensual a ahorro (informativo): si existe, lo exponemos para
   // que la UI pueda mostrarlo como badge en el card de ahorros.
@@ -148,7 +197,8 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     hasRecord: true as const,
     defaultIncome,
     primaryCurrency,
-    income,
+    income: incomeReceived,
+    incomeExpected: incomeExpectedTotal,
     carryoverFromPrev,
     effectiveIncome,
     carryoverPrompt,
@@ -160,11 +210,18 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
       paid: totals.paid,
       remaining: totals.planned - totals.paid,
     },
+    incomeTotals: {
+      expected: incomeExpectedTotal,
+      received: incomeReceived,
+      pending: incomeExpectedTotal - incomeReceived,
+    },
     balance,
     bankTotals,
     expenses,
+    incomes,
     banks: banks.map((b) => ({ id: b.id, name: b.name })),
     pendingFromTemplates,
+    pendingIncomesFromTemplates,
     monthlySavingsContribution: monthlyContribution
       ? {
           id: monthlyContribution.id,

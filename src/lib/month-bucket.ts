@@ -1,13 +1,23 @@
 import {
   type Expense,
   type ExpenseCategory,
+  type Income,
+  type IncomeCategory,
   Prisma,
   SavingsMovementKind,
 } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import type { PendingTemplateExpense } from "@/lib/month-page-types";
-import { expenseAppliesToMonth, parseMonthKey, toMonthStart } from "@/lib/months";
+import type {
+  PendingTemplateExpense,
+  PendingTemplateIncome,
+} from "@/lib/month-page-types";
+import {
+  expenseAppliesToMonth,
+  incomeAppliesToMonth,
+  parseMonthKey,
+  toMonthStart,
+} from "@/lib/months";
 import {
   coverMonthDebt as coverMonthDebtFromSavingsService,
   recordSavingsMovement,
@@ -24,6 +34,19 @@ type LineInput = {
   amountConverted: Prisma.Decimal;
   category: ExpenseCategory;
   paid: boolean;
+};
+
+type IncomeLineInput = {
+  templateId: string | null;
+  bankId: string | null;
+  name: string;
+  amount: Prisma.Decimal;
+  /** Templates are always in the user's primary currency (no FX). */
+  currency: string;
+  fxRate: Prisma.Decimal;
+  amountConverted: Prisma.Decimal;
+  category: IncomeCategory;
+  received: boolean;
 };
 
 function linesFromExpenses(
@@ -47,6 +70,27 @@ function linesFromExpenses(
     }));
 }
 
+function incomeLinesFromTemplates(
+  incomes: Income[],
+  month: Date,
+  receivedForTemplate: (templateId: string) => boolean,
+  primaryCurrency: string,
+): IncomeLineInput[] {
+  return incomes
+    .filter((i) => incomeAppliesToMonth(i, month))
+    .map((i) => ({
+      templateId: i.id,
+      bankId: i.bankId,
+      name: i.name,
+      amount: i.amount,
+      currency: primaryCurrency,
+      fxRate: new Prisma.Decimal(1),
+      amountConverted: i.amount,
+      category: i.category,
+      received: receivedForTemplate(i.id),
+    }));
+}
+
 /**
  * All expense templates that apply to a calendar month, as create-many payloads.
  * No rows are marked paid.
@@ -58,6 +102,19 @@ export async function templateLinesForMonth(userId: string, month: Date) {
   ]);
   if (!user) throw new Error("USER_NOT_FOUND");
   return linesFromExpenses(expenses, month, () => false, user.primaryCurrency);
+}
+
+/**
+ * All income templates that apply to a calendar month, as create-many payloads.
+ * No rows are marked received.
+ */
+export async function templateIncomeLinesForMonth(userId: string, month: Date) {
+  const [user, incomes] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { primaryCurrency: true } }),
+    db.income.findMany({ where: { userId } }),
+  ]);
+  if (!user) throw new Error("USER_NOT_FOUND");
+  return incomeLinesFromTemplates(incomes, month, () => false, user.primaryCurrency);
 }
 
 export async function createMonthFromTemplates(userId: string, monthKey: string) {
@@ -75,8 +132,17 @@ export async function createMonthFromTemplates(userId: string, monthKey: string)
     throw new Error("USER_NOT_FOUND");
   }
 
-  const expenses = await db.expense.findMany({ where: { userId } });
+  const [expenses, incomes] = await Promise.all([
+    db.expense.findMany({ where: { userId } }),
+    db.income.findMany({ where: { userId } }),
+  ]);
   const lineData = linesFromExpenses(expenses, month, () => false, user.primaryCurrency);
+  const incomeLineData = incomeLinesFromTemplates(
+    incomes,
+    month,
+    () => false,
+    user.primaryCurrency,
+  );
 
   return {
     type: "created" as const,
@@ -84,7 +150,9 @@ export async function createMonthFromTemplates(userId: string, monthKey: string)
       data: {
         userId,
         month: start,
-        income: user.monthlyIncome,
+        // `income` legacy queda en 0; la fuente de verdad son las
+        // `MonthIncomeLine`. El backfill convirtió los meses históricos.
+        income: new Prisma.Decimal(0),
         lines: {
           create: lineData.map((l) => ({
             userId,
@@ -103,9 +171,25 @@ export async function createMonthFromTemplates(userId: string, monthKey: string)
             paid: l.paid,
           })),
         },
+        incomeLines: {
+          create: incomeLineData.map((l) => ({
+            userId,
+            templateId: l.templateId,
+            bankId: l.bankId,
+            name: l.name,
+            occurredOn: start,
+            amount: l.amount,
+            currency: l.currency,
+            fxRate: l.fxRate,
+            amountConverted: l.amountConverted,
+            category: l.category,
+            received: l.received,
+          })),
+        },
       },
       include: {
         lines: { include: { bank: true, template: true } },
+        incomeLines: { include: { bank: true, template: true } },
       },
     }),
   };
@@ -130,7 +214,7 @@ export async function createMonthFromCopy(
 
   const sourceRecord = await db.monthRecord.findFirst({
     where: { userId, month: sourceStart },
-    include: { lines: true },
+    include: { lines: true, incomeLines: true },
   });
   if (!sourceRecord) {
     throw new Error("SOURCE_NOT_FOUND");
@@ -142,7 +226,9 @@ export async function createMonthFromCopy(
       data: {
         userId,
         month: targetStart,
-        income: sourceRecord.income,
+        // El campo legacy `income` se deja en cero al copiar; las líneas de
+        // ingreso (`incomeLines`) son la fuente de verdad.
+        income: new Prisma.Decimal(0),
         lines: {
           create: sourceRecord.lines.map((l) => ({
             userId,
@@ -163,9 +249,28 @@ export async function createMonthFromCopy(
             paid: l.paid,
           })),
         },
+        incomeLines: {
+          create: sourceRecord.incomeLines.map((l) => ({
+            userId,
+            templateId: l.templateId,
+            bankId: l.bankId,
+            name: l.name,
+            occurredOn: targetStart,
+            amount: l.amount,
+            currency: l.currency,
+            fxRate: l.fxRate,
+            amountConverted: l.amountConverted,
+            category: l.category,
+            // Al copiar el mes, los cobros del mes fuente arrancan como
+            // "no recibidos" en el mes destino — son previstos hasta que
+            // el usuario confirme.
+            received: false,
+          })),
+        },
       },
       include: {
         lines: { include: { bank: true, template: true } },
+        incomeLines: { include: { bank: true, template: true } },
       },
     }),
   };
@@ -184,7 +289,8 @@ export async function findPreviousMonthWithRecord(userId: string, beforeMonth: D
 
 /**
  * Saldo de caja firmado del mes anterior con registro:
- * `(income + carryoverFromPrev) − sum(paid line.amountConverted)`.
+ * `(sum(received income line.amountConverted) + carryoverFromPrev)
+ *   − sum(paid expense line.amountConverted)`.
  *
  * Positivo → sobró plata (decisión "qué hacer con el sobrante").
  * Negativo → cerró en rojo (decisión "cubrir con ahorro o arrastrar deuda").
@@ -206,14 +312,18 @@ export async function getPrevMonthBalance(
     select: {
       id: true,
       month: true,
-      income: true,
       carryoverFromPrev: true,
       lines: { select: { amountConverted: true, paid: true } },
+      incomeLines: { select: { amountConverted: true, received: true } },
     },
   });
   if (!prev) return null;
 
-  const available = Number(prev.income) + Number(prev.carryoverFromPrev);
+  const incomeReceived = prev.incomeLines.reduce(
+    (sum, line) => (line.received ? sum + Number(line.amountConverted) : sum),
+    0,
+  );
+  const available = incomeReceived + Number(prev.carryoverFromPrev);
   const paid = prev.lines.reduce(
     (sum, line) => (line.paid ? sum + Number(line.amountConverted) : sum),
     0,
@@ -432,6 +542,41 @@ export async function listPendingTemplateExpensesForMonth(
 }
 
 /**
+ * Income templates that apply to the month and are not yet represented as a
+ * line linked to that template (`templateId`) in the bucket. Espejo de
+ * `listPendingTemplateExpensesForMonth`.
+ */
+export async function listPendingTemplateIncomesForMonth(
+  userId: string,
+  monthKey: string,
+  existingLineTemplateIds: Set<string>,
+): Promise<PendingTemplateIncome[]> {
+  const month = parseMonthKey(monthKey);
+  const incomes = await db.income.findMany({
+    where: { userId },
+    include: { bank: { select: { name: true } } },
+  });
+  const pending: PendingTemplateIncome[] = [];
+  for (const i of incomes) {
+    if (!incomeAppliesToMonth(i, month)) {
+      continue;
+    }
+    if (existingLineTemplateIds.has(i.id)) {
+      continue;
+    }
+    pending.push({
+      templateId: i.id,
+      name: i.name,
+      amount: i.amount.toString(),
+      bankId: i.bankId,
+      bankName: i.bank?.name ?? null,
+      category: i.category,
+    });
+  }
+  return pending;
+}
+
+/**
  * Create month lines for every template that applies but is still missing. Idempotent.
  */
 export async function mergePendingTemplateLinesIntoMonth(userId: string, monthKey: string) {
@@ -474,6 +619,61 @@ export async function mergePendingTemplateLinesIntoMonth(userId: string, monthKe
           amountConverted: amount,
           category: p.category as ExpenseCategory,
           paid: false,
+        },
+      });
+    }),
+  );
+  return { added: pending.length };
+}
+
+/**
+ * Crear `MonthIncomeLine` por cada template de ingreso que aplique al mes y
+ * no esté ya representado en el bucket. Espejo de
+ * `mergePendingTemplateLinesIntoMonth`. Idempotente.
+ */
+export async function mergePendingTemplateIncomeLinesIntoMonth(
+  userId: string,
+  monthKey: string,
+) {
+  const start = toMonthStart(parseMonthKey(monthKey));
+  const monthRecord = await db.monthRecord.findFirst({
+    where: { userId, month: start },
+    include: { incomeLines: { select: { templateId: true } } },
+  });
+  if (!monthRecord) {
+    throw new Error("NO_RECORD");
+  }
+  const existing = new Set(
+    monthRecord.incomeLines
+      .map((l) => l.templateId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const pending = await listPendingTemplateIncomesForMonth(userId, monthKey, existing);
+  if (pending.length === 0) {
+    return { added: 0 };
+  }
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { primaryCurrency: true },
+  });
+  const primaryCurrency = user?.primaryCurrency ?? "USD";
+  await db.$transaction(
+    pending.map((p) => {
+      const amount = new Prisma.Decimal(p.amount);
+      return db.monthIncomeLine.create({
+        data: {
+          userId,
+          monthRecordId: monthRecord.id,
+          templateId: p.templateId,
+          bankId: p.bankId,
+          name: p.name,
+          occurredOn: start,
+          amount,
+          currency: primaryCurrency,
+          fxRate: new Prisma.Decimal(1),
+          amountConverted: amount,
+          category: p.category as IncomeCategory,
+          received: false,
         },
       });
     }),

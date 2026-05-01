@@ -53,6 +53,7 @@ export const en: Dict = {
     nav: {
       banks: "Banks",
       expenses: "Templates",
+      incomes: "Income",
       savings: "Savings",
       settings: "Settings",
       about: "About Clara",
@@ -470,6 +471,35 @@ export const en: Dict = {
     indefinite: "indefinite",
   },
 
+  incomes: {
+    pageTitle: "Income templates",
+    pageDescription:
+      "Templates describe a recurring income (salary, rent collected) or a one-off you already know about. Each month gets an editable copy; tick it when the money lands.",
+    addIncome: "Add template",
+    name: "Name",
+    amount: "Amount",
+    bank: "Bank",
+    isRecurring: "Recurring",
+    startMonth: "Start month",
+    endMonth: "End month",
+    endMonthHint: "Empty = continues indefinitely.",
+    category: "Category",
+    save: "Save",
+    saving: "Saving…",
+    edit: "Edit",
+    delete: "Delete",
+    deleteConfirm: (name: string) =>
+      `Delete the template ${name}? Existing monthly lines won't be deleted.`,
+    saveError: "Could not save the template.",
+    deleteError: "Could not delete the template.",
+    empty: "You haven't created income templates yet.",
+    perMonth: "/mo",
+    oneOff: "one-off",
+    activeFrom: (m: string) => `Active from ${m}`,
+    untilMonth: (m: string) => `until ${m}`,
+    indefinite: "indefinite",
+  },
+
   savings: {
     pageTitle: "Savings",
     pageDescription:
@@ -487,6 +517,10 @@ export const en: Dict = {
     monthFor: (label: string) => `Month · ${label}`,
     addLine: "Add expense",
     addLineDialogTitle: "New expense",
+    addIncomeDialogTitle: "New income",
+    incomesChronoTitle: "Income for the month",
+    pendingIncomesFromTemplates: "Pending income from templates",
+    addIncomePlaceholderName: "June salary",
     paid: "Paid",
     unpaid: "Pending",
     markPaid: "Mark as paid",

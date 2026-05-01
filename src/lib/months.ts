@@ -1,6 +1,6 @@
 import { addMonths } from "date-fns";
 
-import { type Expense } from "@prisma/client";
+import { type Expense, type Income } from "@prisma/client";
 
 export function toMonthStart(value: Date): Date {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
@@ -38,22 +38,37 @@ export function monthRange(start: Date, count: number): Date[] {
   return Array.from({ length: count }).map((_, index) => addMonths(start, index));
 }
 
-export function expenseAppliesToMonth(expense: Expense, month: Date): boolean {
-  const monthStart = toMonthStart(month);
-  const expenseStart = toMonthStart(expense.startMonth);
-  const expenseEnd = expense.endMonth ? toMonthStart(expense.endMonth) : null;
+/**
+ * Estructura mínima para evaluar si una plantilla aplica a un mes dado.
+ * `Expense` e `Income` la cumplen por construcción (mismos tres campos).
+ */
+type RecurringTemplate = Pick<Expense, "isRecurring" | "startMonth" | "endMonth">;
 
-  if (!expense.isRecurring) {
-    return expenseStart.getTime() === monthStart.getTime();
+export function templateAppliesToMonth(template: RecurringTemplate, month: Date): boolean {
+  const monthStart = toMonthStart(month);
+  const tplStart = toMonthStart(template.startMonth);
+  const tplEnd = template.endMonth ? toMonthStart(template.endMonth) : null;
+
+  if (!template.isRecurring) {
+    return tplStart.getTime() === monthStart.getTime();
   }
 
-  if (expenseStart.getTime() > monthStart.getTime()) {
+  if (tplStart.getTime() > monthStart.getTime()) {
     return false;
   }
 
-  if (expenseEnd && monthStart.getTime() > expenseEnd.getTime()) {
+  if (tplEnd && monthStart.getTime() > tplEnd.getTime()) {
     return false;
   }
 
   return true;
+}
+
+/** @deprecated Usar `templateAppliesToMonth`. Se mantiene por compatibilidad. */
+export function expenseAppliesToMonth(expense: Expense, month: Date): boolean {
+  return templateAppliesToMonth(expense, month);
+}
+
+export function incomeAppliesToMonth(income: Income, month: Date): boolean {
+  return templateAppliesToMonth(income, month);
 }

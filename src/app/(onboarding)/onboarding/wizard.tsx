@@ -27,8 +27,8 @@ export type OnboardingInitial = {
   primaryCurrencyConfirmedAt: string | null;
 };
 
-type Step = 0 | 1 | 2 | 3 | 4;
-const TOTAL_STEPS = 5;
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
+const TOTAL_STEPS = 6;
 
 const REASON_LABELS: Record<UsageReason, { label: Record<Locale, string>; emoji: string }> = {
   personal: { label: { es: "Personal", en: "Personal" }, emoji: "🧍" },
@@ -62,6 +62,14 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
   // Step 3 state
   const [country, setCountry] = useState<string | null>(initial.country);
   const [currency, setCurrency] = useState<string>(initial.primaryCurrency);
+
+  // Step 4 state — first income template (optional).
+  const [incomeName, setIncomeName] = useState<string>(
+    pick(locale, { es: "Sueldo", en: "Salary" }),
+  );
+  const [incomeAmount, setIncomeAmount] = useState<string>("");
+  const [incomeCurrency, setIncomeCurrency] = useState<string>(initial.primaryCurrency);
+  const [incomeSaved, setIncomeSaved] = useState(false);
 
   async function patchOnboarding(body: OnboardingPatchBody) {
     setError(null);
@@ -140,6 +148,54 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
     if (ok) goNext();
   }
 
+  /**
+   * Step 4 commit — creates an `Income` template if the user typed an amount
+   * and also stamps the legacy `User.monthlyIncome` field for backwards
+   * compatibility (some queries/tools still read it). Skipping is fine.
+   */
+  async function commitStepIncome() {
+    const trimmedName = incomeName.trim();
+    const amountNum = Number(incomeAmount);
+    const usableCurrency = incomeCurrency.trim().toUpperCase();
+    const validCurrency = /^[A-Z]{3}$/.test(usableCurrency);
+    if (!trimmedName || !Number.isFinite(amountNum) || amountNum <= 0 || !validCurrency) {
+      goNext();
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      const startMonth = new Date().toISOString().slice(0, 7);
+      const response = await fetch("/api/incomes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmedName,
+          amount: amountNum,
+          currency: usableCurrency,
+          isRecurring: true,
+          startMonth,
+          category: "SUELDO",
+        }),
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        setError(
+          data.error ??
+            pick(locale, {
+              es: "No se pudo guardar el ingreso. Lo podés agregar más tarde.",
+              en: "Could not save the income. You can add it later.",
+            }),
+        );
+        return;
+      }
+      setIncomeSaved(true);
+      goNext();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="w-full max-w-xl">
       <ProgressDots step={step} locale={locale} />
@@ -187,6 +243,22 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
             />
           ) : null}
           {step === 3 ? (
+            <StepFirstIncome
+              locale={locale}
+              name={incomeName}
+              setName={setIncomeName}
+              amount={incomeAmount}
+              setAmount={setIncomeAmount}
+              currency={incomeCurrency}
+              setCurrency={setIncomeCurrency}
+              saved={incomeSaved}
+              onBack={goBack}
+              onSkip={skipAll}
+              onContinue={commitStepIncome}
+              disabled={submitting}
+            />
+          ) : null}
+          {step === 4 ? (
             <StepTelegram
               locale={locale}
               onBack={goBack}
@@ -195,7 +267,7 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
               disabled={submitting}
             />
           ) : null}
-          {step === 4 ? (
+          {step === 5 ? (
             <StepDone
               locale={locale}
               name={name.trim() || initial.name}
@@ -651,6 +723,131 @@ function StepCountryCurrency({
 }
 
 /**
+ * Step 4 — invitates the user to create their first recurring income
+ * template (sueldo, alquiler que cobra, retainer freelance). Skipping is
+ * fine; the user can always add it later from chat or `/incomes`.
+ *
+ * We default `name` to "Sueldo" / "Salary" because >80% of incomes during
+ * private beta were monthly salaries. The category is hardcoded to `SUELDO`
+ * for the same reason (the agent will reclassify if the chat tells a
+ * different story).
+ */
+function StepFirstIncome({
+  locale,
+  name,
+  setName,
+  amount,
+  setAmount,
+  currency,
+  setCurrency,
+  saved,
+  onBack,
+  onSkip,
+  onContinue,
+  disabled,
+}: {
+  locale: Locale;
+  name: string;
+  setName: (value: string) => void;
+  amount: string;
+  setAmount: (value: string) => void;
+  currency: string;
+  setCurrency: (value: string) => void;
+  saved: boolean;
+  onBack: () => void;
+  onSkip: () => void;
+  onContinue: () => void;
+  disabled?: boolean;
+}) {
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    onContinue();
+  }
+
+  const skipLabel = pick(locale, { es: "Después", en: "Later" });
+  const continueLabel = saved
+    ? pick(locale, { es: "Continuar", en: "Continue" })
+    : pick(locale, { es: "Guardar y seguir", en: "Save and continue" });
+
+  return (
+    <form className="space-y-6" onSubmit={handleSubmit}>
+      <StepHeader
+        locale={locale}
+        index={4}
+        title={pick(locale, {
+          es: "Tu primer ingreso fijo",
+          en: "Your first recurring income"
+        })}
+        description={pick(locale, {
+          es: "Sueldo, alquiler que cobrás, retainer de freelance: lo que entra todos los meses. Es opcional, podés cargarlo después desde el chat o /incomes.",
+          en: "Salary, rent you collect, freelance retainer — whatever lands every month. Optional; you can add it later from chat or /incomes.",
+        })}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="onboarding-income-name">
+            {pick(locale, { es: "Nombre", en: "Name" })}
+          </Label>
+          <Input
+            id="onboarding-income-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder={pick(locale, { es: "Sueldo", en: "Salary" })}
+            maxLength={120}
+            autoFocus
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="onboarding-income-amount">
+            {pick(locale, { es: "Monto mensual", en: "Monthly amount" })}
+          </Label>
+          <Input
+            id="onboarding-income-amount"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            placeholder="0.00"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="onboarding-income-currency">
+            {pick(locale, { es: "Moneda", en: "Currency" })}
+          </Label>
+          <CurrencyPicker
+            id="onboarding-income-currency"
+            value={currency}
+            onChange={setCurrency}
+          />
+        </div>
+      </div>
+
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        {pick(locale, {
+          es: "Lo guardamos como plantilla recurrente. Cada mes nuevo aparece como pendiente y lo confirmás cuando entra la plata.",
+          en: "We save it as a recurring template. Every new month it shows up as pending; you confirm it when the money lands.",
+        })}
+      </p>
+
+      <StepFooter
+        locale={locale}
+        onBack={onBack}
+        onSkip={onSkip}
+        onContinue={onContinue}
+        disabled={disabled}
+        skipLabel={skipLabel}
+        continueLabel={continueLabel}
+      />
+    </form>
+  );
+}
+
+/**
  * Optional Telegram step — generates a signed deep-link token and opens
  * `t.me/<bot>?start=<token>` in a new tab. Users that want Telegram as their
  * primary channel can also link it later from Settings.
@@ -706,7 +903,7 @@ function StepTelegram({
     <div className="space-y-6">
       <StepHeader
         locale={locale}
-        index={4}
+        index={5}
         title={pick(locale, { es: "Vinculá Telegram (opcional)", en: "Link Telegram (optional)" })}
         description={pick(locale, {
           es: "Chateá conmigo desde Telegram: mandá fotos del banco, dictá gastos por audio o consultá tu mes sin abrir la app.",

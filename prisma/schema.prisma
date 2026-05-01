@@ -46,6 +46,30 @@ enum ExpenseCategory {
   OTROS
 }
 
+/// Origen / categoría de un ingreso. Espejo del enum `ExpenseCategory` para
+/// la pata de ingresos. Lo usamos tanto para plantillas (`Income.category`)
+/// como para líneas mensuales (`MonthIncomeLine.category`).
+enum IncomeCategory {
+  /// Sueldo en relación de dependencia (ingreso recurrente típico).
+  SUELDO
+  /// Cobros por trabajo independiente / freelance.
+  FREELANCE
+  /// Ingresos por negocio propio o emprendimiento.
+  NEGOCIO
+  /// Rendimientos de inversiones (intereses, dividendos, plazos fijos, etc).
+  INVERSIONES
+  /// Alquileres cobrados.
+  ALQUILER
+  /// Bonos, aguinaldos, comisiones, premios laborales.
+  BONO
+  /// Reembolsos (gastos compartidos, devoluciones, ART, prepaga, etc).
+  REEMBOLSO
+  /// Regalos en plata recibidos.
+  REGALO
+  /// Cualquier otro ingreso que no entre en el resto.
+  OTROS
+}
+
 model User {
   id                       String              @id @default(cuid())
   email                    String              @unique
@@ -115,8 +139,10 @@ model User {
   lastSeenAt               DateTime?
   banks                    Bank[]
   expenses                 Expense[]
+  incomes                  Income[]
   monthRecords             MonthRecord[]
   monthExpenseLines        MonthExpenseLine[]
+  monthIncomeLines         MonthIncomeLine[]
   telegramMessages         TelegramMessage[]
   webChatMessages          WebChatMessage[]
   agentUsage               AgentMessageUsage[]
@@ -259,7 +285,9 @@ model Bank {
   color             String?
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   expenses          Expense[]
+  incomes           Income[]
   monthExpenseLines MonthExpenseLine[]
+  monthIncomeLines  MonthIncomeLine[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -289,6 +317,11 @@ model MonthRecord {
   id        String             @id @default(cuid())
   userId    String
   month     DateTime
+  /// @deprecated Total de ingreso del mes. Antes era el único campo de ingreso;
+  /// ahora la fuente de verdad son las líneas (`MonthIncomeLine`) y se calcula
+  /// como `SUM(amountConverted WHERE received)`. La columna queda en la tabla
+  /// para no romper queries en una sola release y se elimina en N+1. Nuevos
+  /// callers NO deben leer ni escribir este campo.
   income    Decimal            @default(0) @db.Decimal(12, 2)
   /// Sobrante del mes anterior incorporado a este mes cuando el usuario eligió
   /// "sumar al ingreso". Se mantiene en columna aparte (en lugar de inflar
@@ -301,6 +334,7 @@ model MonthRecord {
   carryoverDecidedAt  DateTime?
   user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   lines     MonthExpenseLine[]
+  incomeLines MonthIncomeLine[]
   /// Movimientos de la pila de ahorros vinculados a este mes (aporte mensual,
   /// derivación de sobrante, cobertura de deuda). Borrarlos al borrar el mes
   /// rompería el ledger; usamos `onDelete: SetNull` en la relación inversa.
@@ -361,6 +395,93 @@ model MonthExpenseLine {
   // `currency`) WHERE `templateId` IS NULL se crea con SQL en la migración
   // `20260429140000_expense_dedup` porque Prisma no expresa índices con
   // funciones ni parciales.
+}
+
+/// Plantilla de ingreso (recurrente o de un solo mes). Espejo de `Expense`:
+/// los ingresos del mes (`MonthIncomeLine`) pueden venir de una plantilla
+/// (sueldo, alquiler cobrado, etc.) o ser entradas sueltas (un cobro puntual
+/// de freelance). `bankId` es opcional porque, a diferencia de los gastos,
+/// muchas veces no importa "en qué cuenta cae" — y el chat-first flow no
+/// quiere obligar a elegir banco para registrar un cobro rápido.
+model Income {
+  id          String         @id @default(cuid())
+  userId      String
+  bankId      String?
+  name        String
+  amount      Decimal        @db.Decimal(12, 2)
+  /// ISO 4217 (3 letras, mayúsculas). Moneda original de la plantilla. Cuando
+  /// se materializa una línea mensual desde la plantilla, si la moneda
+  /// principal del usuario difiere, se snapshotea con `fxRate` y
+  /// `amountConverted`, igual que en gastos.
+  currency    String         @default("USD")
+  isRecurring Boolean        @default(true)
+  startMonth  DateTime
+  endMonth    DateTime?
+  category    IncomeCategory @default(OTROS)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bank        Bank?          @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  monthLines  MonthIncomeLine[]
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+/// Línea de ingreso de un mes. Espejo de `MonthExpenseLine`: cobros que el
+/// usuario espera o ya recibió en un mes específico. La fuente de verdad
+/// para "cuánto entró este mes" es `SUM(amountConverted WHERE received)`.
+/// Las líneas pueden venir de una plantilla (`templateId` set) o ser sueltas
+/// (cobro puntual). El campo `received` es el espejo de `paid` en gastos:
+/// hasta que la plata cae, queda como "previsto" pero no suma al balance.
+model MonthIncomeLine {
+  id              String         @id @default(cuid())
+  /// Denormalizado desde `monthRecord.userId` para soportar el índice único
+  /// global de deduplicación (un usuario no puede tener dos líneas con la
+  /// misma fecha/descripción/monto/moneda). FK con cascade igual que
+  /// `MonthRecord.userId`.
+  userId          String
+  monthRecordId   String
+  templateId      String?
+  /// Cuenta donde cae el cobro. Opcional — el chat-first flow no obliga a
+  /// elegir banco para registrar un cobro rápido.
+  bankId          String?
+  name            String
+  /// Fecha real del cobro (no la del bucket). Para entradas manuales por chat
+  /// / formulario: HOY (UTC) salvo que el usuario indique otra. Solo
+  /// guardamos la parte de fecha (sin hora) para que la deduplicación sea
+  /// determinística entre zonas horarias.
+  occurredOn      DateTime       @db.Date
+  /// Monto en la moneda original de la línea (`currency`).
+  amount          Decimal        @db.Decimal(12, 2)
+  /// ISO 4217 (3 letras, mayúsculas). Moneda en la que el usuario carga el
+  /// cobro. Si difiere de `User.primaryCurrency`, guardamos `fxRate` y
+  /// `amountConverted` para que las matemáticas vivan en la moneda principal.
+  currency        String         @default("USD")
+  /// Multiplicador `amount * fxRate = amountConverted`. Vale 1 cuando la
+  /// línea ya está en la moneda principal del usuario. Se "congela" al crear
+  /// la línea para que las agregaciones sean determinísticas.
+  fxRate          Decimal        @default(1) @db.Decimal(20, 10)
+  /// Monto pre-calculado en la moneda principal (`User.primaryCurrency`).
+  /// Usalo para todos los `sum`/totales; nunca recalcules desde `amount`.
+  amountConverted Decimal        @db.Decimal(12, 2)
+  category        IncomeCategory @default(OTROS)
+  /// Espejo de `paid` en gastos: `true` cuando la plata ya entró. Hasta que
+  /// no esté en `true`, la línea cuenta como "previsto" pero NO suma al
+  /// balance ni al `effectiveIncome` del mes.
+  received        Boolean        @default(false)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthRecord     MonthRecord    @relation(fields: [monthRecordId], references: [id], onDelete: Cascade)
+  template        Income?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  bank            Bank?          @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([monthRecordId])
+  @@index([userId])
+  // El índice único de deduplicación
+  // (`userId`, `occurredOn`, lower(btrim(regexp_replace(name,...))), `amount`,
+  // `currency`) WHERE `templateId` IS NULL se crea con SQL en la migración
+  // de income porque Prisma no expresa índices con funciones ni parciales.
 }
 
 /// One-off donation made via Stripe Checkout. Persisted from the

@@ -144,6 +144,18 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.6.0",
+      date: "2026-05-01",
+      title: "Ingresos múltiples: sueldos, freelance y cobros puntuales",
+      highlights: [
+        "Sumá ingresos puntuales del mes (freelance, bonos, devoluciones, regalos) sin pisar el sueldo: cada cobro es una línea independiente, con fecha real y banco opcional.",
+        "Múltiples ingresos recurrentes con plantillas, igual que los gastos: declarás sueldo + alquiler que cobrás + retainer una sola vez y cada mes nuevo aparecen como pendientes para confirmar cuando entra la plata.",
+        "Multi-moneda con tipo de cambio congelado: si te pagan en USD y tu moneda principal es ARS, Clara te guarda el rate del momento del cobro y muestra el total convertido sin mentir.",
+        "Decile a Clara por chat: \"cobré $250 de freelance\", \"me transfirieron el sueldo\", \"me llegó el bono\" — registra la línea en el mes en curso, deduplica si ya estaba y te avisa.",
+        "Nueva página /incomes para ver y editar tus plantillas de ingreso, espejo de la página de gastos.",
+      ],
+    },
+    {
       version: "0.5.0",
       date: "2026-05-01",
       title: "Ahorro: pila global con ledger e integración total",
@@ -431,6 +443,18 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.6.0",
+      date: "2026-05-01",
+      title: "Multiple incomes: salaries, freelance and one-off payments",
+      highlights: [
+        "Log one-off income for the month (freelance, bonuses, refunds, gifts) without overwriting your salary: each payment is its own line, with a real date and an optional bank.",
+        "Multiple recurring incomes via templates, just like expenses: declare salary + collected rent + retainer once and every new month they show up as pending so you can confirm them when the money lands.",
+        "Multi-currency with frozen FX: if you get paid in USD and your primary currency is ARS, Clara stores the rate at the time of the payment and shows the converted total without lying.",
+        "Tell Clara in chat: \"got $250 from a freelance gig\", \"my salary just landed\", \"received the bonus\" — she records the line for the current month, dedupes if it was already there and confirms.",
+        "New /incomes page to view and edit your income templates, mirror of the expenses templates page.",
+      ],
+    },
     {
       version: "0.5.0",
       date: "2026-05-01",

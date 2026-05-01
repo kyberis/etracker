@@ -33,6 +33,21 @@ export function isInvestmentCategory(category: string): boolean {
 
 export const expenseCategorySchema = z.enum(expenseCategoryValues);
 export const expenseCategoryOptions = expenseCategoryValues;
+
+const incomeCategoryValues = [
+  "SUELDO",
+  "FREELANCE",
+  "NEGOCIO",
+  "INVERSIONES",
+  "ALQUILER",
+  "BONO",
+  "REEMBOLSO",
+  "REGALO",
+  "OTROS",
+] as const;
+
+export const incomeCategorySchema = z.enum(incomeCategoryValues);
+export const incomeCategoryOptions = incomeCategoryValues;
 const colorRegex = /^#?[0-9a-fA-F]{6}$/;
 
 /**
@@ -172,6 +187,100 @@ export const monthExpenseLineCreateSchema = z.object({
    * Forma parte de la clave de deduplicación junto a usuario, descripción
    * normalizada, monto y moneda.
    */
+  occurredOn: z
+    .string()
+    .regex(isoDateRegex, "occurredOn must be yyyy-MM-dd.")
+    .optional(),
+});
+
+/**
+ * Plantilla de ingreso (recurrente o de un solo mes). Espejo de
+ * `expenseSchema`. Diferencias:
+ * - `bankId` es opcional (los cobros no siempre se asocian a una cuenta).
+ * - `currency` permite plantillas en moneda distinta a la principal (p.ej.
+ *   un freelance que cobra en USD para un usuario con primary EUR).
+ */
+export const incomeSchema = z
+  .object({
+    name: z.string().min(1, "Income name is required.").max(120),
+    amount: z.coerce.number().positive("Amount must be greater than 0."),
+    bankId: z
+      .string()
+      .trim()
+      .optional()
+      .transform((v) => (v && v.length ? v : undefined)),
+    isRecurring: z.coerce.boolean(),
+    startMonth: z.string().regex(monthRegex, "startMonth must be yyyy-MM."),
+    endMonth: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => (value && value.length ? value : undefined)),
+    category: incomeCategorySchema.optional().default("OTROS"),
+    currency: currencySchema.optional(),
+  })
+  .refine(
+    (data) => !data.endMonth || monthRegex.test(data.endMonth),
+    "endMonth must be yyyy-MM when provided.",
+  )
+  .refine(
+    (data) => {
+      if (!data.isRecurring && data.endMonth) {
+        return false;
+      }
+      return true;
+    },
+    {
+      path: ["endMonth"],
+      message: "One-off incomes cannot have an end month.",
+    },
+  )
+  .refine(
+    (data) => {
+      if (!data.endMonth) {
+        return true;
+      }
+      return data.endMonth >= data.startMonth;
+    },
+    {
+      path: ["endMonth"],
+      message: "End month must be after start month.",
+    },
+  );
+
+/**
+ * Crear una línea de ingreso del mes. Espejo de
+ * `monthExpenseLineCreateSchema` con `received` reemplazando a `paid` y
+ * `bankId` opcional.
+ */
+export const monthIncomeLineCreateSchema = z.object({
+  name: z.string().min(1, "Name is required.").max(120),
+  amount: z.coerce.number().positive("Amount must be greater than 0."),
+  bankId: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v && v.length ? v : undefined)),
+  category: incomeCategorySchema.optional().default("OTROS"),
+  currency: currencySchema.optional(),
+  fxRate: z.coerce.number().positive().optional(),
+  /** Override de `received`; default server-side: false. */
+  received: z.coerce.boolean().optional(),
+  occurredOn: z
+    .string()
+    .regex(isoDateRegex, "occurredOn must be yyyy-MM-dd.")
+    .optional(),
+});
+
+export const monthIncomeLineUpdateSchema = z.object({
+  received: z.coerce.boolean().optional(),
+  name: z.string().min(1).max(120).optional(),
+  amount: z.coerce.number().positive().optional(),
+  currency: currencySchema.optional(),
+  fxRate: z.coerce.number().positive().optional(),
+  /** Cambiar la cuenta donde cayó el cobro. `null` para desasociar. */
+  bankId: z.union([z.string().min(1), z.null()]).optional(),
+  category: incomeCategorySchema.optional(),
   occurredOn: z
     .string()
     .regex(isoDateRegex, "occurredOn must be yyyy-MM-dd.")
