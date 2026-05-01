@@ -56,6 +56,7 @@ export const es = {
     nav: {
       banks: "Bancos",
       expenses: "Plantillas",
+      savings: "Ahorros",
       settings: "Configuración",
       about: "Sobre Clara",
       admin: "Administración",
@@ -168,19 +169,19 @@ export const es = {
       titlePart1: "Tu plata",
       titleHighlight: "clara",
       titlePart2: ", en cinco minutos.",
-      body: "Creás cuenta, conectás (opcional) tu banco o WhatsApp, y Clara se hace cargo del resto.",
+      body: "Creás cuenta, vinculás (opcional) Telegram, y Clara se hace cargo del resto.",
       register: "Empezar gratis",
       faq: "Resolver dudas",
     },
     metaTitle: "Clara — tu asistente financiera con IA",
     metaDescription:
-      "Tu money coach con IA. Chateá con tu plata: PDFs, notas de voz, Open Banking. Open source MIT, self-hostable, con servidor MCP para integrar con Claude, ChatGPT y Cursor.",
+      "Tu money coach con IA. Chateá con tu plata: PDFs, notas de voz, Telegram. Open source MIT, self-hostable, con servidor MCP para integrar con Claude, ChatGPT y Cursor.",
   },
 
   marketingFeaturesPage: {
     metaTitle: "Features",
     metaDescription:
-      "Todo lo que Clara puede hacer por tus finanzas: chat con IA, PDFs, notas de voz, Open Banking, MCP y más.",
+      "Todo lo que Clara puede hacer por tus finanzas: chat con IA, PDFs, notas de voz, Telegram, MCP y más.",
     chip: "Capacidades · Abr 2026",
     title1: "Lo que",
     titleHighlight: "Clara hace",
@@ -381,31 +382,14 @@ export const es = {
 
     instructionsTitle: "Instrucciones para el asistente e importaciones",
     instructionsDescription:
-      "Definí reglas en lenguaje natural: qué movimientos no importar desde Revolut (transferencias entre cuentas, recargas, etc.), cómo categorizar ciertos comercios, o convenciones que use el asistente en el chat y con fotos del banco. Podés pedirle al asistente en el chat que guarde una preferencia para más adelante; se escribe acá mismo.",
+      "Definí reglas en lenguaje natural: cómo categorizar ciertos comercios o convenciones que use el asistente en el chat y con fotos del banco. Podés pedirle al asistente en el chat que guarde una preferencia para más adelante; se escribe acá mismo.",
     instructionsPlaceholder:
-      "Ej.: No importar transferencias a mi cuenta USD ni movimientos con \"Top up\". Supermercados siempre ALIMENTACION. Spotify y Netflix → SUSCRIPCIONES.",
+      "Ej.: Supermercados siempre ALIMENTACION. Spotify y Netflix → SUSCRIPCIONES. Si veo \"Uber\", categorizar como TRANSPORTE.",
     instructionsHint: "Máximo 12.000 caracteres. Requiere",
-    instructionsHintEnvSuffix: "en el servidor para aplicar reglas al sincronizar Revolut.",
+    instructionsHintEnvSuffix: "en el servidor para que el asistente aplique las reglas.",
     instructionsSaveBtn: "Guardar instrucciones",
     instructionsSaved: "Instrucciones guardadas.",
     instructionsError: "No se pudo guardar.",
-
-    whatsappTitle: "Asistente por WhatsApp",
-    whatsappDescription:
-      "Vinculá tu número para usar el asistente de Clara en WhatsApp: consultá tu mes, agregá gastos y mandá fotos de movimientos para que los registremos automáticamente.",
-    whatsappLinkedTo: (phone: string) => `Vinculado a ${phone}`,
-    whatsappUnlinkBtn: "Desvincular",
-    whatsappUnlinkConfirm: "¿Desvincular el número de WhatsApp?",
-    whatsappUnlinkDone: "Número desvinculado.",
-    whatsappPhoneLabel:
-      "Número de WhatsApp (formato internacional, p. ej. +5491112345678)",
-    whatsappGenerateCode: "Generar código",
-    whatsappPendingTitle: (code: string) => `Tu código: ${code}`,
-    whatsappPendingHelp: (code: string) =>
-      `Abrí WhatsApp y mandale al asistente: LINK ${code}. El código expira en unos minutos.`,
-    whatsappStartError: "No se pudo iniciar la vinculación.",
-    whatsappCodeGenerated:
-      "Te generamos un código. Mandalo por WhatsApp al asistente para terminar la vinculación.",
 
     apiTokensTitle: "Acceso para AI (MCP)",
     apiTokensDescription:
@@ -430,25 +414,6 @@ export const es = {
     apiTokensExpired: " (expirado)",
     apiTokensNeverUsed: "Nunca",
     apiTokensExpireDateLabel: "Expira (opcional)",
-
-    revolutTitle: "Conexión con Revolut",
-    revolutDescription:
-      "Conectá tu cuenta Revolut (UK / EU) para que Clara importe los movimientos al cierre del mes. Solo lectura — Clara no toca tu plata.",
-    revolutLinkAccount: "Vincular cuenta",
-    revolutPending: "Conexión pendiente — terminá el flujo de autorización en Revolut.",
-    revolutLinked: (institution: string) => `Vinculado con ${institution}`,
-    revolutLastSync: (when: string) => `Última sync: ${when}`,
-    revolutNeverSynced: "Todavía no se sincronizó.",
-    revolutDisconnect: "Desconectar",
-    revolutImport: "Importar el mes actual",
-    revolutImporting: "Importando…",
-    revolutDefaultBank: "Banco por defecto al importar",
-    revolutDefaultBankSave: "Guardar",
-    revolutSelectInstitution: "Elegí tu banco",
-    revolutCountryLabel: "País",
-    revolutLoadInstitutions: "Cargar bancos",
-    revolutAuthorize: "Autorizar en Revolut",
-    revolutSyncDone: "Sincronización lista.",
   },
 
   app: {
@@ -508,6 +473,12 @@ export const es = {
     indefinite: "indefinida",
   },
 
+  savings: {
+    pageTitle: "Ahorros",
+    pageDescription:
+      "Tu pila global de ahorros y todos los movimientos: aportes mensuales, sobrantes derivados, coberturas de deuda y depósitos o retiros manuales.",
+  },
+
   month: {
     drawerTitle: "Panel del mes",
     summaryIncome: "Ingreso",
@@ -519,8 +490,6 @@ export const es = {
     monthFor: (label: string) => `Mes · ${label}`,
     addLine: "Agregar gasto",
     addLineDialogTitle: "Nuevo gasto",
-    importFromRevolut: "Importar de Revolut",
-    importing: "Importando…",
     paid: "Pagado",
     unpaid: "Pendiente",
     markPaid: "Marcar como pagado",
@@ -544,6 +513,19 @@ export const es = {
       `Cerraste ${prev} con ${amount} sin gastar. ¿Qué hacemos?`,
     carryoverAdd: "Sumar al ingreso",
     carryoverAside: "Dejarlo aparte como ahorros",
+    deficitTitle: "Cerraste en rojo",
+    deficitBody: (amount: string, prev: string, savings: string) =>
+      `${prev} cerró con un saldo negativo de ${amount}. Tenés ${savings} en ahorros. ¿Cómo seguimos?`,
+    deficitCover: "Cubrir con ahorros",
+    deficitCarry: "Pasar la deuda a este mes",
+    savingsCardTitle: "Aporte a ahorro",
+    savingsCardEmpty: "Sin aporte registrado este mes.",
+    savingsAddBtn: "Anotar aporte",
+    savingsEditBtn: "Editar aporte",
+    savingsRemoveBtn: "Quitar aporte",
+    savingsContributionDialogTitle: "Aporte mensual a ahorro",
+    savingsContributionHint:
+      "Es informativo: declara cuánto dedicás a ahorro este mes. NO descuenta del balance.",
   },
 
   chat: {

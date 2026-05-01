@@ -44,7 +44,7 @@ unit tests of the agent loop and tool contracts.
 | **AI cost / model selection** (`src/lib/ai/`) | Provider routing has subtle env-var fallbacks that drift silently. | [`src/lib/ai/cost.test.ts`](../../../src/lib/ai/cost.test.ts) |
 | **MCP servers** (`src/lib/mcp/`) | Public + per-user MCP are external-facing contracts. Tool descriptions, schemas, and discovery payloads are part of the API. | [`src/lib/mcp/public-server.test.ts`](../../../src/lib/mcp/public-server.test.ts) |
 | **Validators** (`src/lib/validators.ts`) | Boundary parsing keeps Prisma honest. | [`src/lib/validators.test.ts`](../../../src/lib/validators.test.ts) |
-| **WhatsApp pipeline** (`src/lib/whatsapp/`) | Twilio signature, link-code lifecycle, voice ingest. | [`src/lib/whatsapp/twilio.test.ts`](../../../src/lib/whatsapp/twilio.test.ts), [`src/lib/whatsapp/link.test.ts`](../../../src/lib/whatsapp/link.test.ts) |
+| **Telegram pipeline** (`src/lib/telegram/`) | Bot-API secret token, deep-link tokens, voice ingest. | [`src/lib/telegram/`](../../../src/lib/telegram) |
 | **API tokens** (`src/lib/api-token.ts`) | MCP PAT lifecycle is security-critical. | [`src/lib/api-token.test.ts`](../../../src/lib/api-token.test.ts) |
 | **Months math** (`src/lib/months.ts`) | Per-month copies and balance arithmetic. | [`src/lib/months.test.ts`](../../../src/lib/months.test.ts) |
 | **FX** (`src/lib/fx/rates.ts`) | Rate resolution and rounding behaviour. | [`src/lib/fx/rates.test.ts`](../../../src/lib/fx/rates.test.ts) |
@@ -76,7 +76,7 @@ unit tests of the agent loop and tool contracts.
 - Verify signature **before** parsing body.
 - Verify idempotency: feeding the same webhook event twice produces one
   side-effect.
-- Verify graceful degradation: missing env (Twilio, GoCardless) returns a
+- Verify graceful degradation: missing env (Telegram bot token) returns a
   typed error, not a 500.
 
 ### SEO / i18n tests
@@ -96,13 +96,11 @@ Manual QA Checklist
       string.
 - [ ] El agent loop pide confirmación antes de mutar (mark paid, add
       expense, delete line, create bank). Mutaciones silenciosas son bug.
-- [ ] Open Banking sigue read-only — los scopes pedidos a GoCardless no
-      cambiaron.
 - [ ] Self-host smoke: borrá AI_GATEWAY_API_KEY / VERCEL_OIDC_TOKEN,
-      GOCARDLESS_*, TWILIO_*, BLOB_READ_WRITE_TOKEN y arrancá en local; la
-      app debe levantar y degradar (no 500s en home/login).
-- [ ] WhatsApp: enviar mensaje texto + voz → pipeline completo (transcribe
-      + reply) + voz TTS si hay Blob.
+      TELEGRAM_*, BLOB_READ_WRITE_TOKEN y arrancá en local; la app debe
+      levantar y degradar (no 500s en home/login).
+- [ ] Telegram: enviar mensaje texto + voz → pipeline completo
+      (transcribe + reply) y, si hay Blob, audio.
 - [ ] Privacy claims en marketing-content.ts siguen siendo verdad (sin
       tracking, MIT, self-hosted).
 - [ ] llms.txt y llms-full.txt rinden contenido coherente con la versión
@@ -114,13 +112,13 @@ Manual QA Checklist
 
 - The repo enforces no minimum coverage threshold. Don't introduce one as
   a hard gate today — instead: **never lower coverage on a file you touch**.
-- Pure helpers in `src/lib/**/*.ts` that don't talk to Prisma, GoCardless,
-  Twilio, or the AI Gateway should approach 100% line coverage. They're
-  cheap to test and cheap to break.
+- Pure helpers in `src/lib/**/*.ts` that don't talk to Prisma, Telegram,
+  or the AI Gateway should approach 100% line coverage. They're cheap to
+  test and cheap to break.
 - DB-touching code is covered by mocking Prisma with `vi.mock("@/lib/db")`
   — see the agent-tools test for the canonical pattern.
-- Provider modules (Twilio, GoCardless, AI Gateway) are tested with
-  network-mocked clients. We don't hit real services from CI.
+- Provider modules (Telegram, AI Gateway) are tested with network-mocked
+  clients. We don't hit real services from CI.
 
 ## Regression expectations
 
@@ -155,10 +153,10 @@ When reporting QA results in a PR or review:
 - Pair with [`engineer-data`](../engineer-data/SKILL.md) for schema /
   migration changes.
 - Pair with [`engineer-integrations`](../engineer-integrations/SKILL.md)
-  for AI Gateway, GoCardless, Twilio, Vercel Blob, MCP.
+  for AI Gateway, Telegram, Vercel Blob, MCP.
 - Pair with [`automated-user-comms`](../automated-user-comms/SKILL.md) when
   testing prompt or reply changes.
 - Pair with [`ux-writer`](../ux-writer/SKILL.md) for voice / dictionary
   drift.
-- Escalate privacy / OB / consent regressions to
+- Escalate privacy / consent regressions to
   [`legal-advisor`](../legal-advisor/SKILL.md).

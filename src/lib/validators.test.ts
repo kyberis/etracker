@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  carryoverDecisionSchema,
   currencySchema,
   expenseSchema,
+  monthlySavingsContributionSchema,
   onboardingSchema,
-  whatsappLinkStartSchema,
+  savingsMovementCreateSchema,
+  savingsMovementUpdateSchema,
   yearParamSchema,
 } from "./validators";
 
@@ -48,21 +51,6 @@ describe("validators", () => {
     it("requires a positive amount", () => {
       expect(() => expenseSchema.parse({ ...base, amount: 0 })).toThrow();
       expect(() => expenseSchema.parse({ ...base, amount: -5 })).toThrow();
-    });
-  });
-
-  describe("whatsappLinkStartSchema", () => {
-    it("strips dashes/parens/spaces from a valid international number", () => {
-      const parsed = whatsappLinkStartSchema.parse({
-        phone: " +54 (911) 1234-5678 ",
-      });
-      expect(parsed.phone).toBe("+5491112345678");
-    });
-
-    it("rejects local-format numbers", () => {
-      expect(() =>
-        whatsappLinkStartSchema.parse({ phone: "1145678901" }),
-      ).toThrow();
     });
   });
 
@@ -121,6 +109,108 @@ describe("validators", () => {
       expect(yearParamSchema.parse({ year: "2026" }).year).toBe(2026);
       expect(() => yearParamSchema.parse({ year: 1969 })).toThrow();
       expect(() => yearParamSchema.parse({ year: 2101 })).toThrow();
+    });
+  });
+
+  describe("carryoverDecisionSchema", () => {
+    it("accepts the four supported modes", () => {
+      for (const mode of [
+        "addToIncome",
+        "setAside",
+        "coverFromSavings",
+        "carryDebt",
+      ] as const) {
+        expect(carryoverDecisionSchema.safeParse({ mode }).success).toBe(true);
+      }
+    });
+
+    it("rejects unknown modes", () => {
+      expect(carryoverDecisionSchema.safeParse({ mode: "ignore" }).success).toBe(
+        false,
+      );
+    });
+  });
+
+  describe("savingsMovementCreateSchema", () => {
+    it("requires a positive amount and a write-allowed kind", () => {
+      expect(
+        savingsMovementCreateSchema.safeParse({
+          kind: "MANUAL_DEPOSIT",
+          amount: 50,
+        }).success,
+      ).toBe(true);
+
+      expect(
+        savingsMovementCreateSchema.safeParse({
+          kind: "MANUAL_DEPOSIT",
+          amount: 0,
+        }).success,
+      ).toBe(false);
+
+      // System kinds are not allowed via the create endpoint.
+      expect(
+        savingsMovementCreateSchema.safeParse({
+          kind: "DEBT_COVERAGE",
+          amount: 50,
+        }).success,
+      ).toBe(false);
+      expect(
+        savingsMovementCreateSchema.safeParse({
+          kind: "MONTHLY_CONTRIBUTION",
+          amount: 50,
+        }).success,
+      ).toBe(false);
+    });
+
+    it("validates occurredOn as yyyy-MM-dd", () => {
+      expect(
+        savingsMovementCreateSchema.safeParse({
+          kind: "MANUAL_WITHDRAWAL",
+          amount: 5,
+          occurredOn: "2026/05/01",
+        }).success,
+      ).toBe(false);
+      expect(
+        savingsMovementCreateSchema.safeParse({
+          kind: "MANUAL_WITHDRAWAL",
+          amount: 5,
+          occurredOn: "2026-05-01",
+        }).success,
+      ).toBe(true);
+    });
+  });
+
+  describe("savingsMovementUpdateSchema", () => {
+    it("requires at least one field", () => {
+      expect(savingsMovementUpdateSchema.safeParse({}).success).toBe(false);
+    });
+
+    it("accepts partial updates and an explicit null note", () => {
+      expect(savingsMovementUpdateSchema.safeParse({ amount: 5 }).success).toBe(
+        true,
+      );
+      expect(
+        savingsMovementUpdateSchema.safeParse({ note: null }).success,
+      ).toBe(true);
+      expect(
+        savingsMovementUpdateSchema.safeParse({
+          occurredOn: "2026-05-01",
+        }).success,
+      ).toBe(true);
+    });
+  });
+
+  describe("monthlySavingsContributionSchema", () => {
+    it("requires a positive amount", () => {
+      expect(
+        monthlySavingsContributionSchema.safeParse({ amount: 50 }).success,
+      ).toBe(true);
+      expect(
+        monthlySavingsContributionSchema.safeParse({ amount: 0 }).success,
+      ).toBe(false);
+      expect(
+        monthlySavingsContributionSchema.safeParse({ amount: -1 }).success,
+      ).toBe(false);
     });
   });
 });

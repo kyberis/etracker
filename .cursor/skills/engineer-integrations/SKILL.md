@@ -1,6 +1,6 @@
 ---
 name: engineer-integrations
-description: Owns Clara's integrations with the outside world — Vercel AI Gateway / AI SDK 6, OpenAI Whisper + TTS, GoCardless Bank Account Data API (Open Banking), Twilio (WhatsApp), Vercel Blob, Vercel Runtime Cache, and the public + per-user MCP servers. Use when adding or modifying any third-party API call, AI tool, MCP tool, webhook handler, or model selection.
+description: Owns Clara's integrations with the outside world — Vercel AI Gateway / AI SDK 6, OpenAI Whisper + TTS, Telegram Bot API, Vercel Blob, Vercel Runtime Cache, and the public + per-user MCP servers. Use when adding or modifying any third-party API call, AI tool, MCP tool, webhook handler, or model selection.
 ---
 
 # Integrations Engineer — Clara
@@ -20,8 +20,7 @@ talking to.
 | Chat agent / classifier | Vercel AI SDK 6 via Vercel AI Gateway | [`src/lib/ai/`](../../../src/lib/ai) |
 | Audio transcription | OpenAI Whisper | `src/lib/ai/...` (transcription helpers) |
 | Audio TTS | OpenAI TTS + Vercel Blob storage | `src/lib/ai/...`, [`src/lib/blob/`](../../../src/lib/blob) |
-| Open Banking sync | GoCardless Bank Account Data | [`src/lib/revolut/`](../../../src/lib/revolut) |
-| WhatsApp inbound/outbound | Twilio | [`src/lib/whatsapp/`](../../../src/lib/whatsapp) |
+| Telegram inbound/outbound | Telegram Bot API | [`src/lib/telegram/`](../../../src/lib/telegram) |
 | Runtime cache | Vercel Runtime Cache | [`src/lib/cache/`](../../../src/lib/cache), `src/lib/year-timeline-data.ts` |
 | Rate limiting | Upstash Redis | [`src/lib/rate-limit.ts`](../../../src/lib/rate-limit.ts) |
 | Error reporting | Sentry (optional, via `SENTRY_DSN`) | [`src/lib/log.ts`](../../../src/lib/log.ts) forwards |
@@ -84,30 +83,15 @@ Two surfaces:
   2. A privacy review trigger via [`legal-advisor`](../legal-advisor/SKILL.md)
      because it expands what an external AI client can do with user data.
 
-## GoCardless (Open Banking)
+## Telegram Bot API
 
-- **Read-only.** Clara never has scopes that allow initiating payments, even by
-  accident. Do not add scopes you don't fully understand.
-- Env: `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY`. When missing, the
-  feature must surface a "no está configurado" state — never crash a request.
-- Requisitions are short-lived; refresh is part of the sync flow.
-- Transactions are matched to planned templates by amount + bank + date with
-  an AI classifier as a tiebreaker. The classifier suggests; the user
-  confirms.
-- Cache reads aggressively, invalidate aggressively. See
-  [`engineer-data`](../engineer-data/SKILL.md) on cache tags.
-- Webhook signatures (when present) must be verified before doing any work.
-
-## Twilio (WhatsApp)
-
-- Inbound webhook validates Twilio signature. Outbound via Twilio REST.
+- Inbound webhook validates the secret token in the
+  `X-Telegram-Bot-Api-Secret-Token` header. Outbound via Telegram Bot REST.
 - Voice messages are downloaded, transcribed via OpenAI Whisper, then
   handed to the agent like any other user message.
-- Voice replies are synthesised with OpenAI TTS, stored in Vercel Blob,
-  and the audio URL is sent back as a Twilio media message. See
-  [`automated-user-comms`](../automated-user-comms/SKILL.md).
-- Pairing uses link codes (the user generates a code in the web app and
-  sends it from their phone). Implementation: `src/lib/whatsapp/`.
+- Pairing uses HMAC-signed deep-link tokens (`?start=<token>`). The user
+  generates the token from Settings → Integrations and taps Start in the
+  bot. Implementation: `src/lib/telegram/`.
 
 ## Graceful degradation (mandatory)
 
@@ -115,9 +99,7 @@ Every optional integration must degrade gracefully when its env is missing:
 
 - **AI Gateway missing**: chat features show "AI no está configurada" and
   the rest of the app keeps working.
-- **GoCardless missing**: settings page hides the Open Banking section; sync
-  endpoints return a typed error (`GOCARDLESS_MISSING_SECRETS`).
-- **Twilio missing**: WhatsApp pairing UI is hidden; webhook returns 200 but
+- **Telegram missing**: pairing UI is hidden; webhook returns 200 but
   no-op.
 - **Vercel Blob missing**: TTS replies fall back to text-only.
 - **Upstash missing**: rate limiter no-ops in dev; production should always
@@ -160,6 +142,6 @@ Integration change checklist
   [`ux-writer`](../ux-writer/SKILL.md).
 - New data fields persisted from a provider response:
   [`engineer-data`](../engineer-data/SKILL.md).
-- Privacy / OB review triggers: [`legal-advisor`](../legal-advisor/SKILL.md).
-- WhatsApp / voice pipeline copy + cadence:
+- Privacy review triggers: [`legal-advisor`](../legal-advisor/SKILL.md).
+- Telegram / voice pipeline copy + cadence:
   [`automated-user-comms`](../automated-user-comms/SKILL.md).

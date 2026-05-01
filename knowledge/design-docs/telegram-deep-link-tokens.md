@@ -5,15 +5,9 @@
 
 ## Context
 
-The WhatsApp channel uses a 6-digit numeric code persisted on `User`
-(`whatsappLinkCode` + `whatsappLinkCodeExpires`). The user types
-`LINK 123456` into WhatsApp, the webhook reads the code, looks up the row,
-and sets `whatsappPhone` + `whatsappVerifiedAt`. Reasonable for a phone
-keypad.
-
-Telegram is different: opening a deep link with `?start=<param>` already
-ships a token from the web tab into the bot via Telegram's clients. Asking
-the user to type a code makes the experience worse, not better — and adds
+Opening a Telegram deep link with `?start=<param>` already ships a token
+from the web tab into the bot via Telegram's clients. Asking the user to
+type a code in the chat makes the experience worse, not better — and adds
 DB writes for a flow we'd rather have stateless.
 
 ## Decision
@@ -58,7 +52,7 @@ expired tokens before returning.
 
 | Option | Tradeoff |
 |--------|----------|
-| 6-digit code in DB (WhatsApp pattern) | Worse UX (typing on a desktop), extra DB writes per link attempt, more code paths (issue / consume / expire). |
+| 6-digit code in DB | Worse UX (typing on a desktop), extra DB writes per link attempt, more code paths (issue / consume / expire). |
 | One-time token persisted in DB | Defends against replay, but Telegram already gives us a one-shot UX (the user only taps Start once). The DB row is dead weight after first use. |
 | Stateless HMAC (chosen) | Zero DB writes until the link succeeds. Replay is bounded by `exp` (15 min) and irrelevant after the user is linked because re-running `/start <same-token>` just re-sets the same columns. |
 | Random nonce in Redis | Adds a hard dependency on Upstash; no benefit over HMAC for our threat model (no broadcast / no privilege escalation through a stale token). |
@@ -101,7 +95,5 @@ addressed. No central dispatcher, no shared state.
 ## Related
 
 - Spec: [`knowledge/product-specs/telegram.md`](../product-specs/telegram.md)
-- WhatsApp comparable flow:
-  [`src/lib/whatsapp/link.ts`](../../src/lib/whatsapp/link.ts)
 - Token implementation:
   [`src/lib/telegram/link.ts`](../../src/lib/telegram/link.ts)

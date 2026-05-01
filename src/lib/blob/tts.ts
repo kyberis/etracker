@@ -6,8 +6,8 @@ import { put } from "@vercel/blob";
  * missing — callers fall back to text-only delivery in that case.
  *
  * The blob URL itself is randomized (`addRandomSuffix: true`) so it is
- * unguessable; `cacheControlMaxAge` keeps it on the CDN long enough for
- * Twilio to fetch it but not so long that we leak audio.
+ * unguessable; `cacheControlMaxAge` keeps it on the CDN long enough for the
+ * web client to fetch it but not so long that we leak audio.
  */
 export async function uploadTtsAudioToBlob(
   mp3: Buffer,
@@ -19,8 +19,8 @@ export async function uploadTtsAudioToBlob(
   const path = `tts/${new Date().toISOString().slice(0, 10)}/${cryptoRandomId()}.mp3`;
 
   // `access: "public"` is required by `put`. The pathname is unguessable, and
-  // Twilio only needs ~15 minutes to fetch the media before hand-off; the CDN
-  // entry rolls off naturally after `cacheControlMaxAge`.
+  // the web client only needs ~15 minutes to fetch the media; the CDN entry
+  // rolls off naturally after `cacheControlMaxAge`.
   const blob = await put(path, mp3, {
     access: "public",
     addRandomSuffix: true,

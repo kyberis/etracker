@@ -19,8 +19,8 @@ export type BalanceResponse = {
 
 /**
  * Lightweight read used by `BalanceProvider` to keep the sticky header in
- * sync. Avoids the full month page payload (lines, banks, revolut state,
- * pending templates) so we can refresh on every AI tool call cheaply.
+ * sync. Avoids the full month page payload (lines, banks, pending
+ * templates) so we can refresh on every AI tool call cheaply.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ month: string }> }) {
   return withApi(async (): Promise<BalanceResponse> => {

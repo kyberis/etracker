@@ -1,4 +1,4 @@
-import { Prisma, type ExpenseCategory } from "@prisma/client";
+import { Prisma, SavingsMovementKind, type ExpenseCategory } from "@prisma/client";
 import { tool } from "ai";
 import { z } from "zod";
 
@@ -23,6 +23,12 @@ import {
   parseMonthKey,
   toMonthStart,
 } from "@/lib/months";
+import {
+  getSavingsState,
+  recordSavingsMovement,
+  removeMonthlySavingsContribution,
+  setMonthlySavingsContribution,
+} from "@/lib/savings";
 import {
   createMonthSchema,
   currencySchema,
@@ -87,7 +93,9 @@ export function buildExpenseTools(userId: string) {
         }
         const carryoverNote =
           data.carryoverPrompt &&
-          `El usuario cerró ${data.carryoverPrompt.prevMonth} con ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.amount)} sin gastar y todavía no decidió qué hacer con ese sobrante. Felicitalo y ofrecele dos opciones: sumarlo al ingreso de ${target} o dejarlo aparte como ahorros. Cuando elija, llamá applyPrevMonthLeftover.`;
+          (data.carryoverPrompt.type === "leftover"
+            ? `El usuario cerró ${data.carryoverPrompt.prevMonth} con ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.amount)} sin gastar y todavía no decidió qué hacer con ese sobrante. Felicitalo y ofrecele dos opciones: sumarlo al ingreso de ${target} (\`mode=addToIncome\`) o dejarlo aparte como ahorros (\`mode=setAside\`). Cuando elija, llamá applyPrevMonthLeftover.`
+            : `El usuario cerró ${data.carryoverPrompt.prevMonth} en rojo por ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.amount)} y todavía no decidió cómo manejarlo. Pila de ahorro disponible: ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.savings)}. Sin sermones, ofrecele dos opciones: cubrir con ahorros (\`mode=coverFromSavings\` — cobertura parcial si la pila no alcanza) o arrastrar la deuda al mes actual (\`mode=carryDebt\`). Cuando elija, llamá applyPrevMonthLeftover.`);
         return {
           month: target,
           hasRecord: true as const,
@@ -833,13 +841,18 @@ export function buildExpenseTools(userId: string) {
 
     applyPrevMonthLeftover: tool({
       description:
-        "Aplica la decisión del usuario sobre el sobrante del mes anterior al mes elegido (default = mes actual). " +
-        "`mode=addToIncome`: lo suma al ingreso del mes (en `MonthRecord.carryoverFromPrev`). " +
-        "`mode=setAside`: lo acumula en la pila de ahorros del usuario. " +
-        "Idempotente: si ya se decidió, devuelve `alreadyDecided=true`. Llamalo SOLO cuando getMonthState haya devuelto un `carryoverPrompt` y el usuario haya elegido una de las dos opciones.",
+        "Aplica la decisión del usuario sobre el saldo del mes anterior al mes elegido (default = mes actual). " +
+        "Si el mes anterior cerró con SOBRANTE: usá `addToIncome` (lo suma a `carryoverFromPrev` del mes) o " +
+        "`setAside` (lo acumula en la pila de ahorros como movimiento CARRYOVER_DEPOSIT). " +
+        "Si cerró con DEUDA (saldo negativo): usá `coverFromSavings` (retira hasta `min(savings, |deuda|)` " +
+        "como movimiento DEBT_COVERAGE; si no alcanza, la deuda restante queda como `carryoverFromPrev` " +
+        "negativo del mes actual) o `carryDebt` (toda la deuda pasa al mes actual sin tocar la pila). " +
+        "Idempotente: si ya se decidió, devuelve `alreadyDecided=true`. Llamalo SOLO cuando getMonthState " +
+        "haya devuelto un `carryoverPrompt` y el usuario haya elegido una opción válida según el `type` " +
+        "del prompt (`leftover` o `deficit`).",
       inputSchema: z.object({
         month: optionalMonthKey,
-        mode: z.enum(["addToIncome", "setAside"]),
+        mode: z.enum(["addToIncome", "setAside", "coverFromSavings", "carryDebt"]),
       }),
       execute: async ({ month, mode }) => {
         const target = month ?? getCurrentMonthKey();
@@ -860,7 +873,15 @@ export function buildExpenseTools(userId: string) {
             applied: false as const,
             month: target,
             note:
-              "No había sobrante en el mes anterior. Marcamos la decisión como tomada para no volver a preguntar.",
+              "No había saldo pendiente del mes anterior. Marcamos la decisión como tomada para no volver a preguntar.",
+          };
+        }
+        if (result.type === "modeMismatch") {
+          return {
+            error:
+              result.expected === "leftover"
+                ? "El mes anterior cerró con sobrante: usá `addToIncome` o `setAside`."
+                : "El mes anterior cerró con deuda: usá `coverFromSavings` o `carryDebt`.",
           };
         }
         return {
@@ -869,8 +890,163 @@ export function buildExpenseTools(userId: string) {
           applied: true as const,
           month: target,
           mode: result.mode,
-          amount: result.amount,
+          leftover: result.leftover,
+          ...(result.covered !== undefined ? { covered: result.covered } : {}),
+          ...(result.remainingDebt !== undefined
+            ? { remainingDebt: result.remainingDebt }
+            : {}),
         };
+      },
+    }),
+
+    getSavingsState: tool({
+      description:
+        "Lee el estado actual de la pila global de ahorros: balance acumulado y los últimos N movimientos " +
+        "(default 20, máx 100) más recientes primero. Cada movimiento incluye `kind` " +
+        "(MONTHLY_CONTRIBUTION = aporte mensual informativo, CARRYOVER_DEPOSIT = sobrante derivado a ahorro, " +
+        "DEBT_COVERAGE = retiro para cubrir mes negativo, MANUAL_DEPOSIT/MANUAL_WITHDRAWAL = ad-hoc), " +
+        "monto FIRMADO (positivo entra, negativo sale), `monthKey` cuando hay mes asociado, fecha y nota.",
+      inputSchema: z.object({
+        limit: z.number().int().min(1).max(100).optional(),
+      }),
+      execute: async ({ limit }) => {
+        const state = await getSavingsState(userId, { limit: limit ?? 20 });
+        return {
+          balance: state.balance,
+          currency: state.currency,
+          movements: state.movements,
+          summaryText:
+            `Pila de ahorro: ${state.currency} ${formatMoney(state.balance)} ` +
+            `(${state.movements.length} movimiento(s) recientes).`,
+        };
+      },
+    }),
+
+    addSavingsMovement: tool({
+      description:
+        "Registra un movimiento manual en la pila de ahorros. `kind=MANUAL_DEPOSIT` para meter plata " +
+        "(suma a la pila), `kind=MANUAL_WITHDRAWAL` para sacar (resta). `amount` siempre positivo; el signo " +
+        "lo aplicamos según `kind`. Para retiros, validamos que la pila alcance — si no, devolvemos `error`. " +
+        "NO uses este tool para el aporte mensual del usuario (usá `setMonthlySavingsContribution`) ni para " +
+        "cubrir deuda del mes anterior (usá `applyPrevMonthLeftover` con `mode=coverFromSavings`).",
+      inputSchema: z.object({
+        kind: z.enum(["MANUAL_DEPOSIT", "MANUAL_WITHDRAWAL"]),
+        amount: z.number().positive(),
+        note: z.string().max(500).optional(),
+        occurredOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .optional(),
+      }),
+      execute: async ({ kind, amount, note, occurredOn }) => {
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: { primaryCurrency: true, savings: true },
+        });
+        if (!user) return { error: "Usuario no encontrado." };
+        const magnitude = new Prisma.Decimal(amount.toFixed(2));
+        if (kind === "MANUAL_WITHDRAWAL" && user.savings.lessThan(magnitude)) {
+          return {
+            error:
+              `La pila tiene ${user.primaryCurrency} ${formatMoney(Number(user.savings))} ` +
+              `y no alcanza para retirar ${user.primaryCurrency} ${formatMoney(amount)}.`,
+          };
+        }
+        const signed =
+          kind === "MANUAL_WITHDRAWAL" ? magnitude.negated() : magnitude;
+        const result = await recordSavingsMovement({
+          userId,
+          kind:
+            kind === "MANUAL_WITHDRAWAL"
+              ? SavingsMovementKind.MANUAL_WITHDRAWAL
+              : SavingsMovementKind.MANUAL_DEPOSIT,
+          amount: signed,
+          currency: user.primaryCurrency,
+          note: note ?? null,
+          occurredOn: parseIsoDate(occurredOn) ?? undefined,
+        });
+        return {
+          ok: true as const,
+          balance: result.balance,
+          movement: {
+            id: result.movement.id,
+            kind: result.movement.kind,
+            amount: Number(result.movement.amount),
+            currency: result.movement.currency,
+            note: result.movement.note,
+            occurredOn: result.movement.occurredOn.toISOString().slice(0, 10),
+          },
+        };
+      },
+    }),
+
+    setMonthlySavingsContribution: tool({
+      description:
+        "Upsert del aporte mensual INFORMATIVO del usuario para un mes (yyyy-MM). El monto entra a la pila " +
+        "como movimiento `MONTHLY_CONTRIBUTION` pero NO afecta el balance del mes (no se descuenta del " +
+        "ingreso ni aparece como gasto). Hay UN solo aporte por mes; si ya existía, lo reemplaza. " +
+        "Requiere que el mes esté creado (createMonthIfNeeded antes si no).",
+      inputSchema: z.object({
+        month: monthKey,
+        amount: z.number().positive(),
+        note: z.string().max(500).optional(),
+      }),
+      execute: async ({ month, amount, note }) => {
+        const monthStart = toMonthStart(parseMonthKey(month));
+        const [user, monthRecord] = await Promise.all([
+          db.user.findUnique({
+            where: { id: userId },
+            select: { primaryCurrency: true },
+          }),
+          db.monthRecord.findFirst({
+            where: { userId, month: monthStart },
+            select: { id: true },
+          }),
+        ]);
+        if (!user) return { error: "Usuario no encontrado." };
+        if (!monthRecord) {
+          return {
+            error:
+              "El mes no está configurado todavía. Llamá createMonthIfNeeded antes.",
+          };
+        }
+        const result = await setMonthlySavingsContribution({
+          userId,
+          monthRecordId: monthRecord.id,
+          amount: new Prisma.Decimal(amount.toFixed(2)),
+          currency: user.primaryCurrency,
+          note: note ?? null,
+          occurredOn: monthStart,
+        });
+        return {
+          ok: true as const,
+          replaced: result.replaced,
+          balance: result.balance,
+          month,
+          amount: Number(result.movement.amount),
+        };
+      },
+    }),
+
+    removeMonthlySavingsContribution: tool({
+      description:
+        "Borra el aporte mensual informativo del usuario para un mes (yyyy-MM) si existe. Revierte el " +
+        "efecto sobre la pila. Devuelve `removed=false` cuando no había aporte registrado.",
+      inputSchema: z.object({ month: monthKey }),
+      execute: async ({ month }) => {
+        const monthStart = toMonthStart(parseMonthKey(month));
+        const monthRecord = await db.monthRecord.findFirst({
+          where: { userId, month: monthStart },
+          select: { id: true },
+        });
+        if (!monthRecord) {
+          return { error: "El mes no está configurado todavía." };
+        }
+        const result = await removeMonthlySavingsContribution({
+          userId,
+          monthRecordId: monthRecord.id,
+        });
+        return { ok: true as const, removed: result.removed, balance: result.balance, month };
       },
     }),
 
@@ -964,7 +1140,7 @@ export function buildExpenseTools(userId: string) {
 
     updateExpenseImportInstructions: tool({
       description:
-        "Guarda en la cuenta del usuario las instrucciones persistentes para importaciones (Revolut, CSV, fotos), categorías y cómo marcar líneas (p. ej. pagado al importar). Usalo cuando pida recordar algo de forma permanente ('guardá que…', 'de ahora en más…', 'no quiero tener que repetir…'). Si solo agrega una regla nueva sin borrar el resto, usá mode=append (el texto actual está en el system prompt como bloque «Instrucciones personales»). Si reescribe todo el bloque, mode=replace. Después del tool, confirmá en una frase lo guardado.",
+        "Guarda en la cuenta del usuario las instrucciones persistentes para importaciones (CSV, fotos), categorías y cómo marcar líneas (p. ej. pagado al importar). Usalo cuando pida recordar algo de forma permanente ('guardá que…', 'de ahora en más…', 'no quiero tener que repetir…'). Si solo agrega una regla nueva sin borrar el resto, usá mode=append (el texto actual está en el system prompt como bloque «Instrucciones personales»). Si reescribe todo el bloque, mode=replace. Después del tool, confirmá en una frase lo guardado.",
       inputSchema: z.object({
         mode: z
           .enum(["replace", "append"])

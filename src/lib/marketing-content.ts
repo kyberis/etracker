@@ -36,7 +36,7 @@ type LocalisedMarketingContent = {
 
 const ES: LocalisedMarketingContent = {
   HERO_PITCH:
-    "Hablale en castellano, mandale el PDF del banco, dictale una nota de voz por WhatsApp. Clara entiende, categoriza y mantiene tu balance al día. Less drama, more done.",
+    "Hablale en castellano, mandale el PDF del banco o dictale una nota de voz desde Telegram. Clara entiende, categoriza y mantiene tu balance al día. Less drama, more done.",
   ELEVATOR_PITCH:
     "Chat-first expense tracker con personalidad. Open source, MIT, self-hostable. Sin telemetría, sin precio por usuario, hablando rioplatense.",
   FEATURES: [
@@ -50,19 +50,13 @@ const ES: LocalisedMarketingContent = {
       emoji: "🎙️",
       title: "Escucha notas de voz",
       description:
-        "“Pagué el alquiler” por WhatsApp es suficiente. Clara transcribe, clasifica y actualiza el mes sin que abras la app.",
+        "“Pagué el alquiler” desde el chat web o Telegram es suficiente. Clara transcribe, clasifica y actualiza el mes sin que abras la app.",
     },
     {
       emoji: "✈️",
       title: "Clara también en Telegram",
       description:
         "Vinculá Telegram desde Configuración → Integraciones y chateá con Clara desde el celular o el escritorio. Mismo cerebro, mismo cupo y mismas herramientas que en la web: mandale una foto del banco, una nota de voz o texto, y te responde en castellano rioplatense.",
-    },
-    {
-      emoji: "🔄",
-      title: "Se sincroniza con tu banco",
-      description:
-        "Open Banking con solo lectura. Conectás tu banco una vez, sincronizás por mes, y Clara matchea transacciones con tus gastos planificados. Clara nunca tiene acceso a tu dinero.",
     },
     {
       emoji: "📅",
@@ -105,7 +99,7 @@ const ES: LocalisedMarketingContent = {
     {
       question: "¿Qué es Clara?",
       answer:
-        "Clara es una asistente financiera con IA: un expense tracker conversacional que entiende fotos del banco, PDFs, CSVs y notas de voz por WhatsApp. Te ayuda a planificar tus gastos mes a mes, conectarte a tu banco vía Open Banking y mantener tu balance al día.",
+        "Clara es una asistente financiera con IA: un expense tracker conversacional que entiende fotos del banco, PDFs, CSVs y notas de voz desde el chat web o Telegram. Te ayuda a planificar tus gastos mes a mes y mantener tu balance al día.",
     },
     {
       question: "¿Cuánto cuesta?",
@@ -120,12 +114,7 @@ const ES: LocalisedMarketingContent = {
     {
       question: "¿Qué bancos soporta?",
       answer:
-        "Para conexión automática (Open Banking) Clara soporta la mayoría de bancos europeos y del Reino Unido. La conexión es de solo lectura: Clara nunca tiene acceso a tu dinero, solo lee los movimientos. Para cualquier banco del mundo podés importar PDFs/CSVs o registrar gastos manualmente vía chat o nota de voz.",
-    },
-    {
-      question: "¿Cómo funciona la integración con WhatsApp?",
-      answer:
-        "Linkeás tu número desde Configuración (te llega un código por WhatsApp). Después podés mandarle a Clara notas de voz, fotos o texto: ella transcribe, clasifica el gasto y te confirma antes de actualizar el mes.",
+        "Cualquier banco del mundo: importás PDFs/CSVs o registrás gastos manualmente vía chat o nota de voz. Clara nunca tiene acceso a tu dinero — solo procesa los archivos o mensajes que vos le pasés.",
     },
     {
       question: "¿Qué hace con mis datos?",
@@ -154,6 +143,17 @@ const ES: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.5.0",
+      date: "2026-05-01",
+      title: "Ahorro: pila global con ledger e integración total",
+      highlights: [
+        "Nueva sección /ahorro: pila de ahorro con balance al día, depósitos y retiros manuales, y movimientos del sistema (aporte mensual, sobrante de cierre, cobertura de deuda) explicados uno por uno.",
+        "Cada mes podés registrar un aporte mensual informativo: suma a tu ahorro, queda atado al mes, pero no toca el saldo del mes ni aparece como gasto.",
+        "Si el mes anterior te cierra en negativo, Clara te pregunta antes de abrir el nuevo: cubrir todo o lo que se pueda con tu ahorro, o pasarlo como deuda al mes que viene. Sin sorpresas.",
+        "Todo manejado también por chat y por MCP: la agente puede ver tu pila, agregar movimientos manuales, fijar el aporte del mes y cubrir deuda con ahorro.",
+      ],
+    },
     {
       version: "0.4.2",
       date: "2026-05-01",
@@ -278,7 +278,7 @@ const ES: LocalisedMarketingContent = {
     {
       heading: "Qué datos recolecta Clara",
       body: [
-        "Clara solo guarda lo necesario para funcionar como tracker de gastos: tu email, los bancos que registres, las plantillas y líneas de gasto que crees, los movimientos que sincronices vía Open Banking y, opcionalmente, tu número de WhatsApp para recibir notas por ese canal.",
+        "Clara solo guarda lo necesario para funcionar como tracker de gastos: tu email, los bancos que registres, las plantillas y líneas de gasto que crees, los mensajes del chat (web y Telegram), tu pila de ahorro y los movimientos asociados, y, si vinculás Telegram, tu user id de Telegram para enrutar mensajes.",
         "Si usás la versión hosteada por Trefolio, los datos viven en una base Postgres administrada en Europa. Si self-hosteás, viven donde vos los pongas.",
       ],
     },
@@ -288,7 +288,7 @@ const ES: LocalisedMarketingContent = {
         "No tiene telemetría: no medimos clicks, sesiones ni eventos de uso para analytics.",
         "No vende datos a terceros y no monetiza tu información.",
         "No entrena modelos con tu información: usamos Vercel AI Gateway con zero data retention para todas las llamadas LLM.",
-        "Nunca tiene acceso a tu dinero: la conexión bancaria vía Open Banking es estrictamente de solo lectura.",
+        "Nunca tiene acceso a tu dinero: Clara solo procesa archivos o mensajes que vos le pasés explícitamente.",
       ],
     },
     {
@@ -315,7 +315,7 @@ const ES: LocalisedMarketingContent = {
     {
       heading: "Tus derechos",
       body: [
-        "Podés exportar todos tus datos vía la API o pedirnos un dump completo. Podés borrar tu cuenta desde Configuración; cuando lo hacés, eliminamos toda tu información en cascada (gastos, meses, conexiones bancarias, mensajes de WhatsApp, tokens MCP).",
+        "Podés exportar todos tus datos vía la API o pedirnos un dump completo. Podés borrar tu cuenta desde Configuración; cuando lo hacés, eliminamos toda tu información en cascada (gastos, meses, mensajes de Telegram, tokens MCP).",
         "Si tenés dudas sobre privacidad o querés ejercer un derecho específico (acceso, rectificación, portabilidad), escribinos abriendo un issue en GitHub.",
       ],
     },
@@ -324,7 +324,7 @@ const ES: LocalisedMarketingContent = {
 
 const EN: LocalisedMarketingContent = {
   HERO_PITCH:
-    "Talk to her in plain language, send her a bank PDF, dictate a voice note over WhatsApp. Clara understands, categorizes and keeps your balance up to date. Less drama, more done.",
+    "Talk to her in plain language, send her a bank PDF, dictate a voice note from the web chat or Telegram. Clara understands, categorizes and keeps your balance up to date. Less drama, more done.",
   ELEVATOR_PITCH:
     "Chat-first expense tracker with personality. Open source, MIT, self-hostable. No telemetry, no per-user pricing, neutral English (or rioplatense Spanish — your call).",
   FEATURES: [
@@ -338,19 +338,13 @@ const EN: LocalisedMarketingContent = {
       emoji: "🎙️",
       title: "Listens to voice notes",
       description:
-        '"Paid rent" over WhatsApp is enough. Clara transcribes, classifies and updates the month without you opening the app.',
+        '"Paid rent" from the web chat or Telegram is enough. Clara transcribes, classifies and updates the month without you opening the app.',
     },
     {
       emoji: "✈️",
       title: "Clara on Telegram too",
       description:
         "Link Telegram from Settings → Integrations and chat with Clara from your phone or desktop. Same brain, same quota and same tools as the web: send a bank screenshot, a voice note or plain text, and Clara replies in your language.",
-    },
-    {
-      emoji: "🔄",
-      title: "Syncs with your bank",
-      description:
-        "Read-only Open Banking. Connect once, sync per month, and Clara matches transactions against your planned expenses. Clara never has access to your money.",
     },
     {
       emoji: "📅",
@@ -393,7 +387,7 @@ const EN: LocalisedMarketingContent = {
     {
       question: "What is Clara?",
       answer:
-        "Clara is an AI financial assistant: a conversational expense tracker that understands bank screenshots, PDFs, CSVs and WhatsApp voice notes. She helps you plan monthly expenses, connect to your bank via Open Banking and keep your balance up to date.",
+        "Clara is an AI financial assistant: a conversational expense tracker that understands bank screenshots, PDFs, CSVs and voice notes from the web chat or Telegram. She helps you plan monthly expenses and keep your balance up to date.",
     },
     {
       question: "How much does it cost?",
@@ -408,12 +402,7 @@ const EN: LocalisedMarketingContent = {
     {
       question: "Which banks are supported?",
       answer:
-        "For automatic connections (Open Banking) Clara supports most European and UK banks. The connection is read-only: Clara never has access to your money, just to your transactions. For any bank in the world you can import PDFs/CSVs or register expenses manually via chat or voice note.",
-    },
-    {
-      question: "How does the WhatsApp integration work?",
-      answer:
-        "You link your number from Settings (a code arrives via WhatsApp). After that you can send Clara voice notes, photos or text: she transcribes, classifies the expense and confirms before updating the month.",
+        "Any bank in the world: import PDFs/CSVs or register expenses manually via chat or voice note. Clara never has access to your money — she only processes the files or messages you explicitly share with her.",
     },
     {
       question: "What does she do with my data?",
@@ -442,6 +431,17 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.5.0",
+      date: "2026-05-01",
+      title: "Savings: a global pile with full ledger and integration",
+      highlights: [
+        "New /savings page: live balance, manual deposits and withdrawals, plus system movements (monthly contribution, end-of-month leftover, debt coverage) explained one by one.",
+        "Each month you can register an informational monthly contribution: it adds to your savings and stays linked to that month, but does not touch the month balance and does not appear as an expense.",
+        "If last month closed in deficit, Clara now asks before opening the new one: cover all (or what fits) from your savings, or carry the debt over. No surprises.",
+        "Available everywhere: chat agent and MCP can read your savings, add manual movements, set the monthly contribution, and cover debt from savings.",
+      ],
+    },
     {
       version: "0.4.2",
       date: "2026-05-01",
@@ -566,7 +566,7 @@ const EN: LocalisedMarketingContent = {
     {
       heading: "What Clara collects",
       body: [
-        "Clara only stores what's necessary to work as an expense tracker: your email, the banks you register, the templates and lines you create, the transactions you sync via Open Banking and, optionally, your WhatsApp number to receive messages over that channel.",
+        "Clara only stores what's necessary to work as an expense tracker: your email, the banks you register, the templates and lines you create, the chat messages (web and Telegram), your savings pile and its movements, and, if you link Telegram, your Telegram user id to route messages.",
         "If you use the version hosted by Trefolio, the data lives in a managed Postgres database in Europe. If you self-host, it lives wherever you put it.",
       ],
     },
@@ -576,7 +576,7 @@ const EN: LocalisedMarketingContent = {
         "No telemetry: we don't measure clicks, sessions or usage events for analytics.",
         "No data sales to third parties and no monetization of your information.",
         "No model training with your data: we use Vercel AI Gateway with zero data retention for every LLM call.",
-        "Never has access to your money: the bank connection via Open Banking is strictly read-only.",
+        "Never has access to your money: Clara only processes files or messages you explicitly share with her.",
       ],
     },
     {
@@ -603,7 +603,7 @@ const EN: LocalisedMarketingContent = {
     {
       heading: "Your rights",
       body: [
-        "You can export all your data via the API or ask us for a full dump. You can delete your account from Settings; when you do, we cascade-delete all your information (expenses, months, bank connections, WhatsApp messages, MCP tokens).",
+        "You can export all your data via the API or ask us for a full dump. You can delete your account from Settings; when you do, we cascade-delete all your information (expenses, months, Telegram messages, MCP tokens).",
         "If you have privacy questions or want to exercise a specific right (access, rectification, portability), reach out by opening an issue on GitHub.",
       ],
     },

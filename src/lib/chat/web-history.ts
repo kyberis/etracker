@@ -15,7 +15,7 @@ export const HISTORY_MAX_LIMIT = 200;
  * Metadata we attach to every persisted chat message. The wall-clock time
  * is exposed to the client (via the WebChat history endpoint and via the
  * `messageMetadata` callback during streaming) so the chat can render
- * WhatsApp-style timestamps and per-day separators.
+ * messenger-style timestamps and per-day separators.
  */
 export type WebChatMessageMetadata = {
   createdAt: string;

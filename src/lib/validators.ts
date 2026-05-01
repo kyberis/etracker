@@ -204,7 +204,46 @@ export const monthlyIncomeSchema = z.object({
 });
 
 export const carryoverDecisionSchema = z.object({
-  mode: z.enum(["addToIncome", "setAside"]),
+  /**
+   * - `addToIncome` / `setAside`: solo válidos cuando el mes anterior cerró
+   *   con sobrante (balance > 0).
+   * - `coverFromSavings` / `carryDebt`: solo válidos cuando cerró en rojo
+   *   (balance < 0). El servicio rechaza un mode que no corresponde con el
+   *   signo del sobrante.
+   */
+  mode: z.enum(["addToIncome", "setAside", "coverFromSavings", "carryDebt"]),
+});
+
+const savingsMovementKindWriteSchema = z.enum(["MANUAL_DEPOSIT", "MANUAL_WITHDRAWAL"]);
+
+export const savingsMovementCreateSchema = z.object({
+  kind: savingsMovementKindWriteSchema,
+  /** Magnitud positiva en la moneda principal del usuario. El signo se aplica server-side según `kind`. */
+  amount: z.coerce.number().positive("Amount must be greater than 0."),
+  note: z.string().max(500).optional(),
+  occurredOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/u, "occurredOn must be yyyy-MM-dd.")
+    .optional(),
+});
+
+export const savingsMovementUpdateSchema = z
+  .object({
+    amount: z.coerce.number().positive().optional(),
+    note: z.union([z.string().max(500), z.null()]).optional(),
+    occurredOn: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/u, "occurredOn must be yyyy-MM-dd.")
+      .optional(),
+  })
+  .refine(
+    (d) => d.amount !== undefined || d.note !== undefined || d.occurredOn !== undefined,
+    { message: "Nada para actualizar." },
+  );
+
+export const monthlySavingsContributionSchema = z.object({
+  amount: z.coerce.number().positive("Amount must be greater than 0."),
+  note: z.string().max(500).optional(),
 });
 
 /**
@@ -257,44 +296,6 @@ export const onboardingSchema = z
       data.complete !== undefined,
     { message: "Nada para actualizar." },
   );
-
-const phoneRegex = /^\+[1-9]\d{6,14}$/;
-
-export const whatsappLinkStartSchema = z.object({
-  phone: z
-    .string()
-    .trim()
-    .transform((value) => value.replace(/[\s\-()]/g, ""))
-    .refine((value) => phoneRegex.test(value), {
-      message: "Use formato internacional, p. ej. +5491112345678.",
-    }),
-});
-
-const countryCodeSchema = z
-  .string()
-  .trim()
-  .length(2, "Country must be a 2-letter ISO code.")
-  .regex(/^[a-zA-Z]{2}$/, "Country must be a 2-letter ISO code.");
-
-export const revolutInstitutionsQuerySchema = z.object({
-  country: countryCodeSchema,
-});
-
-export const revolutConnectSchema = z.object({
-  institutionId: z.string().min(1, "Institution is required."),
-});
-
-export const revolutSyncSchema = z.object({
-  month: z.string().regex(monthRegex, "Month must be yyyy-MM."),
-});
-
-export const revolutIgnoreSchema = z.object({
-  transactionIds: z.array(z.string().min(1)).min(1, "At least one transaction id is required."),
-});
-
-export const revolutDefaultBankSchema = z.object({
-  bankId: z.string().min(1, "Bank is required."),
-});
 
 export const billingCheckoutSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("subscription") }),

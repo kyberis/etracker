@@ -6,7 +6,7 @@
 
 ### Tu plata, finalmente clara.
 
-**Asistente financiera con IA, open source y rioplatense.** Mandale una foto del banco, un PDF, una nota de voz por WhatsApp — Ada extrae los movimientos, sugiere categorías y mantiene tu balance al día.
+**Asistente financiera con IA, open source y rioplatense.** Mandale una foto del banco, un PDF, una nota de voz por Telegram — Ada extrae los movimientos, sugiere categorías y mantiene tu balance al día.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](#-licencia)
 [![GitHub Repo stars](https://img.shields.io/github/stars/kyberis/etracker?style=social)](https://github.com/kyberis/etracker/stargazers)
@@ -59,8 +59,7 @@ Cada feature está pensada para que entiendas tu plata sin abrir Excel — y par
 | | |
 |---|---|
 | 🤖 **Lee tus extractos** | Tirá una captura del banco, un PDF o un CSV. Ada extrae los movimientos, sugiere categorías y siempre pregunta antes de tocar nada. |
-| 🎙️ **Escucha notas de voz** | "Pagué el alquiler" por WhatsApp es suficiente. Ada transcribe, clasifica y actualiza el mes sin que abras la app. |
-| 🔄 **Se sincroniza con tu banco** | Open Banking de **solo lectura**. Conectás tu banco una vez, sincronizás por mes, y Ada matchea transacciones con tus gastos planificados. Ada nunca tiene acceso a tu dinero. |
+| 🎙️ **Escucha notas de voz** | "Pagué el alquiler" por Telegram es suficiente. Ada transcribe, clasifica y actualiza el mes sin que abras la app. |
 | 📅 **Organizada por mes** | Una plantilla define un gasto recurrente. Cada mes tiene su copia independiente que tildás cuando lo pagás. |
 | 🏦 **Multi-banco real** | Cada gasto sabe en qué banco vive. Útil cuando repartís el alquiler entre tres cuentas y querés saber cuánto te queda en cada una. |
 | 📊 **Visualiza solo cuando ayuda** | Ada no tira gráficos por tirar. Los renderiza inline solo cuando suman para entender lo que está pasando. |
@@ -130,7 +129,7 @@ Abrí <http://localhost:3000> y creá tu cuenta.
 - **Vercel AI SDK 6** enrutado vía **Vercel AI Gateway** (multi-proveedor, failover, tracking de costos)
 - **Vercel Blob** (audio TTS) · **Vercel Runtime Cache** (bancos, timeline anual)
 - **Upstash Redis** (rate limiting)
-- **Twilio** (WhatsApp) · **GoCardless Bank Account Data API** (Open Banking)
+- **Telegram Bot API** (canal conversacional)
 - **Vitest** (unit tests) · **GitHub Actions** (CI)
 
 ## 🏗️ Architecture
@@ -152,12 +151,12 @@ Abrí <http://localhost:3000> y creá tu cuenta.
           │  │ year timeline)   │  └──────────────────┘
           │  └──────────────────┘
           │
-          │  ┌────────────┐  WhatsApp  ┌────────────────┐
-          └──│  Twilio    │ ◄────────► │ GoCardless OB  │  Bank sync
-             └────────────┘            └────────────────┘
+          │  ┌──────────────┐  Telegram Bot API
+          └──│  Telegram    │  Mensajes, fotos del banco, notas de voz
+             └──────────────┘
 ```
 
-El wrapper centralizado `withApi()` en [`src/lib/http.ts`](src/lib/http.ts) maneja errores Zod, errores Prisma, códigos de negocio (`UNAUTHORIZED`, `GOCARDLESS_MISSING_SECRETS`, …) para que los route handlers sean pequeños y consistentes.
+El wrapper centralizado `withApi()` en [`src/lib/http.ts`](src/lib/http.ts) maneja errores Zod, errores Prisma y códigos de negocio (`UNAUTHORIZED`, …) para que los route handlers sean pequeños y consistentes.
 
 ## 📁 Estructura del repo
 
@@ -175,8 +174,7 @@ src/
     ai/                Agente, herramientas, transcripción, TTS
     cache/             Wrappers de Vercel Runtime Cache (bancos)
     blob/              Helpers de Vercel Blob (TTS)
-    revolut/           Integración GoCardless + clasificador IA
-    whatsapp/          Twilio + helpers de link-code
+    telegram/          Cliente Bot API + helpers de link-code
     http.ts            Wrapper withApi() usado por cada route handler
     log.ts             Helper de log estructurado (listo para Sentry)
 prisma/                Schema + migraciones
@@ -223,11 +221,9 @@ vercel env pull .env.local   # trae VERCEL_OIDC_TOKEN; rotar cada ~12h
 | Grupo              | Variables                                                                |
 | ------------------ | ------------------------------------------------------------------------ |
 | Google sign-in     | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                               |
-| WhatsApp / Twilio  | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`        |
-| Gráficos (WhatsApp) | `CLARA_OUTBOUND_CHART_IMAGES` (`0` para desactivar), `CLARA_QUICKCHART_BASE_URL` (QuickChart self-hosted, opcional) |
-| Voz WhatsApp       | `WHATSAPP_VOICE_REPLY=true`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`      |
+| Telegram           | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_LINK_TOKEN_SECRET` |
+| Gráficos en chat   | `CLARA_OUTBOUND_CHART_IMAGES` (`0` para desactivar), `CLARA_QUICKCHART_BASE_URL` (QuickChart self-hosted, opcional) |
 | Storage TTS        | `BLOB_READ_WRITE_TOKEN` (Vercel Blob)                                    |
-| Sincronización bancaria | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY`                     |
 | Rate limits        | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`                     |
 | Sentry             | `SENTRY_DSN` (reenvía `log.error(...)` si `@sentry/nextjs` está instalado)|
 
@@ -311,7 +307,6 @@ Construida por el equipo detrás de [trefolio.com](https://trefolio.com).
 Las contribuciones son **muy bienvenidas**, especialmente:
 
 - 🌍 **Traducciones** — los prompts del asistente y el copy de la UI están en español rioplatense; inglés / otros dialectos serían enormes.
-- 🔌 **Más integraciones bancarias** — cualquier cosa que GoCardless / Plaid / Belvo pueda conectar.
 - 📊 **Más tipos de gráficos** en el asistente.
 - 🐛 **Reportes de bugs** con pasos para reproducir.
 - ⭐ **Una star** si este proyecto te ahorró una noche.
@@ -346,11 +341,10 @@ CI corre los mismos gates en cada PR ([`.github/workflows/ci.yml`](.github/workf
 ## 🗺️ Roadmap
 
 - [ ] UI en inglés / multi-locale
-- [ ] Importación CSV / OFX (sin banco de terceros requerido)
+- [ ] Importación CSV / OFX desde el banco
 - [ ] Presupuestos y alertas
 - [ ] Multi-moneda (display + conversión)
 - [ ] Captura de voz nativa en mobile
-- [ ] Conectores Plaid / Belvo
 - [ ] Landing pública + demo
 
 ¿Tenés una idea? [Abrí un issue](https://github.com/kyberis/etracker/issues/new) — incluso las a medio formar son útiles.
@@ -376,7 +370,7 @@ Parado sobre los hombros de gigantes:
 - [Prisma](https://www.prisma.io) · [PostgreSQL](https://www.postgresql.org)
 - [Tailwind CSS](https://tailwindcss.com) · [shadcn/ui](https://ui.shadcn.com) · [Lucide](https://lucide.dev) · [Base UI](https://base-ui.com)
 - [NextAuth.js](https://next-auth.js.org) · [Zod](https://zod.dev)
-- [GoCardless Bank Account Data](https://gocardless.com/bank-account-data/) · [Twilio](https://www.twilio.com) · [OpenAI](https://openai.com)
+- [Telegram Bot API](https://core.telegram.org/bots/api) · [OpenAI](https://openai.com)
 - [Upstash](https://upstash.com) · [Vitest](https://vitest.dev)
 
 ## 📄 Licencia

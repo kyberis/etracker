@@ -1,8 +1,7 @@
 "use client";
 
 import { format, parse } from "date-fns";
-import { Plus, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -11,15 +10,22 @@ import { MonthAddLineDialog } from "@/components/month/month-add-line-dialog";
 import { MonthBankTotals } from "@/components/month/month-bank-totals";
 import { MonthLinesChronological } from "@/components/month/month-lines-chronological";
 import { MonthSummary } from "@/components/month/month-summary";
-import { RevolutImportDialog } from "@/components/month/revolut-import-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/format";
 import { dateLocale } from "@/lib/i18n/format";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import type { MonthLinePayload, MonthPageDataWithRecord } from "@/lib/month-page-types";
-import type { ImportableTransaction } from "@/lib/revolut/types";
-import { expenseCategorySchema, isInvestmentCategory } from "@/lib/validators";
+import { isInvestmentCategory } from "@/lib/validators";
 
 type MonthDashboardProps = {
   data: MonthPageDataWithRecord;
@@ -55,10 +61,28 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   const [income, setIncome] = useState(data.income);
   const [carryoverFromPrev, setCarryoverFromPrev] = useState(data.carryoverFromPrev);
   const [carryoverPrompt, setCarryoverPrompt] = useState(data.carryoverPrompt);
-  const [carryoverBusy, setCarryoverBusy] = useState<null | "addToIncome" | "setAside">(null);
+  const [carryoverBusy, setCarryoverBusy] = useState<
+    null | "addToIncome" | "setAside" | "coverFromSavings" | "carryDebt"
+  >(null);
   const [carryoverError, setCarryoverError] = useState<string | null>(null);
   const [incomeDraft, setIncomeDraft] = useState(String(data.income));
   const [dismissedPending, setDismissedPending] = useState(false);
+
+  const [savingIncome, setSavingIncome] = useState(false);
+  const [incomeError, setIncomeError] = useState<string | null>(null);
+
+  // Aporte mensual a ahorro (informativo). NO afecta el balance del mes;
+  // solo declara cuánto el usuario está dedicando a la pila global.
+  const [savingsBalance, setSavingsBalance] = useState(data.savings);
+  const [monthlyContribution, setMonthlyContribution] = useState(
+    data.monthlySavingsContribution,
+  );
+  const [savingsDialogOpen, setSavingsDialogOpen] = useState(false);
+  const [savingsAmountDraft, setSavingsAmountDraft] = useState("");
+  const [savingsNoteDraft, setSavingsNoteDraft] = useState("");
+  const [savingsBusy, setSavingsBusy] = useState(false);
+  const [savingsError, setSavingsError] = useState<string | null>(null);
+
   const [lastMonth, setLastMonth] = useState(data.month);
   if (lastMonth !== data.month) {
     setLastMonth(data.month);
@@ -69,10 +93,10 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     setDismissedPending(false);
     setCarryoverPrompt(data.carryoverPrompt);
     setCarryoverError(null);
+    setSavingsBalance(data.savings);
+    setMonthlyContribution(data.monthlySavingsContribution);
+    setSavingsError(null);
   }
-
-  const [savingIncome, setSavingIncome] = useState(false);
-  const [incomeError, setIncomeError] = useState<string | null>(null);
 
   // Add line dialog
   const [addName, setAddName] = useState("");
@@ -90,14 +114,6 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
 
   const [mergingPending, setMergingPending] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
-
-  // Revolut import dialog
-  const [revolutSyncing, setRevolutSyncing] = useState(false);
-  const [revolutError, setRevolutError] = useState<string | null>(null);
-  const [revolutFeedback, setRevolutFeedback] = useState<string | null>(null);
-  const [revolutDialogOpen, setRevolutDialogOpen] = useState(false);
-  const [revolutImportable, setRevolutImportable] = useState<ImportableTransaction[]>([]);
-  const [revolutRowBusy, setRevolutRowBusy] = useState<string | null>(null);
 
   const totals = useMemo(() => {
     // Totals are always reported in primary currency, so we sum the
@@ -233,134 +249,10 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     router.refresh();
   }
 
-  async function onRevolutSync() {
-    setRevolutSyncing(true);
-    setRevolutError(null);
-    setRevolutFeedback(null);
-    try {
-      const res = await fetch("/api/revolut/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month: data.month }),
-      });
-      const payload = (await res.json()) as {
-        error?: string;
-        matched?: { lineId: string }[];
-        importable?: ImportableTransaction[];
-      };
-      if (!res.ok) {
-        setRevolutError(payload.error ?? tx({ es: "No se pudo sincronizar.", en: "Could not sync." }));
-        return;
-      }
-      const matched = payload.matched ?? [];
-      if (matched.length > 0) {
-        const ids = new Set(matched.map((m) => m.lineId));
-        setExpenses((cur) => cur.map((e) => (ids.has(e.id) ? { ...e, paid: true } : e)));
-      }
-      const importable = payload.importable ?? [];
-      setRevolutImportable(importable);
-      if (importable.length > 0) {
-        setRevolutDialogOpen(true);
-        setRevolutFeedback(
-          matched.length > 0
-            ? tx({
-                es: `${matched.length} gasto(s) marcado(s) como pagado(s). Revisá importaciones abajo.`,
-                en: `${matched.length} expense(s) marked paid. Review imports below.`,
-              })
-            : tx({
-                es: "No hubo coincidencias automáticas. Podés importar o ignorar movimientos.",
-                en: "No automatic matches. You can import or ignore transactions.",
-              }),
-        );
-      } else if (matched.length > 0) {
-        setRevolutFeedback(
-          tx({
-            es: `${matched.length} gasto(s) marcado(s) como pagado(s).`,
-            en: `${matched.length} expense(s) marked paid.`,
-          }),
-        );
-      } else {
-        setRevolutFeedback(
-          tx({
-            es: "Sincronizado: no hay movimientos nuevos para importar.",
-            en: "Synced: no new transactions to import.",
-          }),
-        );
-      }
-      refreshBalance();
-      router.refresh();
-    } finally {
-      setRevolutSyncing(false);
-    }
-  }
 
-  async function onRevolutIgnore(ids: string[]) {
-    if (ids.length === 0) return;
-    const res = await fetch("/api/revolut/ignore", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transactionIds: ids }),
-    });
-    if (!res.ok) {
-      const p = (await res.json()) as { error?: string };
-      setRevolutError(p.error ?? tx({ es: "No se pudo ignorar.", en: "Could not ignore." }));
-      return;
-    }
-    const idSet = new Set(ids);
-    setRevolutImportable((cur) => cur.filter((t) => !idSet.has(t.transactionId)));
-  }
-
-  async function onRevolutImport(importRow: ImportableTransaction) {
-    const bankId = data.revolut.defaultImportBankId;
-    if (!bankId) {
-      setRevolutError(
-        tx({
-          es: "Elegí un banco de importación en Ajustes → Revolut.",
-          en: "Choose an import bank under Settings → Revolut.",
-        }),
-      );
-      return;
-    }
-    setRevolutRowBusy(importRow.transactionId);
-    setRevolutError(null);
-    try {
-      const amount = Math.abs(Number(importRow.amount));
-      if (!Number.isFinite(amount) || amount <= 0) {
-        setRevolutError(tx({ es: "Monto inválido en el movimiento.", en: "Invalid amount on this transaction." }));
-        return;
-      }
-      const categoryParsed = expenseCategorySchema.safeParse(importRow.suggestedCategory);
-      const category = categoryParsed.success ? categoryParsed.data : "OTROS";
-      // Pass through the transaction currency so the server applies an FX
-      // lookup when it differs from the user's primary; if the bank reports
-      // the line in primary currency we just skip the conversion.
-      const res = await fetch(`/api/months/${data.month}/lines`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: importRow.description.slice(0, 120),
-          amount,
-          bankId,
-          category,
-          ...(importRow.currency ? { currency: importRow.currency } : {}),
-        }),
-      });
-      if (!res.ok) {
-        const p = (await res.json()) as { error?: string };
-        setRevolutError(p.error ?? tx({ es: "No se pudo importar.", en: "Could not import." }));
-        return;
-      }
-      setRevolutImportable((cur) =>
-        cur.filter((t) => t.transactionId !== importRow.transactionId),
-      );
-      refreshBalance();
-      router.refresh();
-    } finally {
-      setRevolutRowBusy(null);
-    }
-  }
-
-  async function onCarryoverDecision(mode: "addToIncome" | "setAside") {
+  async function onCarryoverDecision(
+    mode: "addToIncome" | "setAside" | "coverFromSavings" | "carryDebt",
+  ) {
     setCarryoverError(null);
     setCarryoverBusy(mode);
     const promptAmount = carryoverPrompt?.amount ?? 0;
@@ -375,12 +267,98 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       setCarryoverError(p.error ?? tx({ es: "No se pudo guardar la decisión.", en: "Could not save your choice." }));
       return;
     }
+    const payload = (await res.json().catch(() => ({}))) as {
+      remainingDebt?: number | null;
+    };
     setCarryoverPrompt(null);
     if (mode === "addToIncome") {
       setCarryoverFromPrev((prev) => prev + promptAmount);
+    } else if (mode === "carryDebt") {
+      setCarryoverFromPrev((prev) => prev - promptAmount);
+    } else if (mode === "coverFromSavings") {
+      const remaining = payload.remainingDebt ?? 0;
+      setCarryoverFromPrev((prev) => prev - remaining);
     }
     refreshBalance();
     router.refresh();
+  }
+
+  function openSavingsDialog() {
+    setSavingsError(null);
+    setSavingsAmountDraft(
+      monthlyContribution ? String(monthlyContribution.amount) : "",
+    );
+    setSavingsNoteDraft(monthlyContribution?.note ?? "");
+    setSavingsDialogOpen(true);
+  }
+
+  async function onSubmitSavingsContribution(e: FormEvent) {
+    e.preventDefault();
+    const parsed = Number(savingsAmountDraft);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setSavingsError(tx({ es: "Monto inválido.", en: "Invalid amount." }));
+      return;
+    }
+    setSavingsBusy(true);
+    setSavingsError(null);
+    const res = await fetch(
+      `/api/months/${data.month}/savings-contribution`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: parsed,
+          note: savingsNoteDraft.trim() || undefined,
+        }),
+      },
+    );
+    setSavingsBusy(false);
+    if (!res.ok) {
+      const p = (await res.json().catch(() => ({}))) as { error?: string };
+      setSavingsError(
+        p.error ?? tx({ es: "No se pudo guardar.", en: "Could not save." }),
+      );
+      return;
+    }
+    const payload = (await res.json()) as {
+      balance: number;
+      movement: { id: string; amount: number; note: string | null; occurredOn: string };
+    };
+    setSavingsBalance(payload.balance);
+    setMonthlyContribution({
+      id: payload.movement.id,
+      amount: payload.movement.amount,
+      note: payload.movement.note,
+      occurredOn: payload.movement.occurredOn,
+    });
+    setSavingsDialogOpen(false);
+  }
+
+  async function onRemoveSavingsContribution() {
+    if (
+      !window.confirm(
+        tx({ es: "¿Quitar el aporte de este mes?", en: "Remove this month's contribution?" }),
+      )
+    ) {
+      return;
+    }
+    setSavingsBusy(true);
+    setSavingsError(null);
+    const res = await fetch(
+      `/api/months/${data.month}/savings-contribution`,
+      { method: "DELETE" },
+    );
+    setSavingsBusy(false);
+    if (!res.ok) {
+      const p = (await res.json().catch(() => ({}))) as { error?: string };
+      setSavingsError(
+        p.error ?? tx({ es: "No se pudo quitar.", en: "Could not remove." }),
+      );
+      return;
+    }
+    const payload = (await res.json()) as { balance: number };
+    setSavingsBalance(payload.balance);
+    setMonthlyContribution(null);
   }
 
   async function onMergePendingTemplates() {
@@ -403,45 +381,88 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   return (
     <div className="space-y-6 pb-20 sm:pb-6">
       {carryoverPrompt ? (
-        <Card className="border-good/40 bg-lime/15">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{t.month.carryoverTitle}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <p>
-              {t.month.carryoverBody(
-                formatCurrency(carryoverPrompt.amount, data.primaryCurrency, locale),
-                format(parse(carryoverPrompt.prevMonth, "yyyy-MM", new Date()), "MMMM yyyy", {
-                  locale: dateLocale(locale),
-                }),
-              )}
-            </p>
-            {carryoverError ? (
-              <p className="text-destructive text-sm">{carryoverError}</p>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                onClick={() => void onCarryoverDecision("addToIncome")}
-                disabled={carryoverBusy !== null}
-              >
-                {carryoverBusy === "addToIncome"
-                  ? tx({ es: "Sumando…", en: "Adding…" })
-                  : t.month.carryoverAdd}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void onCarryoverDecision("setAside")}
-                disabled={carryoverBusy !== null}
-              >
-                {carryoverBusy === "setAside"
-                  ? tx({ es: "Guardando…", en: "Saving…" })
-                  : t.month.carryoverAside}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        carryoverPrompt.type === "leftover" ? (
+          <Card className="border-good/40 bg-lime/15">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{t.month.carryoverTitle}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p>
+                {t.month.carryoverBody(
+                  formatCurrency(carryoverPrompt.amount, data.primaryCurrency, locale),
+                  format(parse(carryoverPrompt.prevMonth, "yyyy-MM", new Date()), "MMMM yyyy", {
+                    locale: dateLocale(locale),
+                  }),
+                )}
+              </p>
+              {carryoverError ? (
+                <p className="text-destructive text-sm">{carryoverError}</p>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  onClick={() => void onCarryoverDecision("addToIncome")}
+                  disabled={carryoverBusy !== null}
+                >
+                  {carryoverBusy === "addToIncome"
+                    ? tx({ es: "Sumando…", en: "Adding…" })
+                    : t.month.carryoverAdd}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void onCarryoverDecision("setAside")}
+                  disabled={carryoverBusy !== null}
+                >
+                  {carryoverBusy === "setAside"
+                    ? tx({ es: "Guardando…", en: "Saving…" })
+                    : t.month.carryoverAside}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-bad/40 bg-hotpink/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{t.month.deficitTitle}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p>
+                {t.month.deficitBody(
+                  formatCurrency(carryoverPrompt.amount, data.primaryCurrency, locale),
+                  format(parse(carryoverPrompt.prevMonth, "yyyy-MM", new Date()), "MMMM yyyy", {
+                    locale: dateLocale(locale),
+                  }),
+                  formatCurrency(carryoverPrompt.savings, data.primaryCurrency, locale),
+                )}
+              </p>
+              {carryoverError ? (
+                <p className="text-destructive text-sm">{carryoverError}</p>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  onClick={() => void onCarryoverDecision("coverFromSavings")}
+                  disabled={carryoverBusy !== null || carryoverPrompt.savings <= 0}
+                >
+                  {carryoverBusy === "coverFromSavings"
+                    ? tx({ es: "Cubriendo…", en: "Covering…" })
+                    : t.month.deficitCover}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void onCarryoverDecision("carryDebt")}
+                  disabled={carryoverBusy !== null}
+                >
+                  {carryoverBusy === "carryDebt"
+                    ? tx({ es: "Pasando…", en: "Carrying…" })
+                    : t.month.deficitCarry}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )
       ) : null}
 
       {showPendingBanner ? (
@@ -502,74 +523,6 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </Card>
       ) : null}
 
-      {data.isCurrentMonth && data.revolut.linked ? (
-        <Card className="border-lilac/40 bg-lilac/15">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Revolut</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <p className="text-muted-foreground">
-              {tx({
-                es: "Sincronizá movimientos del mes para marcar gastos como pagados e importar lo que falte. Con instrucciones en Ajustes, se filtran y categorizan movimientos con el asistente (requiere OpenAI).",
-                en: "Sync this month’s transactions to mark expenses paid and import what’s missing. With instructions in Settings, movements are filtered and categorized by the assistant (requires OpenAI).",
-              })}
-            </p>
-            {!data.revolut.defaultImportBankId ? (
-              <p className="text-warn">
-                {tx({
-                  es: (
-                    <>
-                      Elegí un banco local para importar en{" "}
-                      <Link href="/settings" className="underline">
-                        Ajustes → Revolut
-                      </Link>
-                      .
-                    </>
-                  ),
-                  en: (
-                    <>
-                      Choose a local bank for imports under{" "}
-                      <Link href="/settings" className="underline">
-                        Settings → Revolut
-                      </Link>
-                      .
-                    </>
-                  ),
-                })}
-              </p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                className="gap-2"
-                disabled={revolutSyncing}
-                onClick={() => void onRevolutSync()}
-              >
-                <RefreshCw className={revolutSyncing ? "size-4 animate-spin" : "size-4"} />
-                {revolutSyncing
-                  ? tx({ es: "Sincronizando…", en: "Syncing…" })
-                  : tx({ es: "Sincronizar Revolut", en: "Sync Revolut" })}
-              </Button>
-            </div>
-            {revolutError ? <p className="text-destructive text-sm">{revolutError}</p> : null}
-            {revolutFeedback ? (
-              <p className="text-muted-foreground text-sm">{revolutFeedback}</p>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <RevolutImportDialog
-        open={revolutDialogOpen}
-        onOpenChange={setRevolutDialogOpen}
-        importable={revolutImportable}
-        defaultImportBankId={data.revolut.defaultImportBankId}
-        rowBusyId={revolutRowBusy}
-        onImport={onRevolutImport}
-        onIgnore={onRevolutIgnore}
-      />
-
       {data.isCurrentMonth && data.banks.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           {tx({
@@ -625,12 +578,137 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         savingIncome={savingIncome}
         incomeError={incomeError}
         carryoverFromPrev={carryoverFromPrev}
-        savings={data.savings}
+        savings={savingsBalance}
         totals={totals}
         balance={balance}
         pendingByBank={pendingByBank}
         currency={data.primaryCurrency}
       />
+
+      <Card className="border-lilac/40 bg-lilac/10">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{t.month.savingsCardTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div className="space-y-1">
+            {monthlyContribution ? (
+              <>
+                <p className="text-lilac num text-lg">
+                  {formatCurrency(monthlyContribution.amount, data.primaryCurrency, locale)}
+                </p>
+                {monthlyContribution.note ? (
+                  <p className="text-muted-foreground text-xs">
+                    {monthlyContribution.note}
+                  </p>
+                ) : null}
+                <p className="text-muted-foreground text-xs">
+                  {tx({
+                    es: `Pila total: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
+                    en: `Total pile: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
+                  })}
+                </p>
+              </>
+            ) : (
+              <p className="text-muted-foreground">
+                {t.month.savingsCardEmpty}
+                <span className="text-muted-foreground ml-1">
+                  {tx({
+                    es: `Pila total: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
+                    en: `Total pile: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
+                  })}
+                </span>
+              </p>
+            )}
+            {savingsError ? (
+              <p className="text-destructive text-xs">{savingsError}</p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={openSavingsDialog}
+              disabled={savingsBusy}
+            >
+              {monthlyContribution
+                ? t.month.savingsEditBtn
+                : t.month.savingsAddBtn}
+            </Button>
+            {monthlyContribution ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void onRemoveSavingsContribution()}
+                disabled={savingsBusy}
+              >
+                {t.month.savingsRemoveBtn}
+              </Button>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={savingsDialogOpen}
+        onOpenChange={(open) => (open ? setSavingsDialogOpen(true) : setSavingsDialogOpen(false))}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.month.savingsContributionDialogTitle}</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={onSubmitSavingsContribution}>
+            <p className="text-muted-foreground text-xs">
+              {t.month.savingsContributionHint}
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="month-savings-amount">
+                {tx({ es: "Monto", en: "Amount" })} ({data.primaryCurrency})
+              </Label>
+              <Input
+                id="month-savings-amount"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={savingsAmountDraft}
+                onChange={(e) => setSavingsAmountDraft(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="month-savings-note">
+                {tx({ es: "Nota (opcional)", en: "Note (optional)" })}
+              </Label>
+              <Input
+                id="month-savings-note"
+                type="text"
+                value={savingsNoteDraft}
+                onChange={(e) => setSavingsNoteDraft(e.target.value)}
+                maxLength={500}
+              />
+            </div>
+            {savingsError ? (
+              <p className="text-destructive text-sm">{savingsError}</p>
+            ) : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setSavingsDialogOpen(false)}
+                disabled={savingsBusy}
+              >
+                {tx({ es: "Cancelar", en: "Cancel" })}
+              </Button>
+              <Button type="submit" disabled={savingsBusy}>
+                {savingsBusy
+                  ? tx({ es: "Guardando…", en: "Saving…" })
+                  : tx({ es: "Guardar", en: "Save" })}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

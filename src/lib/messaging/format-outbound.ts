@@ -12,14 +12,6 @@ export function escapeHtmlForTelegram(text: string): string {
 }
 
 /**
- * WhatsApp (Twilio) applies formatting with a single asterisk pair (*bold*).
- * Without conversion, users see literal `**` from the model.
- */
-export function formatAgentMarkdownForWhatsapp(text: string): string {
-  return text.replace(/\*\*([\s\S]*?)\*\*/g, "*$1*");
-}
-
-/**
  * Telegram Bot API HTML mode: convert **segments** to <b>…</b>.
  * Other text is HTML-escaped. Suitable for sendMessage / sendPhoto caption.
  */

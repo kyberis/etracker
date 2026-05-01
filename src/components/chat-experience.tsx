@@ -55,7 +55,7 @@ type DayGroup = {
   dayDate: Date;
   /**
    * Items inside the day, in chronological order: messages plus their
-   * resolved timestamps so each bubble can render a WhatsApp-style hour.
+   * resolved timestamps so each bubble can render a messenger-style hour.
    */
   items: { message: UIMessage; createdAt: Date }[];
 };
@@ -338,7 +338,7 @@ export function ChatExperience({
 
   const isStreaming = status === "submitted" || status === "streaming";
 
-  // Daily agent quota — per-user counter shared with WhatsApp. Loaded on
+  // Daily agent quota — per-user counter shared with Telegram. Loaded on
   // mount and refreshed every time the assistant finishes a turn so the
   // badge stays accurate without a roundtrip per response.
   const [quota, setQuota] = useState<
@@ -717,7 +717,7 @@ export function ChatExperience({
 
   async function submitText(messageText: string) {
     // Refocus immediately so the textarea stays "live" — the user can keep
-    // typing the next message while Clara is still streaming, WhatsApp-style.
+    // typing the next message while Clara is still streaming, messenger-style.
     textareaRef.current?.focus();
     await sendMessage({ text: messageText });
     textareaRef.current?.focus();
@@ -913,7 +913,7 @@ export function ChatExperience({
                     onClick={() => {
                       // Jump to the latest message after the threaded view
                       // re-mounts so the user lands at the end of the
-                      // previous conversation (WhatsApp behaviour).
+                      // previous conversation (messenger behaviour).
                       initialJumpPendingRef.current = true;
                       setStaleHistory(false);
                     }}
@@ -1007,7 +1007,7 @@ export function ChatExperience({
           `min-h-dvh` on the AppShell + `interactive-widget=resizes-content`
           in the viewport, the layout shrinks when the on-screen keyboard
           opens, so the composer ends up sitting right above the keyboard
-          (WhatsApp-style) without needing artificial padding on the
+          (messenger-style) without needing artificial padding on the
           scroller. */}
       <form
         onSubmit={handleSubmit}
@@ -1070,13 +1070,13 @@ export function ChatExperience({
                   void handleSubmit();
                 }
               }}
-              // Intentionally NOT `disabled={isStreaming}`: WhatsApp-style,
+              // Intentionally NOT `disabled={isStreaming}`: messenger-style,
               // the user keeps focus and can start typing the next message
               // while Clara is still answering. Disabling here on iOS would
               // collapse the soft keyboard mid-stream, which is jarring.
               // Intentionally NOT `autoFocus`: opening the chat shouldn't
               // pop the keyboard. The user taps the field when they want to
-              // type — just like WhatsApp.
+              // type — just like a messenger app.
             />
             <input
               ref={fileInputRef}
@@ -1532,7 +1532,7 @@ function MarkdownContent({ text }: { text: string }) {
 }
 
 function DaySeparator({ label }: { label: string }) {
-  // WhatsApp-style centered chip introducing a new local day. Capitalised so
+  // Messenger-style centered chip introducing a new local day. Capitalised so
   // weekday/Today/Yesterday labels look polished even when Intl returns them
   // in lowercase (Spanish defaults).
   return (

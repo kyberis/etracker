@@ -21,9 +21,9 @@ export const SITE_TAGLINE_EN = "Your AI financial assistant";
 export const SITE_TAGLINE = SITE_TAGLINE_ES;
 
 export const SITE_DESCRIPTION_ES =
-  "Clara es una asistente financiera con IA: planificá gastos, mirá tu balance mes a mes, mandá notas de voz por WhatsApp, importá extractos PDF y conectá tu banco vía Open Banking. Open source, MIT, self-hostable.";
+  "Clara es una asistente financiera con IA: planificá gastos, mirá tu balance mes a mes, mandá notas de voz desde el chat web o Telegram, importá extractos PDF y CSV. Open source, MIT, self-hostable.";
 export const SITE_DESCRIPTION_EN =
-  "Clara is an AI financial assistant: plan expenses, check your monthly balance, send voice notes over WhatsApp, import PDF statements and connect your bank via Open Banking. Open source, MIT, self-hostable.";
+  "Clara is an AI financial assistant: plan expenses, check your monthly balance, send voice notes from the web chat or Telegram, import PDF and CSV statements. Open source, MIT, self-hostable.";
 export const SITE_DESCRIPTION = SITE_DESCRIPTION_ES;
 
 export function siteTagline(locale: Locale): string {
@@ -41,9 +41,7 @@ const KEYWORDS_ES = [
   "expense tracker con IA",
   "presupuesto mensual",
   "control de gastos",
-  "open banking",
-  "Revolut",
-  "WhatsApp finanzas",
+  "Telegram finanzas",
   "PDF extractos bancarios",
   "self-hosted finanzas",
   "Next.js finanzas",
@@ -59,9 +57,7 @@ const KEYWORDS_EN = [
   "AI expense tracker",
   "monthly budget",
   "spending tracker",
-  "open banking",
-  "Revolut",
-  "WhatsApp finance",
+  "Telegram finance",
   "bank PDF statements",
   "self-hosted finance",
   "Next.js finance",
@@ -244,8 +240,7 @@ export function softwareApplicationJsonLd() {
     featureList: [
       "Chat IA conversacional para registrar gastos",
       "Importación de PDFs y CSVs bancarios",
-      "Notas de voz vía WhatsApp",
-      "Open Banking con Revolut (solo lectura, Clara nunca accede a tu dinero)",
+      "Notas de voz desde el chat web o Telegram",
       "Planificación mensual con plantillas recurrentes",
       "Multi-banco con desglose por cuenta",
       "Servidor MCP para integración con Claude / ChatGPT / Cursor",

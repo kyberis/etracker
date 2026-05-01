@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Per-user daily cap (shared with WhatsApp). Increments before the model
+    // Per-user daily cap (shared with Telegram). Increments before the model
     // call so a failed/cancelled stream doesn't grant a free retry.
     const quota = await consumeAgentQuota(userId);
     if (!quota.ok) {
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
     // chat history. See AI SDK docs: "Handling client disconnects".
     result.consumeStream();
     // Stamp the assistant message with a wall-clock `createdAt` at the
-    // start of the stream so the client can render WhatsApp-style
+    // start of the stream so the client can render messenger-style
     // timestamps (and day separators) without waiting for a refresh.
     // The same value gets persisted to the DB via `onFinish` below.
     const assistantStartedAt = new Date().toISOString();

@@ -12,6 +12,10 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`billing-and-quota-upsell`](billing-and-quota-upsell.md) — optional Stripe-backed
   Supporter plan + one-time donations gated behind the `quota_upsell` feature flag.
   Surfaces in chat 429, settings, public `/upgrade`.
+- [`savings`](savings.md) — global savings pile backed by an immutable ledger
+  (`SavingsMovement`). Monthly informational contribution, carry-over deposits,
+  debt coverage on negative months, manual deposits/withdrawals. REST + agent
+  + MCP coverage.
 - [`telegram`](telegram.md) — second conversational channel for Clara: HMAC-signed
   deep-link vinculation, private-chat-only handler, reuses the same agent loop,
   tools, history window and daily quota as the web chat.
@@ -24,9 +28,6 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - **expense-lines** — paid/unpaid state, edits, deletes, partial payments.
 - **banks** — multi-bank routing, default bank, Runtime Cache invalidation.
 - **import-pdf-image** — PDF / image / CSV extraction pipeline + AI classifier.
-- **open-banking-revolut** — GoCardless integration, requisition flow,
-  per-month sync, matching to templates.
-- **whatsapp** — Twilio inbound, pairing, voice transcription, voice TTS reply.
 - **mcp-public** — `/api/mcp` resources/tools/prompts, no auth.
 - **mcp-per-user** — `/api/mcp/user`, PAT auth, tool catalog, rate limits.
 - **changelog** — how `marketing-content.ts` CHANGELOG flows to `/changelog`

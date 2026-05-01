@@ -25,13 +25,6 @@ export type OnboardingInitial = {
   usageReasons: string[];
   primaryCurrency: string;
   primaryCurrencyConfirmedAt: string | null;
-  whatsapp: {
-    phone: string | null;
-    verifiedAt: string | null;
-    pendingCode: string | null;
-    pendingExpiresAt: string | null;
-  };
-  whatsappLinkTtlMinutes: number;
 };
 
 type Step = 0 | 1 | 2 | 3 | 4;
@@ -194,10 +187,8 @@ export function OnboardingWizard({ initial }: { initial: OnboardingInitial }) {
             />
           ) : null}
           {step === 3 ? (
-            <StepWhatsapp
+            <StepTelegram
               locale={locale}
-              initial={initial.whatsapp}
-              ttlMinutes={initial.whatsappLinkTtlMinutes}
               onBack={goBack}
               onSkip={skipAll}
               onContinue={goNext}
@@ -354,8 +345,8 @@ function StepWelcome({
           emoji="💬"
           title={pick(locale, { es: "Chateá conmigo", en: "Chat with me" })}
           description={pick(locale, {
-            es: "Mandame fotos del banco, CSV de Revolut o describime gastos en lenguaje natural. Si me linkeás WhatsApp, también desde ahí.",
-            en: "Send me bank screenshots, Revolut CSVs or describe expenses in plain language. If you link WhatsApp, also from there.",
+            es: "Mandame fotos del banco, CSV de tu home banking o describime gastos en lenguaje natural. Si vinculás Telegram, también desde ahí.",
+            en: "Send me bank screenshots, CSVs from your home banking or describe expenses in plain language. If you link Telegram, also from there.",
           })}
         />
         <FeatureRow
@@ -659,185 +650,28 @@ function StepCountryCurrency({
   );
 }
 
-type WhatsappStatus = OnboardingInitial["whatsapp"];
-
-function StepWhatsapp({
+/**
+ * Optional Telegram step — generates a signed deep-link token and opens
+ * `t.me/<bot>?start=<token>` in a new tab. Users that want Telegram as their
+ * primary channel can also link it later from Settings.
+ */
+function StepTelegram({
   locale,
-  initial,
-  ttlMinutes,
   onBack,
   onSkip,
   onContinue,
   disabled,
 }: {
   locale: Locale;
-  initial: WhatsappStatus;
-  ttlMinutes: number;
   onBack: () => void;
   onSkip: () => void;
   onContinue: () => void;
   disabled?: boolean;
 }) {
-  const [status, setStatus] = useState<WhatsappStatus>(initial);
-  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const linked = Boolean(status.phone && status.verifiedAt);
-
-  async function refresh() {
-    const res = await fetch("/api/settings/whatsapp");
-    if (res.ok) {
-      const data = (await res.json()) as WhatsappStatus;
-      setStatus(data);
-    }
-  }
-
-  async function startLink(event: FormEvent) {
-    event.preventDefault();
-    setError(null);
-    setFeedback(null);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/settings/whatsapp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
-      });
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        setError(
-          data.error ??
-            pick(locale, {
-              es: "No se pudo iniciar la vinculación.",
-              en: "Could not start the linking.",
-            }),
-        );
-        return;
-      }
-      setFeedback(
-        pick(locale, {
-          es: "Te generamos un código. Mandalo por WhatsApp para terminar la vinculación.",
-          en: "We generated a code. Send it via WhatsApp to finish linking.",
-        }),
-      );
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <StepHeader
-        locale={locale}
-        index={4}
-        title={pick(locale, { es: "Linkeá WhatsApp (opcional)", en: "Link WhatsApp (optional)" })}
-        description={pick(locale, {
-          es: "Chateá conmigo desde WhatsApp: mandá fotos del banco, dictá gastos por audio o consultá tu mes sin abrir la app.",
-          en: "Chat with me on WhatsApp: send bank photos, dictate expenses by voice, or check your month without opening the app.",
-        })}
-      />
-
-      {linked ? (
-        <div className="border-good/40 bg-good/10 flex items-center justify-between rounded-xl border p-4">
-          <div>
-            <p className="text-sm font-medium">{pick(locale, { es: "Vinculado", en: "Linked" })}</p>
-            <p className="text-muted-foreground text-xs">{status.phone}</p>
-          </div>
-          <span className="text-good text-sm" aria-hidden>
-            ✓
-          </span>
-        </div>
-      ) : (
-        <form className="space-y-3" onSubmit={startLink}>
-          <div className="space-y-2">
-            <Label htmlFor="whatsapp-phone">
-              {pick(locale, {
-                es: "Tu número (formato internacional, ej. +5491112345678)",
-                en: "Your number (international format, e.g. +5491112345678)",
-              })}
-            </Label>
-            <Input
-              id="whatsapp-phone"
-              type="tel"
-              placeholder="+5491112345678"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              autoComplete="tel"
-            />
-          </div>
-          <Button type="submit" disabled={busy || !phone.trim()} size="sm">
-            {busy
-              ? pick(locale, { es: "Generando…", en: "Generating…" })
-              : pick(locale, { es: "Generar código", en: "Generate code" })}
-          </Button>
-        </form>
-      )}
-
-      {status.pendingCode ? (
-        <div className="border-border/60 bg-muted/30 space-y-2 rounded-xl border p-4 text-sm">
-          <div className="flex items-baseline justify-between">
-            <p className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
-              {pick(locale, { es: "Tu código", en: "Your code" })}
-            </p>
-            <p className="text-muted-foreground text-xs">
-              {pick(locale, {
-                es: `expira en ~${ttlMinutes} min`,
-                en: `expires in ~${ttlMinutes} min`,
-              })}
-            </p>
-          </div>
-          <p className="font-display text-3xl font-bold tracking-widest">{status.pendingCode}</p>
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            {pick(locale, {
-              es: "Abrí WhatsApp y mandale al asistente",
-              en: "Open WhatsApp and send the assistant",
-            })}{" "}
-            <span className="bg-background rounded px-1.5 py-0.5 font-mono text-xs">
-              LINK {status.pendingCode}
-            </span>
-            .
-          </p>
-        </div>
-      ) : null}
-
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      {feedback ? <p className="text-good text-sm">{feedback}</p> : null}
-
-      <TelegramOnboardingButton locale={locale} />
-
-      <p className="text-muted-foreground text-xs text-center">
-        {pick(locale, {
-          es: "Lo podés hacer más tarde desde Configuración.",
-          en: "You can do it later from Settings.",
-        })}
-      </p>
-
-      <StepFooter
-        locale={locale}
-        onBack={onBack}
-        onSkip={onSkip}
-        onContinue={onContinue}
-        skipLabel={pick(locale, { es: "Más tarde", en: "Later" })}
-        continueLabel={pick(locale, { es: "Listo", en: "Done" })}
-        disabled={disabled}
-      />
-    </div>
-  );
-}
-
-/**
- * Inline Telegram CTA inside the WhatsApp onboarding step. Generates a signed
- * deep-link token and opens `t.me/<bot>?start=<token>` in a new tab. We don't
- * spend a dedicated step on it (the wizard already feels long); users that
- * want Telegram as their primary channel still get there from Settings later.
- */
-function TelegramOnboardingButton({ locale }: { locale: Locale }) {
-  const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   async function start() {
     setError(null);
     setFeedback(null);
@@ -859,29 +693,59 @@ function TelegramOnboardingButton({ locale }: { locale: Locale }) {
       window.open(data.url, "_blank", "noopener,noreferrer");
       setFeedback(
         pick(locale, {
-          es: "Abrí Telegram y tocá Iniciar.",
-          en: "Open Telegram and tap Start.",
+          es: "Abrí Telegram y tocá Iniciar para terminar.",
+          en: "Open Telegram and tap Start to finish.",
         }),
       );
     } finally {
       setBusy(false);
     }
   }
+
   return (
-    <div className="border-border/60 bg-muted/20 space-y-2 rounded-xl border p-3 text-center">
-      <p className="text-muted-foreground text-xs">
+    <div className="space-y-6">
+      <StepHeader
+        locale={locale}
+        index={4}
+        title={pick(locale, { es: "Vinculá Telegram (opcional)", en: "Link Telegram (optional)" })}
+        description={pick(locale, {
+          es: "Chateá conmigo desde Telegram: mandá fotos del banco, dictá gastos por audio o consultá tu mes sin abrir la app.",
+          en: "Chat with me on Telegram: send bank photos, dictate expenses by voice, or check your month without opening the app.",
+        })}
+      />
+
+      <div className="border-border/60 bg-muted/20 space-y-3 rounded-xl border p-4 text-center">
+        <p className="text-muted-foreground text-sm">
+          {pick(locale, {
+            es: "Te abrimos el bot en una pestaña nueva con un código de un solo uso.",
+            en: "We'll open the bot in a new tab with a one-time code.",
+          })}
+        </p>
+        <Button onClick={start} disabled={busy} size="lg">
+          {busy
+            ? pick(locale, { es: "Generando…", en: "Generating…" })
+            : pick(locale, { es: "Conectar Telegram", en: "Connect Telegram" })}
+        </Button>
+        {error ? <p className="text-destructive text-xs">{error}</p> : null}
+        {feedback ? <p className="text-good text-xs">{feedback}</p> : null}
+      </div>
+
+      <p className="text-muted-foreground text-xs text-center">
         {pick(locale, {
-          es: "¿Preferís Telegram? También podés vincular el bot.",
-          en: "Prefer Telegram? You can link the bot too.",
+          es: "Lo podés hacer más tarde desde Configuración.",
+          en: "You can do it later from Settings.",
         })}
       </p>
-      <Button onClick={start} disabled={busy} size="sm" variant="outline">
-        {busy
-          ? pick(locale, { es: "Generando…", en: "Generating…" })
-          : pick(locale, { es: "Conectar Telegram", en: "Connect Telegram" })}
-      </Button>
-      {error ? <p className="text-destructive text-xs">{error}</p> : null}
-      {feedback ? <p className="text-good text-xs">{feedback}</p> : null}
+
+      <StepFooter
+        locale={locale}
+        onBack={onBack}
+        onSkip={onSkip}
+        onContinue={onContinue}
+        skipLabel={pick(locale, { es: "Más tarde", en: "Later" })}
+        continueLabel={pick(locale, { es: "Listo", en: "Done" })}
+        disabled={disabled}
+      />
     </div>
   );
 }

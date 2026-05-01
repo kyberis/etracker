@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { ExpenseCategory, Prisma } from "@prisma/client";
+import { ExpenseCategory, Prisma, SavingsMovementKind } from "@prisma/client";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
@@ -14,6 +14,11 @@ import {
   parseMonthKey,
   toMonthStart,
 } from "@/lib/months";
+import {
+  getSavingsState,
+  recordSavingsMovement,
+  setMonthlySavingsContribution as setMonthlySavingsContributionService,
+} from "@/lib/savings";
 import { expireYearTimeline, getYearTimelineData } from "@/lib/year-timeline-data";
 import { expenseCategoryOptions } from "@/lib/validators";
 
@@ -620,6 +625,134 @@ export function registerUserMcp(server: McpServer): void {
         data: { userId, name, color: color ?? null },
       });
       return jsonContent({ ok: true, id: bank.id, name: bank.name });
+    },
+  );
+
+  // ── Tools: ahorros ──────────────────────────────────────────────────────
+
+  server.registerTool(
+    "getSavings",
+    {
+      title: "Estado de la pila de ahorros",
+      description:
+        "Devuelve el balance global de ahorros del usuario y los últimos N movimientos del ledger (default 20, máx 100). Cada movimiento incluye `kind` (MONTHLY_CONTRIBUTION, CARRYOVER_DEPOSIT, DEBT_COVERAGE, MANUAL_DEPOSIT, MANUAL_WITHDRAWAL), monto firmado (positivo entra, negativo sale), `monthKey` cuando aplica, fecha y nota.",
+      inputSchema: {
+        limit: z.number().int().min(1).max(100).optional(),
+      },
+    },
+    async ({ limit }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const state = await getSavingsState(userId, { limit: limit ?? 20 });
+      return jsonContent(state);
+    },
+  );
+
+  server.registerTool(
+    "addSavingsMovement",
+    {
+      title: "Agregar movimiento manual de ahorro",
+      description:
+        "Registra un depósito (MANUAL_DEPOSIT) o retiro (MANUAL_WITHDRAWAL) ad-hoc en la pila. `amount` siempre positivo; el signo se aplica server-side. Para retiros valida que la pila alcance.",
+      inputSchema: {
+        kind: z.enum(["MANUAL_DEPOSIT", "MANUAL_WITHDRAWAL"]),
+        amount: z.number().positive(),
+        note: z.string().max(500).optional(),
+        occurredOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .optional(),
+      },
+    },
+    async ({ kind, amount, note, occurredOn }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { primaryCurrency: true, savings: true },
+      });
+      if (!user) return errContent("Usuario no encontrado.");
+      const magnitude = new Prisma.Decimal(amount.toFixed(2));
+      if (kind === "MANUAL_WITHDRAWAL" && user.savings.lessThan(magnitude)) {
+        return errContent(
+          `La pila tiene ${user.primaryCurrency} ${fmt(Number(user.savings))} y no alcanza para retirar ${user.primaryCurrency} ${fmt(amount)}.`,
+        );
+      }
+      const signed =
+        kind === "MANUAL_WITHDRAWAL" ? magnitude.negated() : magnitude;
+      const result = await recordSavingsMovement({
+        userId,
+        kind:
+          kind === "MANUAL_WITHDRAWAL"
+            ? SavingsMovementKind.MANUAL_WITHDRAWAL
+            : SavingsMovementKind.MANUAL_DEPOSIT,
+        amount: signed,
+        currency: user.primaryCurrency,
+        note: note ?? null,
+        occurredOn: parseIsoDate(occurredOn) ?? undefined,
+      });
+      return jsonContent({
+        ok: true,
+        balance: result.balance,
+        movement: {
+          id: result.movement.id,
+          kind: result.movement.kind,
+          amount: Number(result.movement.amount),
+          currency: result.movement.currency,
+          note: result.movement.note,
+          occurredOn: result.movement.occurredOn.toISOString().slice(0, 10),
+        },
+      });
+    },
+  );
+
+  server.registerTool(
+    "setMonthlySavingsContribution",
+    {
+      title: "Aporte mensual a ahorro (informativo)",
+      description:
+        "Upsert del aporte mensual del usuario para un mes (yyyy-MM). Suma a la pila pero NO descuenta del balance del mes ni aparece como gasto. Hay un solo aporte por mes; si ya existía, se reemplaza.",
+      inputSchema: {
+        month: monthKeySchema,
+        amount: z.number().positive(),
+        note: z.string().max(500).optional(),
+      },
+    },
+    async ({ month, amount, note }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const monthStart = toMonthStart(parseMonthKey(month));
+      const [user, monthRecord] = await Promise.all([
+        db.user.findUnique({
+          where: { id: userId },
+          select: { primaryCurrency: true },
+        }),
+        db.monthRecord.findFirst({
+          where: { userId, month: monthStart },
+          select: { id: true },
+        }),
+      ]);
+      if (!user) return errContent("Usuario no encontrado.");
+      if (!monthRecord) {
+        return errContent(
+          `El mes ${month} no tiene bucket. Creá el mes desde el dashboard primero.`,
+        );
+      }
+      const result = await setMonthlySavingsContributionService({
+        userId,
+        monthRecordId: monthRecord.id,
+        amount: new Prisma.Decimal(amount.toFixed(2)),
+        currency: user.primaryCurrency,
+        note: note ?? null,
+        occurredOn: monthStart,
+      });
+      return jsonContent({
+        ok: true,
+        replaced: result.replaced,
+        balance: result.balance,
+        month,
+        amount: Number(result.movement.amount),
+      });
     },
   );
 }

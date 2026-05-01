@@ -8,6 +8,7 @@ import {
   ListChecks,
   LogOut,
   Menu,
+  PiggyBank,
   Settings,
   Shield,
   Sparkles,
@@ -67,6 +68,12 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
       label: t.header.nav.expenses,
       icon: ListChecks,
       match: (p: string) => p === "/expenses" || p.startsWith("/expenses/"),
+    },
+    {
+      href: "/savings",
+      label: t.header.nav.savings,
+      icon: PiggyBank,
+      match: (p: string) => p === "/savings" || p.startsWith("/savings/"),
     },
     {
       href: "/settings",

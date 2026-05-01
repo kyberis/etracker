@@ -1,5 +1,5 @@
 /**
- * Speech-to-text for WhatsApp voice notes via OpenAI Whisper (same API key as chat).
+ * Speech-to-text for Telegram voice notes via OpenAI Whisper (same API key as chat).
  */
 
 import type { Locale } from "@/lib/i18n/locale";
@@ -7,7 +7,7 @@ import type { Locale } from "@/lib/i18n/locale";
 const TRANSCRIPTION_MODEL =
   process.env.OPENAI_TRANSCRIPTION_MODEL ?? "whisper-1";
 
-/** Extension hint for Whisper; WhatsApp/Twilio often sends OGG Opus or AMR. */
+/** Extension hint for Whisper; Telegram often sends OGG Opus. */
 export function guessAudioFilename(mediaType: string): string {
   const mt = mediaType.toLowerCase().split(";")[0]?.trim() ?? "";
   if (mt.includes("ogg")) return "voice.ogg";

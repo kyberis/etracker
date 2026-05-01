@@ -37,19 +37,13 @@ follows. This keeps the "talk to your money" promise real.
 - A capability that exists only in UI but not as a tool should be flagged in
   the spec as a known gap.
 
-## 4. Open Banking is read-only
-
-Clara never has access to the user's money. GoCardless integration is **only**
-for read-only transaction sync. Any future code path that even *looks* like a
-write to a bank account is rejected at review.
-
-## 5. Errors flow through `withApi()`
+## 4. Errors flow through `withApi()`
 
 Route handlers stay tiny. Mapping Zod / Prisma / business errors to HTTP
 responses is centralised in [`src/lib/http.ts`](../../src/lib/http.ts). Never
 `try/catch + rethrow` in handlers.
 
-## 6. AI calls go through the Gateway
+## 5. AI calls go through the Gateway
 
 For chat and classification, models are referenced as `provider/model`
 strings via the Vercel AI SDK + AI Gateway. Direct `OPENAI_API_KEY` calls are
@@ -58,25 +52,25 @@ allowed only for OpenAI-only products (Whisper transcription, TTS audio).
 This is what gives us model failover, cost tracking, and the ability to swap
 providers via env without touching code.
 
-## 7. MCP is a first-class surface
+## 6. MCP is a first-class surface
 
 Anything a logged-in user can do is candidate for the per-user MCP server. The
 server is a thin wrapper around services — it never duplicates business logic
 and never bypasses auth. Tokens are sha-256 hashed, expirable, revocable.
 
-## 8. Self-hostable by default
+## 7. Self-hostable by default
 
-Every optional integration (AI Gateway, Blob, Runtime Cache, GoCardless,
-Twilio, Sentry) must degrade gracefully when its env vars are missing. The MIT
-license + self-host story is core to Clara's positioning.
+Every optional integration (AI Gateway, Blob, Runtime Cache, Telegram, Sentry)
+must degrade gracefully when its env vars are missing. The MIT license +
+self-host story is core to Clara's positioning.
 
-## 9. Tests for pure functions
+## 8. Tests for pure functions
 
 Anything in `src/lib/**/*.ts` that does not touch the DB should have a Vitest
 unit test. Pure functions are cheap to test and prevent the kind of drift that
 turns a chat agent into a liar.
 
-## 10. Privacy is not negotiable
+## 9. Privacy is not negotiable
 
 No telemetry. No tracking. No third-party analytics that profile users. PII
 never appears in logs. AI prompts that include user data must be scrubbable

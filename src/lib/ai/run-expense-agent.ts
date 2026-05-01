@@ -38,9 +38,9 @@ const CHAT_MAX_RETRIES = Math.min(
   Math.max(4, Number.parseInt(process.env.AI_CHAT_MAX_RETRIES ?? "6", 10) || 6),
 );
 
-type AgentSource = "web" | "whatsapp" | "telegram";
+type AgentSource = "web" | "telegram";
 
-/** Web chat can switch tone; WhatsApp stays concise unless overridden. */
+/** Web chat can switch tone; Telegram stays concise unless overridden. */
 export type ExpenseAgentResponseStyle = "concise" | "conversational";
 
 function toneAndFollowUpBlock(
@@ -129,7 +129,7 @@ function buildSystemPrompt(
     const personal = userImportInstructions?.trim()
       ? `
 
-Personal user instructions (high priority for interpreting bank transactions, Revolut imports, transaction photos and categories):
+Personal user instructions (high priority for interpreting bank transactions, transaction photos and categories):
 """
 ${userImportInstructions.trim()}
 """
@@ -165,7 +165,7 @@ Product context:
 Tool-use rules:
 - Don't invent ids or amounts. If info is missing, ask only for the missing data (one question per turn).
 - If the user names a bank, resolve the id via listBanks.
-- If they want a preference saved across sessions (Revolut/import rules, default categories, mark imports as paid, etc.), call updateExpenseImportInstructions; they can also edit it from the app's Settings.
+- If they want a preference saved across sessions (import rules, default categories, mark imports as paid, etc.), call updateExpenseImportInstructions; they can also edit it from the app's Settings.
 - "How am I doing / how much do I have left" → getMonthState with the requested or current month.
 
 Editing from chat (banks, templates, lines):
@@ -175,9 +175,13 @@ Editing from chat (banks, templates, lines):
 - FX: if the user asks "what's USD/ARS at?" or wants to preview before logging, call getFxRate (\`to\` defaults to primary currency). For expenses in another currency, use addMonthLine/updateMonthLine; for blue/MEP/oficial pass a manual \`fxRate\` when adding/editing the line (no global override).
 - Before ANY deletion (bank, template, line) emit ONE short confirmation question in chat ("Confirm deleting X?"); if the user says no or changes topic, don't call the delete tool.
 
-- Previous month leftover: if \`getMonthState\` returns a \`carryoverPrompt\` (with \`prevMonth\` and \`amount\`), briefly congratulate the user for spending less than their income, tell them how much was left, and offer two options: add it to this month's income or set it aside as savings. When the user picks, call \`applyPrevMonthLeftover\` with the corresponding \`mode\` (\`addToIncome\` or \`setAside\`) and confirm in one line. Don't initiate this flow on your own if there's no \`carryoverPrompt\`.
+- Previous month carryover: if \`getMonthState\` returns a \`carryoverPrompt\` (with \`type\`, \`prevMonth\`, \`amount\`, \`savings\`), handle it based on \`type\`:
+  · \`type=leftover\` → briefly congratulate the user for spending less than their income, tell them how much was left, and offer two options: add it to this month's income (\`mode=addToIncome\`) or set it aside as savings (\`mode=setAside\`).
+  · \`type=deficit\` → without scolding, tell the user the previous month closed in the red by \`amount\` and offer two options: cover with savings (\`mode=coverFromSavings\` — partial cover allowed if savings are short; the rest stays as carried debt) or carry the debt into this month (\`mode=carryDebt\`).
+  Call \`applyPrevMonthLeftover\` with the chosen \`mode\` and confirm in one line. Don't start this flow if there's no \`carryoverPrompt\`.
+- Savings (pile global): the user has a savings pile that grows from carryover deposits, monthly contributions, or manual deposits, and shrinks from manual withdrawals or DEBT_COVERAGE. Use \`getSavingsState\` to read it. \`addSavingsMovement\` for ad-hoc deposits/withdrawals. \`setMonthlySavingsContribution\` for the user's INFORMATIONAL monthly contribution: it does NOT reduce that month's balance and does NOT appear as an expense; it just declares "this is what I'm dedicating to savings this month" and adds to the pile. To cover a previous month's debt from savings, use \`applyPrevMonthLeftover\` with \`mode=coverFromSavings\` (don't use \`addSavingsMovement\` for that case).
 - Month income: if the user says "my income is X", "I got paid X", "we earned X" → setMonthIncome (DON'T use updateMonthLine, that's for expense lines). If the month doesn't exist, first createMonthIfNeeded then setMonthIncome.
-- Image (Revolut, bank screenshot, receipt): extract transactions, show them in a compact list grouped by bank, and ask for confirmation before applying anything. For each transaction pick updateMonthLine (if a similar line already exists) or addMonthLine (new transaction).
+- Image (bank screenshot, receipt): extract transactions, show them in a compact list grouped by bank, and ask for confirmation before applying anything. For each transaction pick updateMonthLine (if a similar line already exists) or addMonthLine (new transaction).
 - CSV / text statement: sometimes the user pastes or attaches a CSV already converted to a list in the message (dates, descriptions, amounts). Treat it like bank transactions: same rule as an image — compact list, respect the user's personal instructions on what to ignore or how to categorize, and ask for confirmation before using tools.
 - PDF: the message can carry extracted text and/or page images (scanned PDF). If there are images, read transactions like a bank screenshot: compact list, ask for confirmation before applying changes.
 
@@ -205,7 +209,7 @@ Language switching:
     userImportInstructions?.trim() ?
       `
 
-Instrucciones personales del usuario (prioridad alta al interpretar movimientos del banco, importaciones Revolut, fotos de movimientos y categorías):
+Instrucciones personales del usuario (prioridad alta al interpretar movimientos del banco, fotos de movimientos y categorías):
 """
 ${userImportInstructions.trim()}
 """
@@ -241,7 +245,7 @@ Contexto del producto:
 Reglas de uso de tools:
 - No inventes ids ni montos. Si falta info, pedí solo el dato que falta (una pregunta por turno).
 - Si el usuario nombra un banco, resolvé el id con listBanks.
-- Si quiere que una preferencia quede guardada para futuras sesiones (reglas de Revolut/importaciones, categorías por defecto, marcar importaciones como pagadas, etc.), llamá updateExpenseImportInstructions; también puede editarlo en Configuración de la app.
+- Si quiere que una preferencia quede guardada para futuras sesiones (reglas de importación, categorías por defecto, marcar importaciones como pagadas, etc.), llamá updateExpenseImportInstructions; también puede editarlo en Configuración de la app.
 - "Cuánto me queda / cómo voy" → getMonthState con el mes pedido o el actual.
 
 Edición desde el chat (gestión de bancos, plantillas y líneas):
@@ -251,9 +255,13 @@ Edición desde el chat (gestión de bancos, plantillas y líneas):
 - Tipo de cambio (FX): si el usuario pregunta "¿a cuánto está USD/ARS?" o pide previsualizar antes de cargar, llamá getFxRate (\`to\` default = moneda principal). Para gastos en otra moneda usá igual addMonthLine/updateMonthLine; para dólar blue/MEP/oficial pasá \`fxRate\` manual al agregar/editar la línea (no existe override global).
 - Antes de CUALQUIER borrado (banco, plantilla, línea) emitís UNA pregunta de confirmación en el chat ("¿Confirmás borrar X?"); si el usuario responde negativamente o cambia de tema, no llames el tool de delete.
 
-- Sobrante del mes anterior: si \`getMonthState\` devuelve un \`carryoverPrompt\` (con \`prevMonth\` y \`amount\`), felicitá brevemente al usuario por haber gastado menos del ingreso, decile cuánto le sobró y ofrecele dos opciones: sumarlo al ingreso de este mes o dejarlo aparte como ahorros. Cuando el usuario elija, llamá \`applyPrevMonthLeftover\` con el \`mode\` correspondiente (\`addToIncome\` o \`setAside\`) y confirmá en una frase. No inicies este flujo por tu cuenta si no hay \`carryoverPrompt\`.
+- Saldo del mes anterior: si \`getMonthState\` devuelve un \`carryoverPrompt\` (con \`type\`, \`prevMonth\`, \`amount\`, \`savings\`), manejalo según \`type\`:
+  · \`type=leftover\` → felicitá brevemente al usuario por gastar menos que el ingreso, decile cuánto le sobró y ofrecele dos opciones: sumarlo al ingreso de este mes (\`mode=addToIncome\`) o dejarlo aparte como ahorros (\`mode=setAside\`).
+  · \`type=deficit\` → sin sermones, decile que el mes anterior cerró en rojo por \`amount\` y ofrecele dos opciones: cubrirlo con ahorros (\`mode=coverFromSavings\` — cobertura parcial si \`savings < amount\`; lo que queda pasa como deuda al mes actual) o arrastrar la deuda completa al mes actual (\`mode=carryDebt\`).
+  Cuando el usuario elija, llamá \`applyPrevMonthLeftover\` con el \`mode\` correspondiente y confirmá en una frase. No inicies este flujo por tu cuenta si no hay \`carryoverPrompt\`.
+- Ahorros (pila global): el usuario tiene una pila de ahorro que crece con derivaciones de sobrante, aportes mensuales o depósitos manuales, y baja con retiros manuales o DEBT_COVERAGE. Usá \`getSavingsState\` para leerla. \`addSavingsMovement\` para depósitos/retiros ad-hoc. \`setMonthlySavingsContribution\` para el aporte INFORMATIVO del mes: NO descuenta del balance del mes ni aparece como gasto, solo declara "esto es lo que dedico a ahorro este mes" y suma a la pila. Para cubrir deuda del mes anterior con ahorros, usá \`applyPrevMonthLeftover\` con \`mode=coverFromSavings\` (no uses \`addSavingsMovement\` para ese caso).
 - Ingreso del mes: si el usuario dice "mi ingreso es X", "cobré X", "ganaste/cobramos X" → setMonthIncome (NO uses updateMonthLine, que es para líneas de gasto). Si el mes no existe, primero createMonthIfNeeded y después setMonthIncome.
-- Imagen (Revolut, captura del banco, ticket): extraé las transacciones, mostralas en una lista compacta agrupadas por banco y pedí confirmación antes de aplicar nada. Para cada movimiento elegí updateMonthLine (si ya existe una línea similar) o addMonthLine (movimiento nuevo).
+- Imagen (captura del banco, ticket): extraé las transacciones, mostralas en una lista compacta agrupadas por banco y pedí confirmación antes de aplicar nada. Para cada movimiento elegí updateMonthLine (si ya existe una línea similar) o addMonthLine (movimiento nuevo).
 - CSV / extracto en texto: a veces el usuario pega o adjunta un CSV ya convertido a lista en el mensaje (fechas, descripciones, importes). Tratalo como movimientos del banco: misma regla que una imagen — lista compacta, respetá las instrucciones personales del usuario sobre qué ignorar o cómo categorizar, y pedí confirmación antes de usar tools.
 - PDF: el mensaje puede traer texto extraído y/o imágenes de página (PDF escaneado). Si hay imágenes, leé los movimientos como con una captura del banco: lista compacta, pedí confirmación antes de aplicar cambios.
 
@@ -390,13 +398,13 @@ export async function streamExpenseAgent({
 }
 
 /**
- * One-shot text generation used by WhatsApp and Telegram webhooks.
+ * One-shot text generation used by the Telegram webhook.
  * Returns assistant text plus HTTPS chart image URLs when `renderChart` ran.
  */
 export async function generateExpenseAgentReply({
   userId,
   messages,
-  source = "whatsapp",
+  source = "telegram",
   responseStyle = "concise",
 }: {
   userId: string;
@@ -405,7 +413,7 @@ export async function generateExpenseAgentReply({
   responseStyle?: ExpenseAgentResponseStyle;
 }): Promise<{
   text: string;
-  /** HTTPS PNG URLs for messaging channels (Twilio media / Telegram photo). */
+  /** HTTPS PNG URLs for messaging channels (Telegram photo). */
   chartImageUrls: string[];
   usage: ExpenseAgentUsage;
   model: string;

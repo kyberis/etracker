@@ -29,6 +29,13 @@ export async function POST(
     if (result.type === "alreadyDecided") {
       return jsonError("La decisión sobre el sobrante ya fue tomada.", 409);
     }
+    if (result.type === "modeMismatch") {
+      const message =
+        result.expected === "leftover"
+          ? "El mes anterior cerró con sobrante: usá addToIncome o setAside."
+          : "El mes anterior cerró con deuda: usá coverFromSavings o carryDebt.";
+      return jsonError(message, 400);
+    }
 
     const year = parseMonthKey(monthKey).getUTCFullYear();
     await expireYearTimeline(userId, year);
@@ -37,8 +44,11 @@ export async function POST(
     return new Response(
       JSON.stringify({
         applied: result.type === "applied",
-        amount: result.type === "applied" ? result.amount : 0,
+        leftover: result.type === "applied" ? result.leftover : 0,
         mode: result.type === "applied" ? result.mode : null,
+        covered: result.type === "applied" ? (result.covered ?? null) : null,
+        remainingDebt:
+          result.type === "applied" ? (result.remainingDebt ?? null) : null,
         data,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },

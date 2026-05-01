@@ -41,15 +41,27 @@ export type MonthPageDataNoRecord = {
 };
 
 /**
- * Suggestion shown when the previous month closed with money left over and
- * the user has not yet decided what to do with it. Drives both the dashboard
- * banner and Clara's chat prompt.
+ * Sugerencia que aparece cuando el mes anterior cerró con un saldo distinto
+ * de cero y el usuario todavía no decidió qué hacer. Distingue entre
+ * "leftover" (sobró plata) y "deficit" (cerró en rojo).
+ *
+ * - `type: "leftover"` → opciones: sumar al ingreso del mes actual o dejar
+ *   aparte como ahorro.
+ * - `type: "deficit"` → opciones: cubrir con la pila de ahorro (parcial si
+ *   no alcanza) o arrastrar la deuda como `carryoverFromPrev` negativo.
+ *
+ * `amount` es siempre el valor absoluto del saldo del mes anterior;
+ * `savings` es la pila disponible al momento del snapshot (relevante en el
+ * caso `deficit` para mostrar cuánto se puede cubrir).
  */
 export type CarryoverPrompt = {
-  /** yyyy-MM of the previous month with a record. */
+  type: "leftover" | "deficit";
+  /** yyyy-MM del mes anterior con registro. */
   prevMonth: string;
-  /** Leftover amount in the user's primary currency (>0). */
+  /** Magnitud absoluta del saldo (>0). */
   amount: number;
+  /** Pila de ahorro al snapshot, relevante para el caso `deficit`. */
+  savings: number;
 };
 
 export type MonthPageDataWithRecord = {
@@ -84,11 +96,19 @@ export type MonthPageDataWithRecord = {
   banks: Array<{ id: string; name: string }>;
   /** Templates that apply to this month but are not yet copied into this bucket. */
   pendingFromTemplates: PendingTemplateExpense[];
-  /** GoCardless / Revolut link state for this user. */
-  revolut: {
-    linked: boolean;
-    defaultImportBankId: string | null;
-  };
+  /**
+   * Aporte mensual a ahorro registrado para este mes (uno por mes como máximo).
+   * Es informativo: NO afecta el balance del mes; solo declara cuánto está
+   * dedicando el usuario a la pila global. `null` cuando no se registró.
+   */
+  monthlySavingsContribution: {
+    id: string;
+    /** Monto en la moneda en que se persistió el movimiento. */
+    amount: number;
+    note: string | null;
+    /** yyyy-MM-dd. */
+    occurredOn: string;
+  } | null;
 };
 
 export type MonthPageData = MonthPageDataNoRecord | MonthPageDataWithRecord;

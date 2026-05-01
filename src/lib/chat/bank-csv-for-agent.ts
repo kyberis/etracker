@@ -58,7 +58,7 @@ const MAX_ROWS = 500;
 const MAX_INPUT_CHARS = 2_500_000;
 
 /**
- * Converts a bank CSV (Revolut and similar) into compact markdown for the assistant.
+ * Converts a bank CSV into compact markdown for the assistant.
  */
 export function formatBankCsvForAgent(rawInput: string, filename: string): string {
   const raw =
@@ -141,7 +141,7 @@ export function formatBankCsvForAgent(rawInput: string, filename: string): strin
 
   const truncated = lines.length - 1 > MAX_ROWS;
   const head = [
-    `Movimientos del CSV **${filename}** (export banco / Revolut u otro):`,
+    `Movimientos del CSV **${filename}** (export del banco):`,
     "",
     ...rows,
   ];

@@ -127,7 +127,7 @@ function buildChartJsConfig(spec: ChartSpec): Record<string, unknown> {
 const MAX_URL_CHARS = 6500;
 
 /**
- * Returns HTTPS PNG URLs suitable for Twilio `mediaUrl` or Telegram `photo`.
+ * Returns HTTPS PNG URLs suitable for Telegram `photo`.
  */
 export function chartSpecsToQuickChartUrls(specs: ChartSpec[]): string[] {
   if (!isOutboundChartImageEnabled() || specs.length === 0) return [];

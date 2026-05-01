@@ -17,7 +17,7 @@ is to tell an agent where to look next.
 
 **Clara** (repo `etracker`) is a chat-first, open-source (MIT),
 self-hostable personal-finance assistant in Spanish rioplatense. Users chat with
-their money in natural language, drop a PDF / bank screenshot / WhatsApp voice
+their money in natural language, drop a PDF / bank screenshot / Telegram voice
 note, and Clara extracts movements, suggests categories, and keeps the monthly
 balance up to date. Ships with a public + per-user MCP server so any AI client
 (Claude Desktop, Cursor, ChatGPT) can talk to Clara with the user's permission.
@@ -28,7 +28,7 @@ balance up to date. Ships with a public + per-user MCP server so any AI client
 2. [`ARCHITECTURE.md`](ARCHITECTURE.md) — domain map, layers, permitted edges.
 3. [`knowledge/design-docs/index.md`](knowledge/design-docs/index.md) — core
    beliefs and cross-cutting patterns (rioplatense voice, AI Gateway routing,
-   MCP servers, Open Banking read-only, withApi error handling).
+   MCP servers, withApi error handling).
 4. [`knowledge/product-specs/index.md`](knowledge/product-specs/index.md) —
    one spec per feature.
 5. [`knowledge/exec-plans/active/`](knowledge/exec-plans/active) — in-flight
@@ -58,9 +58,7 @@ src/
     chat/              Chat persistence
     fx/ i18n/          Currency + locale helpers
     mcp/               Public + per-user MCP servers
-    revolut/           GoCardless Open Banking + AI classifier
     telegram/          Bot API client + signed deep-link tokens + menu
-    whatsapp/          Twilio + link-code helpers
     http.ts            withApi() wrapper used by every route handler
     log.ts             Structured logging (Sentry-ready)
     auth.ts            NextAuth v4 (JWT) config
@@ -95,11 +93,9 @@ knowledge/             Agent knowledge base (this is the system of record)
 - **MCP is a first-class surface.** Anything a user can do in the UI should
   consider whether the per-user MCP server should expose it as a tool. See
   [`src/lib/mcp/`](src/lib/mcp).
-- **Open Banking is read-only.** Clara never has access to the user's money.
-  Every code path that touches GoCardless must preserve that invariant.
 - **Self-hostable by default.** Optional integrations (AI Gateway, Blob,
-  Runtime Cache, GoCardless, Twilio, Sentry) must degrade gracefully when env
-  vars are missing.
+  Runtime Cache, Telegram, Sentry) must degrade gracefully when env vars are
+  missing.
 - **Changelog goes in [`src/lib/marketing-content.ts`](src/lib/marketing-content.ts)**
   in both ES and EN. See [`.cursor/rules/changelog.mdc`](.cursor/rules/changelog.mdc).
 

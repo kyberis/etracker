@@ -156,7 +156,7 @@ export type PrivacyCopy = {
 const LANDING_ES: LandingCopy = {
   metaTitle: "Clara — tu asistente financiera con IA",
   metaDescription:
-    "Tu money coach con IA. Chateá con tu plata: PDFs, notas de voz, Open Banking. Open source MIT, self-hostable, con servidor MCP para integrar con Claude, ChatGPT y Cursor.",
+    "Tu money coach con IA. Chateá con tu plata: PDFs, notas de voz, Telegram. Open source MIT, self-hostable, con servidor MCP para integrar con Claude, ChatGPT y Cursor.",
   chip: "Money coach con IA · Open Source · MIT",
   titleLine1: "Tu plata,",
   titleLine2Pre: "finalmente ",
@@ -208,7 +208,7 @@ const LANDING_ES: LandingCopy = {
   finalTitleHighlight: "clara",
   finalTitlePart2: ", en cinco minutos.",
   finalBody:
-    "Creás cuenta, conectás (opcional) tu banco o WhatsApp, y Clara se hace cargo del resto.",
+    "Creás cuenta, vinculás (opcional) Telegram, y Clara se hace cargo del resto.",
   finalRegister: "Empezar gratis",
   finalFaq: "Resolver dudas",
 };
@@ -216,7 +216,7 @@ const LANDING_ES: LandingCopy = {
 const LANDING_EN: LandingCopy = {
   metaTitle: "Clara — your AI financial assistant",
   metaDescription:
-    "Your AI money coach. Chat with your money: PDFs, voice notes, Open Banking. Open source MIT, self-hostable, with an MCP server to plug into Claude, ChatGPT and Cursor.",
+    "Your AI money coach. Chat with your money: PDFs, voice notes, Telegram. Open source MIT, self-hostable, with an MCP server to plug into Claude, ChatGPT and Cursor.",
   chip: "AI money coach · Open Source · MIT",
   titleLine1: "Your money,",
   titleLine2Pre: "finally ",
@@ -268,7 +268,7 @@ const LANDING_EN: LandingCopy = {
   finalTitleHighlight: "clear",
   finalTitlePart2: ", in five minutes.",
   finalBody:
-    "Sign up, optionally connect your bank or WhatsApp, and Clara takes care of the rest.",
+    "Sign up, optionally link Telegram, and Clara takes care of the rest.",
   finalRegister: "Start free",
   finalFaq: "Got questions?",
 };
@@ -289,7 +289,7 @@ const ABOUT_ES: AboutCopy = {
   whyBody: [
     "La mayoría de las apps de finanzas hacen lo opuesto a lo que decían que iban a hacer: te muestran filas, gráficos de torta, categorías que vos no creaste, banners de upsell — y al final del mes seguís sin saber a dónde se fueron 400 dólares.",
     "Clara existe para invertir esa lógica. La pregunta que guía el producto no es \"¿cómo te muestro más datos?\", es ¿qué tenés que entender hoy?. De ahí el nombre. Clara aclara: traduce extractos a decisiones, voz a registros, fotos a categorías. El piso siempre es entender, no acumular.",
-    "Hablás con Clara como hablás con cualquiera. Le mandás un PDF y entiende. Una nota de voz por WhatsApp y registra el gasto. Conectás Open Banking y matchea movimientos contra tus plantillas sin que vos toques nada. Less drama, more done.",
+    "Hablás con Clara como hablás con cualquiera. Le mandás un PDF y entiende. Una nota de voz desde el chat web o Telegram y registra el gasto. Less drama, more done.",
   ],
   bornStickerLeft: "trefolio.com",
   bornStickerRight: "→ los que construyeron Clara",
@@ -297,7 +297,7 @@ const ABOUT_ES: AboutCopy = {
   bornBody: [
     "Somos el equipo detrás de trefolio.com, una plataforma de portfolios para profesionales tech. Ganamos bien. Y tampoco entendíamos a dónde iba la plata.",
     "Probamos apps de finanzas — todas eran planillas glorificadas, jardines cerrados con suscripciones caras, o simplemente no hablaban nuestro idioma (literal y figuradamente). Las que tenían IA la usaban como feature de marketing, no como núcleo del producto.",
-    "Así que construimos la nuestra. Queríamos algo que leyera un PDF del banco, escuchara una nota de voz de WhatsApp, se sincronizara con Revolut, y respondiera en rioplatense sin sonar a chatbot corporativo. Una asistente de verdad — no un formulario con IA encima.",
+    "Así que construimos la nuestra. Queríamos algo que leyera un PDF del banco, escuchara una nota de voz desde Telegram, y respondiera en rioplatense sin sonar a chatbot corporativo. Una asistente de verdad — no un formulario con IA encima.",
     "La llamamos Clara porque ese es el norte: que sea claro qué pasa con tu plata. Y la hicimos open-source porque creemos que tus finanzas son tuyas — ninguna empresa debería tener el monopolio de entenderlas.",
   ],
   personalityTitle: "Tu money coach con IA.",
@@ -333,7 +333,7 @@ const ABOUT_EN: AboutCopy = {
   whyBody: [
     "Most finance apps do the opposite of what they promised: they show you rows, pie charts, categories you didn't create, upsell banners — and at the end of the month you still don't know where $400 went.",
     'Clara exists to flip that logic. The question driving the product is not "how do I show you more data?", it is what do you need to understand today?. Hence the name. Clara clears things up: she translates statements into decisions, voice into entries, photos into categories. The baseline is always understanding, not accumulating.',
-    "You talk to Clara like you talk to anyone. Send her a PDF and she understands. A voice note over WhatsApp and she registers the expense. Connect Open Banking and she matches transactions against your templates without you touching anything. Less drama, more done.",
+    "You talk to Clara like you talk to anyone. Send her a PDF and she understands. A voice note from the web chat or Telegram and she registers the expense. Less drama, more done.",
   ],
   bornStickerLeft: "trefolio.com",
   bornStickerRight: "→ the team behind Clara",
@@ -341,7 +341,7 @@ const ABOUT_EN: AboutCopy = {
   bornBody: [
     "We are the team behind trefolio.com, a portfolio platform for tech professionals. We earned well. And we still didn't understand where the money went.",
     "We tried finance apps — all of them were glorified spreadsheets, walled gardens with expensive subscriptions, or simply didn't speak our language (literally and figuratively). The ones with AI used it as a marketing feature, not as the core of the product.",
-    "So we built our own. We wanted something that reads a bank PDF, listens to a WhatsApp voice note, syncs with Revolut, and replies in plain English without sounding like a corporate chatbot. A real assistant — not a form with AI bolted on.",
+    "So we built our own. We wanted something that reads a bank PDF, listens to a Telegram voice note, and replies in plain English without sounding like a corporate chatbot. A real assistant — not a form with AI bolted on.",
     "We called her Clara because that's the north star: keep it clear what happens with your money. And we made her open source because we believe your finances are yours — no company should monopolize understanding them.",
   ],
   personalityTitle: "Your AI money coach.",
@@ -364,7 +364,7 @@ const ABOUT_EN: AboutCopy = {
 const FEATURES_ES: FeaturesCopy = {
   metaTitle: "Features",
   metaDescription:
-    "Todo lo que Clara puede hacer: leer extractos PDF/CSV, transcribir notas de voz por WhatsApp, sincronizarse con tu banco vía Open Banking, planificar mes a mes y exponer un servidor MCP para tu propio AI assistant.",
+    "Todo lo que Clara puede hacer: leer extractos PDF/CSV, transcribir notas de voz desde el chat web o Telegram, planificar mes a mes y exponer un servidor MCP para tu propio AI assistant.",
   chip: "Features",
   title1: "Todo lo que hace Clara, ",
   titleHighlight: "sin marketing-speak",
@@ -382,7 +382,7 @@ const FEATURES_ES: FeaturesCopy = {
       title: "Chat-first, multimodal",
       body: [
         "Clara es una conversación, no un formulario. Le mandás texto, una foto del banco, un PDF, un CSV o una nota de voz, y entiende.",
-        "Bajo el capó usa Vercel AI SDK v6 con AI Gateway: modelos multimodales para leer imágenes y PDFs, Whisper para transcripción de voz, OpenAI TTS para responder en audio cuando hablás por WhatsApp.",
+        "Bajo el capó usa Vercel AI SDK v6 con AI Gateway: modelos multimodales para leer imágenes y PDFs, Whisper para transcripción de voz, OpenAI TTS para responder en audio cuando hablás por Telegram.",
         "Antes de tocar tu base de datos siempre te muestra una propuesta y pide confirmación. Clara nunca toca tu plata sin permiso explícito.",
       ],
     },
@@ -396,17 +396,17 @@ const FEATURES_ES: FeaturesCopy = {
     },
     {
       id: "banking",
-      title: "Open Banking + multi-banco",
+      title: "Multi-banco real",
       body: [
-        "Conexión automática de solo lectura con Open Banking: sincronizás tu Revolut o cualquier banco europeo, y Clara matchea las transacciones contra tus plantillas planificadas. Clara nunca tiene acceso a tu dinero.",
         "Cada gasto sabe en qué banco vive. Útil cuando repartís el alquiler entre tres cuentas y querés saber cuánto te queda en cada una.",
+        "Importás extractos PDF o CSV de cualquier banco del mundo: Clara los lee con modelos multimodales y siempre te muestra una propuesta antes de tocar nada.",
       ],
     },
     {
-      id: "whatsapp",
-      title: "WhatsApp como inbox principal",
+      id: "telegram",
+      title: "Telegram como inbox principal",
       body: [
-        "Linkeás tu número desde Configuración y mandás notas de voz, fotos o texto a Clara por WhatsApp. Clara transcribe la voz, clasifica el gasto y responde en audio.",
+        "Vinculás Telegram desde Configuración y mandás notas de voz, fotos o texto a Clara desde el bot. Clara transcribe la voz, clasifica el gasto y te responde.",
         "Es el modo más rápido de registrar un gasto: caminás, mandás “pagué la luz $120”, y queda registrado.",
       ],
     },
@@ -435,7 +435,7 @@ const FEATURES_ES: FeaturesCopy = {
 const FEATURES_EN: FeaturesCopy = {
   metaTitle: "Features",
   metaDescription:
-    "Everything Clara can do: read PDF/CSV statements, transcribe WhatsApp voice notes, sync with your bank via Open Banking, plan month by month and expose an MCP server for your own AI assistant.",
+    "Everything Clara can do: read PDF/CSV statements, transcribe voice notes from the web chat or Telegram, plan month by month and expose an MCP server for your own AI assistant.",
   chip: "Features",
   title1: "Everything Clara does, ",
   titleHighlight: "no marketing-speak",
@@ -453,7 +453,7 @@ const FEATURES_EN: FeaturesCopy = {
       title: "Chat-first, multimodal",
       body: [
         "Clara is a conversation, not a form. You send her text, a bank photo, a PDF, a CSV or a voice note — she understands.",
-        "Under the hood she uses Vercel AI SDK v6 with AI Gateway: multimodal models to read images and PDFs, Whisper for voice transcription, OpenAI TTS to reply in audio when you message her on WhatsApp.",
+        "Under the hood she uses Vercel AI SDK v6 with AI Gateway: multimodal models to read images and PDFs, Whisper for voice transcription, OpenAI TTS to reply in audio when you message her on Telegram.",
         "Before touching your database she always shows you a proposal and asks for confirmation. Clara never touches your money without explicit permission.",
       ],
     },
@@ -467,17 +467,17 @@ const FEATURES_EN: FeaturesCopy = {
     },
     {
       id: "banking",
-      title: "Open Banking + multi-bank",
+      title: "Real multi-bank",
       body: [
-        "Read-only automatic Open Banking connection: sync your Revolut or any European bank, and Clara matches the transactions against your planned templates. Clara never has access to your money.",
         "Every expense knows which bank it lives in. Useful when you split rent across three accounts and want to know how much is left in each.",
+        "Import PDF or CSV statements from any bank in the world: Clara reads them with multimodal models and always shows you a proposal before touching anything.",
       ],
     },
     {
-      id: "whatsapp",
-      title: "WhatsApp as your main inbox",
+      id: "telegram",
+      title: "Telegram as your main inbox",
       body: [
-        "Link your number from Settings and send voice notes, photos or text to Clara on WhatsApp. Clara transcribes voice, classifies the expense and replies in audio.",
+        "Link Telegram from Settings and send voice notes, photos or text to Clara through the bot. Clara transcribes voice, classifies the expense and replies.",
         'It is the fastest way to register an expense: you walk, you send "paid the electricity $120", and it is logged.',
       ],
     },

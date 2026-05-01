@@ -7,11 +7,9 @@ import { ApiTokensCard } from "@/components/api-tokens-card";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { PasskeysCard } from "@/components/passkeys-card";
-import { RevolutConnectionCard } from "@/components/revolut-connection-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CurrencyPicker } from "@/components/ui/currency-picker";
-import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
@@ -28,26 +26,6 @@ type UserSettings = {
   locale: string;
   linkedProviders: string[];
 };
-
-type WhatsappStatus = {
-  phone: string | null;
-  verifiedAt: string | null;
-  pendingCode: string | null;
-  pendingExpiresAt: string | null;
-};
-
-type BankOption = { id: string; name: string };
-
-type RevolutInitial =
-  | { connected: false }
-  | {
-      connected: true;
-      linked: boolean;
-      pending: boolean;
-      institutionId: string;
-      lastSyncAt: string | null;
-      defaultImportBankId: string | null;
-    };
 
 type ApiTokenItem = {
   id: string;
@@ -80,10 +58,7 @@ type PasskeyItem = {
 
 type SettingsManagerProps = {
   initialUser: UserSettings;
-  initialWhatsapp: WhatsappStatus;
   initialTelegram: TelegramStatus;
-  initialBanks: BankOption[];
-  initialRevolut: RevolutInitial;
   initialApiTokens: ApiTokenItem[];
   initialPasskeys: PasskeyItem[];
   googleAuthConfigured: boolean;
@@ -136,10 +111,7 @@ function SectionHeader({
 
 export function SettingsManager({
   initialUser,
-  initialWhatsapp,
   initialTelegram,
-  initialBanks,
-  initialRevolut,
   initialApiTokens,
   initialPasskeys,
   googleAuthConfigured,
@@ -473,17 +445,12 @@ export function SettingsManager({
         <SectionHeader
           title={tx({ es: "Integraciones", en: "Integrations" })}
           description={tx({
-            es: "Vinculá Telegram, WhatsApp, tu banco y conectá clientes MCP.",
-            en: "Link Telegram, WhatsApp, your bank and connect MCP clients.",
+            es: "Vinculá Telegram y conectá clientes MCP.",
+            en: "Link Telegram and connect MCP clients.",
           })}
         />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
           <TelegramLinkCard initial={initialTelegram} />
-          <WhatsappLinkCard initial={initialWhatsapp} />
-          <RevolutConnectionCard
-            initialBanks={initialBanks}
-            initialStatus={initialRevolut}
-          />
         </div>
         <ApiTokensCard initialTokens={initialApiTokens} />
       </section>
@@ -511,119 +478,11 @@ function LanguageCard() {
   );
 }
 
-function WhatsappLinkCard({ initial }: { initial: WhatsappStatus }) {
-  const t = useT();
-  const [status, setStatus] = useState<WhatsappStatus>(initial);
-  const [phone, setPhone] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function refresh() {
-    const res = await fetch("/api/settings/whatsapp");
-    if (res.ok) {
-      const data = (await res.json()) as WhatsappStatus;
-      setStatus(data);
-    }
-  }
-
-  async function startLink(event: FormEvent) {
-    event.preventDefault();
-    setError(null);
-    setFeedback(null);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/settings/whatsapp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
-      });
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        setError(data.error ?? t.settings.whatsappStartError);
-        return;
-      }
-      setFeedback(t.settings.whatsappCodeGenerated);
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function unlink() {
-    if (!confirm(t.settings.whatsappUnlinkConfirm)) return;
-    setBusy(true);
-    try {
-      await fetch("/api/settings/whatsapp", { method: "DELETE" });
-      setFeedback(t.settings.whatsappUnlinkDone);
-      setPhone("");
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const linked = Boolean(status.phone && status.verifiedAt);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t.settings.whatsappTitle}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-muted-foreground text-sm">{t.settings.whatsappDescription}</p>
-
-        {linked ? (
-          <div className="space-y-2">
-            <p className="text-sm">{t.settings.whatsappLinkedTo(status.phone ?? "")}</p>
-            <Button variant="destructive" onClick={unlink} disabled={busy}>
-              {t.settings.whatsappUnlinkBtn}
-            </Button>
-          </div>
-        ) : (
-          <form className="space-y-3" onSubmit={startLink}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="whatsappPhone">
-                {t.settings.whatsappPhoneLabel}
-              </label>
-              <Input
-                id="whatsappPhone"
-                type="tel"
-                placeholder="+5491112345678"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" disabled={busy}>
-              {t.settings.whatsappGenerateCode}
-            </Button>
-          </form>
-        )}
-
-        {status.pendingCode ? (
-          <div className="bg-muted/50 rounded-md border p-3 text-sm">
-            <p className="font-medium">
-              {t.settings.whatsappPendingTitle(status.pendingCode)}
-            </p>
-            <p className="text-muted-foreground mt-1">
-              {t.settings.whatsappPendingHelp(status.pendingCode)}
-            </p>
-          </div>
-        ) : null}
-
-        {error ? <FormStatus tone="error">{error}</FormStatus> : null}
-        {feedback ? <FormStatus tone="success">{feedback}</FormStatus> : null}
-      </CardContent>
-    </Card>
-  );
-}
-
 /**
- * Telegram link card. Renders alongside the WhatsApp card in Integrations.
- * The user clicks "Conectar Telegram" → we store a short `?start=` code and
- * open `t.me/<bot>?start=<code>` in a new tab. Telegram's `start` limit is
- * 64 characters, so we cannot use long signed tokens in the URL.
+ * Telegram link card. Renders in the Integrations section. The user clicks
+ * "Conectar Telegram" → we store a short `?start=` code and open
+ * `t.me/<bot>?start=<code>` in a new tab. Telegram's `start` limit is 64
+ * characters, so we cannot use long signed tokens in the URL.
  */
 function TelegramLinkCard({ initial }: { initial: TelegramStatus }) {
   const tx = useTx();

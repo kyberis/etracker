@@ -1,5 +1,5 @@
 /**
- * Base URL reachable by external services (Twilio fetching TTS audio, webhooks).
+ * Base URL reachable by external services (Telegram bot webhook, etc.).
  */
 export function getPublicAppBaseUrl(): string | null {
   const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim();

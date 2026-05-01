@@ -101,7 +101,7 @@ priorizá precisión sobre estilo. Ejemplo:
 
 EN, third-person, factual. Es para crawlers de IA que indexan Clara.
 
-### Notifications (push, WhatsApp)
+### Notifications (push, Telegram)
 
 - Título ≤ 40 chars, sustantivo primero ("Resumen de abril listo").
 - Cuerpo: 1-2 frases con la acción concreta.
@@ -135,7 +135,7 @@ EN, third-person, factual. Es para crawlers de IA que indexan Clara.
 - [ ] Si hay una versión EN, dice lo mismo en otra voz (no es transliteración
       del rioplatense, no agrega slang en EN).
 - [ ] La frase pasa el test del audio: si Clara lo dice en voz alta por
-      WhatsApp, ¿suena natural?
+      Telegram, ¿suena natural?
 - [ ] Si es un error, ofrece una salida.
 - [ ] Si es una propuesta de cambio, pide confirmación antes de actuar.
 - [ ] Sin emojis decorativos.

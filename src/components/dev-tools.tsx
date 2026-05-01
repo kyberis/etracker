@@ -78,8 +78,8 @@ function DevToolsPanel() {
     if (
       !window.confirm(
         tx({
-          es: "¿Resetear la cuenta como recién registrada? Esto borra bancos, meses, gastos, plantillas y el historial de chat de WhatsApp.",
-          en: "Reset the account as if just registered? This deletes banks, months, expenses, templates, and WhatsApp chat history.",
+          es: "¿Resetear la cuenta como recién registrada? Esto borra bancos, meses, gastos, plantillas y el historial de chat.",
+          en: "Reset the account as if just registered? This deletes banks, months, expenses, templates, and chat history.",
         }),
       )
     ) {

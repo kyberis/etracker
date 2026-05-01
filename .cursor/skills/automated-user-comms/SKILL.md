@@ -1,6 +1,6 @@
 ---
 name: automated-user-comms
-description: Rules for messages Clara composes and sends without a human in the loop — chat replies in the web app, WhatsApp text + voice TTS replies, push notifications, and any other LLM-generated or templated user-facing message. Complements ux-writer for voice; adds safety, honesty, locale, and consent expectations specific to automated flows.
+description: Rules for messages Clara composes and sends without a human in the loop — chat replies in the web app, Telegram text + voice replies, push notifications, and any other LLM-generated or templated user-facing message. Complements ux-writer for voice; adds safety, honesty, locale, and consent expectations specific to automated flows.
 ---
 
 # Automated User Communications — Clara
@@ -11,10 +11,10 @@ description: Rules for messages Clara composes and sends without a human in the 
   audio that reaches the user** without a human in the loop at send time.
   Includes:
   - Chat replies in the web app (`src/lib/ai/`).
-  - WhatsApp inbound replies (text + optional voice TTS) via Twilio.
+  - Telegram inbound replies (text + optional voice notes) via the Bot API.
   - Future: push notifications, summary emails.
 - Reviewing PRs that add new prompts, new agent tools, new webhook replies,
-  or any new code that calls Twilio or OpenAI TTS.
+  or any new code that calls the Telegram Bot API or OpenAI TTS.
 
 ## Relationship to other skills
 
@@ -23,7 +23,7 @@ description: Rules for messages Clara composes and sends without a human in the 
   automation-specific rules on top.
 - **legal-advisor** — if the message references personal data, banking, or
   third-party processors. Triggered by privacy / consent concerns.
-- **engineer-integrations** — if you're touching the AI Gateway, Twilio,
+- **engineer-integrations** — if you're touching the AI Gateway, Telegram,
   Whisper, or TTS providers themselves.
 
 ## Core rules
@@ -46,11 +46,11 @@ description: Rules for messages Clara composes and sends without a human in the 
    - Default: rioplatense (`es-AR`) using voseo.
    - When the user's profile is set to EN, switch to neutral, warm English
      (no slang). Do not mix languages mid-sentence.
-   - WhatsApp inbound: detect the user's language from their first message
+   - Telegram inbound: detect the user's language from their first message
      once paired; persist it; do not re-detect every turn.
 6. **Cadence & consent.**
-   - Push notifications and unsolicited WhatsApp messages require explicit
-     opt-in. Replies *to* a user-initiated WhatsApp message are fine.
+   - Push notifications and unsolicited Telegram messages require explicit
+     opt-in. Replies *to* a user-initiated Telegram message are fine.
    - Do not send more than one summary message per user per surface per day
      unless the user explicitly asked.
 7. **Honesty about Clara's nature.** Clara is "una asistente con IA". Don't
@@ -59,8 +59,8 @@ description: Rules for messages Clara composes and sends without a human in the 
 
 ## Voice (TTS) replies — extra rules
 
-Voice messages are read aloud by OpenAI TTS and delivered via Vercel Blob +
-Twilio media. They have stricter constraints than text:
+Voice messages are read aloud by OpenAI TTS and delivered via Vercel Blob.
+They have stricter constraints than text:
 
 - Single short paragraph (1–3 sentences).
 - No bullet points, numbered lists, parenthesised asides, code, or URLs —
@@ -109,7 +109,8 @@ When designing a prompt that produces a structured reply, prefer:
 
 - Chat agent + system prompt: `src/lib/ai/run-expense-agent.ts` (or
   current entrypoint).
-- WhatsApp pipeline: `src/lib/whatsapp/`.
+- Telegram pipeline: `src/lib/telegram/` and
+  `src/app/api/webhooks/telegram/route.ts`.
 - Voice TTS / Blob: `src/lib/blob/`.
-- Public-facing voice promise: `marketing-content.ts` FEATURES (the voice +
-  WhatsApp items).
+- Public-facing voice promise: `marketing-content.ts` FEATURES (the voice
+  + Telegram items).

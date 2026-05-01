@@ -4,14 +4,14 @@
 
 ## What it does
 
-1. **Free tier (default).** Every user starts with `dailyAgentMessageLimit = 30`. The chat client and WhatsApp share that counter via [`src/lib/agent-quota.ts`](../../src/lib/agent-quota.ts).
+1. **Free tier (default).** Every user starts with `dailyAgentMessageLimit = 30`. The chat client and Telegram share that counter via [`src/lib/agent-quota.ts`](../../src/lib/agent-quota.ts).
 2. **31st message of the day.** `POST /api/chat` returns a structured `429` JSON `{ kind: "quota_limit", limit, used, resetAtUtc, upsell: { donation, subscription } }`. The chat client peeks at the response (via a custom `fetch` on `DefaultChatTransport`) and opens `<QuotaLimitDialog>` instead of just rendering an inline error.
 3. **Two CTAs in the modal:**
    - Donar (one-time, EUR, custom amount within `[MIN_DONATION_CENTS, MAX_DONATION_CENTS]`) → `POST /api/billing/checkout` with `mode: "donation"` → Stripe Checkout (`mode: payment`, `submit_type: donate`).
    - Subir a Supporter (recurring, €7.99/mo, 200/day) → `POST /api/billing/checkout` with `mode: "subscription"` → Stripe Checkout (`mode: subscription`, `STRIPE_PRICE_ID_SUPPORTER`).
 4. **Webhook flips the cap.** `POST /api/webhooks/stripe` mirrors subscription state into `User.subscriptionStatus` + `User.subscriptionCurrentPeriodEnd` and toggles `dailyAgentMessageLimit` between `30` and `200`. Donations are persisted as `Donation` rows; no subscription side-effect.
 5. **Settings → Suscripción.** Authenticated users see their current plan, period end, donations status, and a button into the Stripe Billing Portal.
-6. **Public `/upgrade` page** mirrors the modal as a marketing surface (linked from WhatsApp fallback message and external channels).
+6. **Public `/upgrade` page** mirrors the modal as a marketing surface (linked from in-chat fallback messages and external channels).
 
 The whole thing is gated by **`isUpsellActive(userId)` = `isBillingEnabled() && isFeatureEnabled("quota_upsell", userId)`**:
 
@@ -79,7 +79,7 @@ Self-hosters never see the modal CTAs (no Stripe envs → both `upsell.*` flags 
 
 ## Known gaps / TODOs
 
-- WhatsApp limit-reached message currently sends a static text + URL hint to `/[lang]/upgrade`. A future iteration could render a more conversational nudge.
+- The Telegram limit-reached message currently sends a static text + URL hint to `/[lang]/upgrade`. A future iteration could render a more conversational nudge.
 - `Invoice.payment_failed` only re-syncs status; no email is sent yet (Stripe sends its own dunning emails by default — verify the Dashboard configuration before launch).
 - No annual plan, no gift codes, no proration UX beyond the Billing Portal default.
 

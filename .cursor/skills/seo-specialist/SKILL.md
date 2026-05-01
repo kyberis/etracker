@@ -188,7 +188,7 @@ AI search engines favour:
   con IA" beats "Bienvenido a Clara".
 - **Structured content** — headings, lists, definition lists, tables.
 - **Factual specifics** — pricing (free / open source MIT), supported
-  banks (GoCardless EU coverage), supported channels (web, WhatsApp).
+  channels (web, Telegram).
 - **Complete FAQ answers** that stand alone.
 - **Consistent JSON-LD** matching rendered DOM.
 

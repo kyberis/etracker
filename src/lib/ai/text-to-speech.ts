@@ -1,5 +1,5 @@
 /**
- * OpenAI speech API for WhatsApp voice-note replies (same API key as chat).
+ * OpenAI speech API for Telegram voice-note replies (same API key as chat).
  * Locale-aware voice instructions:
  *  - `es` → rioplatense Spanish accent (Argentina/Uruguay).
  *  - `en` → neutral conversational US English.

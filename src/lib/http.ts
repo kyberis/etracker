@@ -21,10 +21,6 @@ const BUSINESS_ERRORS: Record<string, { status: number; message: string }> = {
     message: "The source month does not exist or is not set up yet.",
   },
   NO_RECORD: { status: 404, message: "El mes no está configurado aún." },
-  GOCARDLESS_MISSING_SECRETS: {
-    status: 503,
-    message: "GoCardless no está configurado en el servidor.",
-  },
 };
 
 type ApiHandler<T> = () => Promise<T>;

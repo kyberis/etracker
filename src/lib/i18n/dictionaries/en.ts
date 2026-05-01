@@ -53,6 +53,7 @@ export const en: Dict = {
     nav: {
       banks: "Banks",
       expenses: "Templates",
+      savings: "Savings",
       settings: "Settings",
       about: "About Clara",
       admin: "Admin",
@@ -165,19 +166,19 @@ export const en: Dict = {
       titlePart1: "Your money",
       titleHighlight: "clear",
       titlePart2: ", in five minutes.",
-      body: "Sign up, optionally connect your bank or WhatsApp, and Clara takes care of the rest.",
+      body: "Sign up, optionally link Telegram, and Clara takes care of the rest.",
       register: "Start free",
       faq: "Got questions?",
     },
     metaTitle: "Clara — your AI financial assistant",
     metaDescription:
-      "Your AI money coach. Chat with your money: PDFs, voice notes, Open Banking. Open source MIT, self-hostable, with an MCP server to plug into Claude, ChatGPT and Cursor.",
+      "Your AI money coach. Chat with your money: PDFs, voice notes, Telegram. Open source MIT, self-hostable, with an MCP server to plug into Claude, ChatGPT and Cursor.",
   },
 
   marketingFeaturesPage: {
     metaTitle: "Features",
     metaDescription:
-      "Everything Clara can do for your money: AI chat, PDFs, voice notes, Open Banking, MCP and more.",
+      "Everything Clara can do for your money: AI chat, PDFs, voice notes, Telegram, MCP and more.",
     chip: "Capabilities · Apr 2026",
     title1: "What",
     titleHighlight: "Clara does",
@@ -374,33 +375,16 @@ export const en: Dict = {
     currencyInvalid: "Enter a 3-letter ISO 4217 code (USD, ARS, EUR, …).",
     currencyError: "Could not save the currency.",
 
-    instructionsTitle: "Assistant & import instructions",
+    instructionsTitle: "Assistant instructions",
     instructionsDescription:
-      "Define rules in plain language: which Revolut transactions NOT to import (transfers between accounts, top-ups, etc.), how to categorize specific merchants, or conventions the assistant should use in chat and on bank photos. You can also ask the assistant to remember a preference; it will write it here.",
+      "Define rules in plain language: how to categorize specific merchants or conventions the assistant should use in chat and on bank photos. You can also ask the assistant to remember a preference; it will write it here.",
     instructionsPlaceholder:
-      'E.g.: Skip transfers to my USD account and "Top up" entries. Supermarkets always ALIMENTACION. Spotify and Netflix → SUSCRIPCIONES.',
+      "E.g.: Supermarkets always ALIMENTACION. Spotify and Netflix → SUSCRIPCIONES. Treat \"Uber\" as TRANSPORTE.",
     instructionsHint: "Up to 12,000 characters. Requires",
-    instructionsHintEnvSuffix: "on the server to apply rules during Revolut sync.",
+    instructionsHintEnvSuffix: "on the server so the assistant can apply rules.",
     instructionsSaveBtn: "Save instructions",
     instructionsSaved: "Instructions saved.",
     instructionsError: "Could not save.",
-
-    whatsappTitle: "WhatsApp Assistant",
-    whatsappDescription:
-      "Link your number to use the Clara assistant on WhatsApp: check your month, add expenses and send transaction photos for automatic registration.",
-    whatsappLinkedTo: (phone: string) => `Linked to ${phone}`,
-    whatsappUnlinkBtn: "Unlink",
-    whatsappUnlinkConfirm: "Unlink the WhatsApp number?",
-    whatsappUnlinkDone: "Number unlinked.",
-    whatsappPhoneLabel:
-      "WhatsApp number (international format, e.g. +5491112345678)",
-    whatsappGenerateCode: "Generate code",
-    whatsappPendingTitle: (code: string) => `Your code: ${code}`,
-    whatsappPendingHelp: (code: string) =>
-      `Open WhatsApp and send the assistant: LINK ${code}. The code expires in a few minutes.`,
-    whatsappStartError: "Could not start the linking flow.",
-    whatsappCodeGenerated:
-      "We generated a code. Send it via WhatsApp to the assistant to finish linking.",
 
     apiTokensTitle: "AI access (MCP)",
     apiTokensDescription:
@@ -426,25 +410,6 @@ export const en: Dict = {
     apiTokensExpired: " (expired)",
     apiTokensNeverUsed: "Never",
     apiTokensExpireDateLabel: "Expires (optional)",
-
-    revolutTitle: "Revolut connection",
-    revolutDescription:
-      "Connect your Revolut (UK / EU) account so Clara can import transactions at month close. Read-only — Clara never touches your money.",
-    revolutLinkAccount: "Link account",
-    revolutPending: "Connection pending — finish the authorization flow on Revolut.",
-    revolutLinked: (institution: string) => `Linked with ${institution}`,
-    revolutLastSync: (when: string) => `Last sync: ${when}`,
-    revolutNeverSynced: "Not synced yet.",
-    revolutDisconnect: "Disconnect",
-    revolutImport: "Import current month",
-    revolutImporting: "Importing…",
-    revolutDefaultBank: "Default bank when importing",
-    revolutDefaultBankSave: "Save",
-    revolutSelectInstitution: "Pick your bank",
-    revolutCountryLabel: "Country",
-    revolutLoadInstitutions: "Load banks",
-    revolutAuthorize: "Authorize on Revolut",
-    revolutSyncDone: "Sync complete.",
   },
 
   app: {
@@ -505,6 +470,12 @@ export const en: Dict = {
     indefinite: "indefinite",
   },
 
+  savings: {
+    pageTitle: "Savings",
+    pageDescription:
+      "Your global savings pile and every movement: monthly contributions, carried-over leftovers, debt coverage, and manual deposits or withdrawals.",
+  },
+
   month: {
     drawerTitle: "Month panel",
     summaryIncome: "Income",
@@ -516,8 +487,6 @@ export const en: Dict = {
     monthFor: (label: string) => `Month · ${label}`,
     addLine: "Add expense",
     addLineDialogTitle: "New expense",
-    importFromRevolut: "Import from Revolut",
-    importing: "Importing…",
     paid: "Paid",
     unpaid: "Pending",
     markPaid: "Mark as paid",
@@ -541,6 +510,19 @@ export const en: Dict = {
       `You closed ${prev} with ${amount} unspent. What do we do?`,
     carryoverAdd: "Add to income",
     carryoverAside: "Set aside as savings",
+    deficitTitle: "You closed in the red",
+    deficitBody: (amount: string, prev: string, savings: string) =>
+      `${prev} closed with a negative balance of ${amount}. You have ${savings} in savings. How do you want to handle it?`,
+    deficitCover: "Cover from savings",
+    deficitCarry: "Carry the debt to this month",
+    savingsCardTitle: "Savings contribution",
+    savingsCardEmpty: "No contribution logged this month.",
+    savingsAddBtn: "Log contribution",
+    savingsEditBtn: "Edit contribution",
+    savingsRemoveBtn: "Remove contribution",
+    savingsContributionDialogTitle: "Monthly savings contribution",
+    savingsContributionHint:
+      "Informational: declares how much you're dedicating to savings this month. Does NOT reduce the month's balance.",
   },
 
   chat: {

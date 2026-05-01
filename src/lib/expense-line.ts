@@ -3,8 +3,8 @@ import { Prisma } from "@prisma/client";
 /**
  * Hoy como `Date` UTC a medianoche. Es el default de `occurredOn` cuando el
  * que crea la línea no conoce la fecha real del gasto (cargas manuales por
- * chat, fotos, Revolut sin `bookingDate`, etc.). Lo dejamos sin hora para que
- * la deduplicación a nivel DB no varíe entre zonas horarias.
+ * chat, fotos, etc.). Lo dejamos sin hora para que la deduplicación a nivel
+ * DB no varíe entre zonas horarias.
  */
 export function todayUtcDate(): Date {
   const now = new Date();
@@ -38,7 +38,7 @@ export function parseIsoDate(input: string | undefined | null): Date | null {
 /**
  * `true` si el error es una violación de constraint único de Prisma (P2002).
  * La usamos para tratar duplicados como "ya estaba registrado" en flujos de
- * importación (Revolut, foto/CSV via agent) en vez de propagar 500 al usuario.
+ * importación (foto/CSV via agent) en vez de propagar 500 al usuario.
  */
 export function isUniqueViolation(error: unknown): boolean {
   return (

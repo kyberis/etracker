@@ -6,6 +6,28 @@ datasource db {
   provider = "postgresql"
 }
 
+/// Tipo de movimiento en la pila global de ahorros (`User.savings`).
+/// La pila es la suma firmada de todos los `SavingsMovement` del usuario.
+enum SavingsMovementKind {
+  /// Aporte mensual informativo: el usuario declara cuánto dedica a ahorro
+  /// para un mes dado. NO afecta el balance del mes (no se descuenta de
+  /// `MonthRecord.income` ni aparece como `MonthExpenseLine`); solo suma a
+  /// la pila. Único por (`userId`, `monthRecordId`).
+  MONTHLY_CONTRIBUTION
+  /// Sobrante del mes anterior derivado a ahorros via `applyPrevMonthLeftoverDecision`
+  /// con `mode = "setAside"`. Único por (`userId`, `monthRecordId`).
+  CARRYOVER_DEPOSIT
+  /// Salida (firmado negativo) que cubre el saldo negativo del mes anterior
+  /// cuando el usuario elige `coverFromSavings` al crear el mes siguiente.
+  DEBT_COVERAGE
+  /// Depósito ad-hoc: el usuario (o la IA) declara que mete plata a ahorro
+  /// fuera del flujo del mes. Editable y borrable.
+  MANUAL_DEPOSIT
+  /// Retiro ad-hoc: el usuario (o la IA) saca plata de ahorro por una razón
+  /// que no es cubrir deuda del mes anterior. Editable y borrable.
+  MANUAL_WITHDRAWAL
+}
+
 enum ExpenseCategory {
   VIVIENDA
   SERVICIOS
@@ -36,14 +58,16 @@ model User {
   accounts                 Account[]
   /// Admin flag: gates access to /admin and the user-management API.
   isAdmin                  Boolean             @default(false)
-  /// Soft-disable: when false, blocks login (web + Google) and the agent (chat + WhatsApp).
+  /// Soft-disable: when false, blocks login (web + Google) and the agent (chat + Telegram).
   isActive                 Boolean             @default(true)
-  /// Per-user daily cap for agent messages (chat web + WhatsApp combined). Editable by admins.
+  /// Per-user daily cap for agent messages (chat web + Telegram combined). Editable by admins.
   dailyAgentMessageLimit   Int                 @default(30)
   monthlyIncome            Decimal             @default(0) @db.Decimal(12, 2)
-  /// Pila acumulada de ahorros del usuario (en `primaryCurrency`). Crece cuando
-  /// al cierre de un mes con sobrante el usuario elige "dejar aparte" en lugar
-  /// de sumar al ingreso del mes siguiente.
+  /// Pila acumulada de ahorros del usuario (en `primaryCurrency`). Es un
+  /// cache denormalizado: el ledger inmutable vive en `SavingsMovement` y
+  /// este campo es la suma firmada de todos los movimientos del usuario.
+  /// Se mantiene sincronizado dentro de la misma transacción que inserta
+  /// el movimiento (ver `recordSavingsMovement` en `src/lib/savings.ts`).
   savings                  Decimal             @default(0) @db.Decimal(12, 2)
   /// ISO 4217 código (3 letras, mayúsculas). Moneda en la que se hacen las
   /// agregaciones (`MonthRecord.income`, totales por banco, balance, etc.).
@@ -53,10 +77,6 @@ model User {
   /// Marca cuándo el usuario (o el AI en su nombre) confirmó la moneda
   /// principal. Null = todavía no se confirmó; el agente debe preguntarla.
   primaryCurrencyConfirmedAt DateTime?
-  whatsappPhone            String?             @unique
-  whatsappVerifiedAt       DateTime?
-  whatsappLinkCode         String?
-  whatsappLinkCodeExpires  DateTime?
   /// Telegram identity once the user has linked the bot to this account. We
   /// key on `telegramUserId` (Telegram's stable numeric id) and remember the
   /// `chat_id` of the private chat so outbound messages don't need a lookup.
@@ -69,13 +89,12 @@ model User {
   /// for `start`, so we cannot use long signed tokens in deep links.
   telegramLinkCode         String?             @unique
   telegramLinkCodeExpires  DateTime?
-  /// Reglas del usuario para el asistente e importaciones (Revolut / fotos): qué no importar, categorías, etc.
+  /// Reglas del usuario para el asistente e importaciones (CSV / fotos): qué no importar, categorías, etc.
   expenseImportInstructions String?
   /// Marca cuándo se mostró por primera vez el mensaje de bienvenida del asistente. Null = todavía no se saludó.
   welcomedAt               DateTime?
   /// ISO-3166 alpha-2 (2 letras, mayúsculas) del país de residencia capturado
-  /// en el wizard de onboarding. Lo usamos para sugerir la moneda principal y,
-  /// más adelante, para semillar las instituciones de Revolut por país.
+  /// en el wizard de onboarding. Lo usamos para sugerir la moneda principal.
   country                  String?             @db.Char(2)
   /// Motivos por los que el usuario abre Clara (chips multi-select del wizard).
   /// Valores: `personal`, `couple_family`, `freelance`, `business`, `other`.
@@ -98,13 +117,11 @@ model User {
   expenses                 Expense[]
   monthRecords             MonthRecord[]
   monthExpenseLines        MonthExpenseLine[]
-  whatsappMessages         WhatsappMessage[]
   telegramMessages         TelegramMessage[]
   webChatMessages          WebChatMessage[]
   agentUsage               AgentMessageUsage[]
   agentModelUsage          AgentDailyModelUsage[]
   activeDays               DailyActiveUser[]
-  revolutConnection        RevolutConnection?
   apiTokens                ApiToken[]
   /// Stripe customer id (lazy: created on first checkout). Optional so
   /// self-hosters / users that never paid never get a customer record.
@@ -118,6 +135,7 @@ model User {
   donations                Donation[]
   featureFlagOverrides     FeatureFlagOverride[]
   passkeys                 Passkey[]
+  savingsMovements         SavingsMovement[]
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 }
@@ -198,21 +216,8 @@ model AgentMessageUsage {
   @@index([userId])
 }
 
-// Conversation history for the WhatsApp channel of the expense assistant.
-// We store a rolling window per user to give the agent context across messages.
-model WhatsappMessage {
-  id        String   @id @default(cuid())
-  userId    String
-  role      String   // "user" | "assistant"
-  text      String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-
-  @@index([userId, createdAt])
-}
-
-/// Conversation history for the Telegram channel. Mirrors `WhatsappMessage`
-/// but keeps `chatId` and `isGroup` so a future "Clara in groups" feature can
+/// Conversation history for the Telegram channel.
+/// We keep `chatId` and `isGroup` so a future "Clara in groups" feature can
 /// share the same table. Today the webhook only stores rows for private 1:1
 /// chats; group threads are dropped on the floor.
 model TelegramMessage {
@@ -233,8 +238,9 @@ model TelegramMessage {
 /// Conversation history for the web chat (`/app`). We persist the full
 /// `UIMessage.parts` array (`text`, `file`, `tool-*`, `dynamic-tool`) as JSON
 /// so the bubbles re-render identically when the user comes back later
-/// (including charts and image attachments). Separate from `WhatsappMessage`
-/// because that table only stores plain text for the WhatsApp channel.
+/// (including charts and image attachments). Separate from
+/// `TelegramMessage` because that table only stores plain text per channel
+/// turn.
 model WebChatMessage {
   id        String   @id @default(cuid())
   userId    String
@@ -295,6 +301,10 @@ model MonthRecord {
   carryoverDecidedAt  DateTime?
   user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   lines     MonthExpenseLine[]
+  /// Movimientos de la pila de ahorros vinculados a este mes (aporte mensual,
+  /// derivación de sobrante, cobertura de deuda). Borrarlos al borrar el mes
+  /// rompería el ledger; usamos `onDelete: SetNull` en la relación inversa.
+  savingsMovements SavingsMovement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -314,12 +324,12 @@ model MonthExpenseLine {
   templateId    String?
   bankId        String
   name          String
-  /// Fecha real del gasto (no la del bucket). Para Revolut: `bookingDate`
-  /// con fallback a `valueDate`; si la transacción está pending y no trae
-  /// fecha la registramos con HOY (UTC). Para entradas manuales por chat /
-  /// foto / formulario: HOY (UTC) salvo que el usuario indique otra fecha.
-  /// Solo guardamos la parte de fecha (sin hora) para que la deduplicación
-  /// sea determinística entre zonas horarias.
+  /// Fecha real del gasto (no la del bucket). Para imports CSV: la fecha
+  /// que venga en la fila (booking/value date); cuando no haya, HOY (UTC).
+  /// Para entradas manuales por chat / foto / formulario: HOY (UTC) salvo
+  /// que el usuario indique otra fecha. Solo guardamos la parte de fecha
+  /// (sin hora) para que la deduplicación sea determinística entre zonas
+  /// horarias.
   occurredOn    DateTime        @db.Date
   /// Monto en la moneda original de la línea (`currency`).
   amount        Decimal         @db.Decimal(12, 2)
@@ -351,32 +361,6 @@ model MonthExpenseLine {
   // `currency`) WHERE `templateId` IS NULL se crea con SQL en la migración
   // `20260429140000_expense_dedup` porque Prisma no expresa índices con
   // funciones ni parciales.
-}
-
-model RevolutConnection {
-  id                   String               @id @default(cuid())
-  userId               String               @unique
-  requisitionId        String               @unique
-  accountId            String?
-  institutionId        String
-  status               String               @default("PENDING")
-  lastSyncAt           DateTime?
-  defaultImportBankId  String?
-  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ignoredTxs           IgnoredTransaction[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model IgnoredTransaction {
-  id            String            @id @default(cuid())
-  connectionId  String
-  transactionId String
-  connection    RevolutConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  createdAt     DateTime          @default(now())
-
-  @@unique([connectionId, transactionId])
 }
 
 /// One-off donation made via Stripe Checkout. Persisted from the
@@ -423,6 +407,51 @@ model FeatureFlagOverride {
 
   @@unique([userId, key])
   @@index([key])
+}
+
+/// Ledger inmutable de movimientos de la pila global de ahorros del usuario.
+/// La columna `User.savings` es un cache denormalizado de `SUM(amount)` de
+/// los movimientos de cada usuario; se mantiene en sincronía dentro de la
+/// misma transacción que inserta/borra movimientos (`src/lib/savings.ts`).
+///
+/// Reglas:
+/// - `amount` es FIRMADO: positivo para depósitos (entran a la pila),
+///   negativo para retiros / cobertura de deuda.
+/// - `monthRecordId` es opcional. Movimientos manuales pueden no estar
+///   ligados a un mes; los movimientos derivados del flujo de cierre de mes
+///   (CARRYOVER_DEPOSIT, MONTHLY_CONTRIBUTION, DEBT_COVERAGE) están ligados
+///   al mes correspondiente para trazabilidad.
+/// - Hay a lo sumo un MONTHLY_CONTRIBUTION y un CARRYOVER_DEPOSIT por mes
+///   (índice único `(userId, monthRecordId, kind)`). Permite reemplazos
+///   re-creando la fila tras borrar la anterior dentro de una transacción.
+model SavingsMovement {
+  id            String              @id @default(cuid())
+  userId        String
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthRecordId String?
+  monthRecord   MonthRecord?        @relation(fields: [monthRecordId], references: [id], onDelete: SetNull)
+  kind          SavingsMovementKind
+  /// Monto firmado en `User.primaryCurrency`. Positivo = entra a la pila;
+  /// negativo = sale (retiro o cobertura de deuda).
+  amount        Decimal             @db.Decimal(12, 2)
+  /// Snapshot de la moneda principal del usuario al momento del movimiento.
+  /// Si el usuario cambia de moneda principal después, las cuentas viejas
+  /// no se reconvierten — quedan documentadas en su moneda original.
+  currency      String
+  note          String?
+  /// Fecha "lógica" del movimiento (UTC, sin hora). Default: hoy. Para
+  /// MONTHLY_CONTRIBUTION conviene usar el primer día del mes asociado.
+  occurredOn    DateTime            @db.Date
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([userId, occurredOn])
+  @@index([userId, monthRecordId])
+  /// Garantiza un solo MONTHLY_CONTRIBUTION y un solo CARRYOVER_DEPOSIT por
+  /// (usuario, mes). Movimientos manuales (MANUAL_*) y DEBT_COVERAGE pueden
+  /// no estar asociados a un mes (`monthRecordId NULL`); el índice único
+  /// no aplica con NULLs en Postgres, así que no los limita.
+  @@unique([userId, monthRecordId, kind], name: "uq_savings_one_per_kind_per_month")
 }
 
 /// WebAuthn / FIDO2 credential ("passkey") registered by a user. Sign-in
@@ -492,8 +521,7 @@ model ApiToken {
   @@index([userId])
 }
 
-/// Short-lived MP3 for WhatsApp voice replies (Twilio fetches URL once; row deleted after send).
-// Removed: `TtsAudioCache` was a workaround for serving OpenAI TTS MP3 to
-// Twilio. Migration `20260428220500_drop_tts_audio_cache` drops the table; we
-// now upload TTS to Vercel Blob (`src/lib/blob/tts.ts`) and pass the signed URL
-// straight to Twilio.
+// Removed: `TtsAudioCache` was an old workaround for serving OpenAI TTS
+// MP3 to a third-party service. Migration `20260428220500_drop_tts_audio_cache`
+// drops the table; we now upload TTS to Vercel Blob (`src/lib/blob/tts.ts`)
+// and serve the signed URL directly to the web client.

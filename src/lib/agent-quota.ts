@@ -3,7 +3,7 @@ import { log } from "@/lib/log";
 
 /**
  * Per-user, per-day quota for the AI agent. The same counter is shared
- * across the chat-web (`/api/chat`) and WhatsApp (`/api/webhooks/whatsapp`)
+ * across the chat-web (`/api/chat`) and Telegram (`/api/webhooks/telegram`)
  * channels so a user can't double their cap by switching surfaces.
  *
  * Hard-limit: `count` against `User.dailyAgentMessageLimit`.

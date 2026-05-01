@@ -17,13 +17,12 @@ For a specific feature, start at
 | **Banks** | Bank CRUD, multi-bank routing, default-bank logic, Runtime Cache | TBD |
 | **AI Agent** | Vercel AI SDK chat agent, tools, prompts, multi-step tool loop, voice transcription/TTS | [`engineer-integrations`](.cursor/skills/engineer-integrations/SKILL.md), [`ux-writer`](.cursor/skills/ux-writer/SKILL.md) |
 | **Imports** | PDF / image / CSV extraction, AI classifier, "always ask before changing" approval flow | [`engineer-integrations`](.cursor/skills/engineer-integrations/SKILL.md) |
-| **Open Banking** | GoCardless Bank Account Data API, sync per month, transaction matching | [`engineer-integrations`](.cursor/skills/engineer-integrations/SKILL.md), [`legal-advisor`](.cursor/skills/legal-advisor/SKILL.md) |
-| **WhatsApp** | Twilio inbound webhook, voice notes, link-code pairing, voice TTS replies | [`automated-user-comms`](.cursor/skills/automated-user-comms/SKILL.md) |
+| **Telegram** | Bot API webhook, voice notes, link-token pairing, in-chat replies | [`automated-user-comms`](.cursor/skills/automated-user-comms/SKILL.md) |
 | **MCP Servers** | Public `/api/mcp` (docs as resources/tools) + per-user `/api/mcp/user` (PAT-authenticated tools) | [`engineer-integrations`](.cursor/skills/engineer-integrations/SKILL.md) |
 | **SEO & Discovery** | Sitemaps, robots, JSON-LD, OG/Twitter, llms.txt, /.well-known/* | TBD |
 | **Marketing** | Public landing, features, FAQ, changelog, privacy — all in `(marketing)/[lang]/`. Single source: `src/lib/marketing-content.ts` (ES + EN) | TBD |
 | **Year Timeline** | Yearly view across months, Runtime Cache | TBD |
-| **Settings** | Profile, AI tokens (MCP PATs), bank prefs, WhatsApp pairing | TBD |
+| **Settings** | Profile, AI tokens (MCP PATs), bank prefs, Telegram pairing | TBD |
 | **Data Layer** | Prisma 7 + PostgreSQL 16, migrations, db client singleton | [`engineer-data`](.cursor/skills/engineer-data/SKILL.md) |
 | **Platform** | i18n (es-AR / en), SEO, withApi() wrapper, log.ts, rate limiting | — |
 
@@ -45,7 +44,7 @@ flowchart LR
 | **Types / validators** | [`src/lib/validators.ts`](src/lib/validators.ts), Zod schemas inline in routes | `MonthIdSchema`, `ExpenseLineSchema` |
 | **Config / env** | `.env.example`, env reads in providers | `DATABASE_URL`, `AI_MODEL`, `AI_GATEWAY_API_KEY` |
 | **DB** | [`src/lib/db.ts`](src/lib/db.ts) (singleton) + Prisma client | `prisma.month.findMany(...)` |
-| **Providers** | [`src/lib/ai/`](src/lib/ai), [`src/lib/revolut/`](src/lib/revolut), [`src/lib/whatsapp/`](src/lib/whatsapp), [`src/lib/blob/`](src/lib/blob), [`src/lib/cache/`](src/lib/cache) | AI Gateway client, GoCardless client, Twilio client, Vercel Blob, Runtime Cache |
+| **Providers** | [`src/lib/ai/`](src/lib/ai), [`src/lib/telegram/`](src/lib/telegram), [`src/lib/blob/`](src/lib/blob), [`src/lib/cache/`](src/lib/cache) | AI Gateway client, Telegram Bot API client, Vercel Blob, Runtime Cache |
 | **Services** | Loose in `src/lib/*.ts` | `month-bucket.ts`, `month-page-data.ts`, `year-timeline-data.ts` |
 | **API routes** | [`src/app/api/**/route.ts`](src/app/api) | Every handler wraps in `withApi()` from [`src/lib/http.ts`](src/lib/http.ts) |
 | **MCP tools** | [`src/lib/mcp/`](src/lib/mcp) | Tools are thin wrappers around services, not duplicates of business logic |
@@ -83,8 +82,6 @@ flowchart LR
   use `withApi()` and throw typed errors instead.
 - Direct `openai.chat.completions.create(...)` calls for assistant chat /
   classification — must go through the AI Gateway client in `src/lib/ai/`.
-- Code paths that write to a user's bank account or move money. Open Banking
-  is read-only by design.
 - Marketing copy or changelog entries duplicated outside
   `src/lib/marketing-content.ts`.
 
@@ -92,8 +89,8 @@ flowchart LR
 
 - Every API route parses input with Zod at the top.
 - Every external provider response is normalised in its provider module
-  (`src/lib/ai/`, `src/lib/revolut/`, etc.) before reaching services.
-- Every WhatsApp / GoCardless webhook validates signature before doing work.
+  (`src/lib/ai/`, `src/lib/telegram/`, etc.) before reaching services.
+- The Telegram webhook validates the secret token before doing work.
 
 ## Where to read next
 

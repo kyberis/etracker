@@ -16,8 +16,8 @@ const eslintConfig = defineConfig([
     "public/sw.js",
   ]),
   // Discourage stray console calls. Files that legitimately log
-  // (the AI logger, the WhatsApp/Twilio layer, the centralized log helper,
-  // and webhook routes) opt out below.
+  // (the AI logger, the centralized log helper, and webhook routes) opt
+  // out below.
   {
     rules: {
       "no-console": ["warn", { allow: ["warn", "error"] }],
@@ -27,7 +27,6 @@ const eslintConfig = defineConfig([
     files: [
       "src/lib/log.ts",
       "src/lib/ai/logger.ts",
-      "src/lib/whatsapp/twilio.ts",
       "src/app/api/webhooks/**/*.ts",
     ],
     rules: { "no-console": "off" },

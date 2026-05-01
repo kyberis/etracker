@@ -51,8 +51,8 @@
 
 New table `TelegramMessage`:
 
-- `userId`, `role` (`user` | `assistant`), `text` — same shape as
-  `WhatsappMessage`, last 12 turns are loaded as conversation history.
+- `userId`, `role` (`user` | `assistant`), `text`. Last 12 turns are
+  loaded as conversation history.
 - `chatId BigInt`, `isGroup Boolean @default(false)` — kept on the row so
   groups don't pollute the rolling private-chat context (today the loader
   filters with `isGroup = false`).
@@ -86,8 +86,8 @@ New table `TelegramMessage`:
 - The webhook **always** verifies the secret header before parsing JSON.
 - The deep-link token is **stateless** — no DB row exists for "pending links".
   Verification is HMAC-only with a 15-minute TTL embedded in the payload.
-- The Telegram channel uses the **same daily quota** as the web chat and
-  WhatsApp (`consumeAgentQuota(userId)`); a user can't double their cap by
+- The Telegram channel uses the **same daily quota** as the web chat
+  (`consumeAgentQuota(userId)`); a user can't double their cap by
   switching channels.
 - The agent receives `source: "telegram"` so the `feature:chat-telegram`
   Vercel AI Gateway tag distinguishes it in observability.
@@ -111,8 +111,8 @@ New table `TelegramMessage`:
   to handle authorization (only respond when the mentioning user is linked?
   or any group member?).
 - **Voice replies** (TTS) are not implemented — Telegram supports `voice`
-  uploads via `sendVoice`, mirroring the WhatsApp flag would be a small
-  follow-up.
+  uploads via `sendVoice`; a small follow-up could wire the existing
+  OpenAI TTS pipeline through `sendVoice`.
 - **Trefolio / Warren** does not yet have a parallel Telegram channel. The
   refactor is described in
   [`design-docs/telegram-deep-link-tokens.md`](../design-docs/telegram-deep-link-tokens.md).
@@ -123,6 +123,4 @@ New table `TelegramMessage`:
 ## Related
 
 - Design doc: [`knowledge/design-docs/telegram-deep-link-tokens.md`](../design-docs/telegram-deep-link-tokens.md)
-- Sister spec: [`whatsapp`](#whatsapp) (suggested) — Twilio implementation, same
-  agent core.
 - Operating manual: [`AGENTS.md`](../../AGENTS.md) (`lib/telegram/` entry).

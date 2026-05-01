@@ -1,6 +1,8 @@
+import { SavingsMovementKind } from "@prisma/client";
+
 import { getBanksCached } from "@/lib/cache/banks";
 import {
-  getPrevMonthLeftover,
+  getPrevMonthBalance,
   listPendingTemplateExpensesForMonth,
 } from "@/lib/month-bucket";
 import { formatMonthKey, isCurrentMonthKey, parseMonthKey, toMonthStart } from "@/lib/months";
@@ -12,7 +14,7 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
   const monthStart = parseMonthKey(monthKey);
   const monthForQuery = toMonthStart(monthStart);
 
-  const [user, monthRecord, banks, incomeHistory, revolutConnection] = await Promise.all([
+  const [user, monthRecord, banks, incomeHistory] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
       select: { monthlyIncome: true, primaryCurrency: true, savings: true },
@@ -36,10 +38,6 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
       take: 12,
       select: { month: true, income: true },
     }),
-    db.revolutConnection.findUnique({
-      where: { userId },
-      select: { status: true, accountId: true, defaultImportBankId: true },
-    }),
   ]);
 
   const defaultIncome = user ? Number(user.monthlyIncome) : 0;
@@ -51,11 +49,6 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
   }));
 
   const isCurrentMonth = isCurrentMonthKey(monthKey);
-
-  const revolutState = {
-    linked: Boolean(revolutConnection?.accountId),
-    defaultImportBankId: revolutConnection?.defaultImportBankId ?? null,
-  };
 
   if (!monthRecord) {
     return {
@@ -117,11 +110,13 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
   // months shouldn't reopen a decision that belongs to "today".
   let carryoverPrompt: CarryoverPrompt | null = null;
   if (isCurrentMonth && monthRecord.carryoverDecidedAt === null) {
-    const leftover = await getPrevMonthLeftover(userId, monthForQuery);
-    if (leftover) {
+    const prev = await getPrevMonthBalance(userId, monthForQuery);
+    if (prev && prev.amount !== 0) {
       carryoverPrompt = {
-        prevMonth: leftover.prevMonthKey,
-        amount: leftover.amount,
+        type: prev.amount > 0 ? "leftover" : "deficit",
+        prevMonth: prev.prevMonthKey,
+        amount: Math.abs(prev.amount),
+        savings,
       };
     }
   }
@@ -136,6 +131,17 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     monthKey,
     existingTemplateIds,
   );
+
+  // Aporte mensual a ahorro (informativo): si existe, lo exponemos para
+  // que la UI pueda mostrarlo como badge en el card de ahorros.
+  const monthlyContribution = await db.savingsMovement.findFirst({
+    where: {
+      userId,
+      monthRecordId: monthRecord.id,
+      kind: SavingsMovementKind.MONTHLY_CONTRIBUTION,
+    },
+    select: { id: true, amount: true, note: true, occurredOn: true },
+  });
 
   return {
     month: monthKey,
@@ -159,6 +165,13 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     expenses,
     banks: banks.map((b) => ({ id: b.id, name: b.name })),
     pendingFromTemplates,
-    revolut: revolutState,
+    monthlySavingsContribution: monthlyContribution
+      ? {
+          id: monthlyContribution.id,
+          amount: Number(monthlyContribution.amount),
+          note: monthlyContribution.note,
+          occurredOn: monthlyContribution.occurredOn.toISOString().slice(0, 10),
+        }
+      : null,
   };
 }

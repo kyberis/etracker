@@ -138,7 +138,7 @@ DB change checklist
 
 ## Coordination
 
-- For provider-side data shape (GoCardless, Twilio, AI Gateway): see
+- For provider-side data shape (Telegram, AI Gateway): see
   [`engineer-integrations`](../engineer-integrations/SKILL.md).
 - For privacy / retention questions when adding a new field that stores
   user data: see [`legal-advisor`](../legal-advisor/SKILL.md).

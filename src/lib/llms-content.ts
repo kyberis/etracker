@@ -12,7 +12,7 @@ const STRINGS = {
     docsHeading: "Documentación principal",
     aboutLine: "[Sobre Clara]({about}): historia, equipo (Trefolio), filosofía y origen del nombre.",
     featuresLine:
-      "[Features]({features}): lista detallada de capacidades — chat multimodal, Open Banking, WhatsApp, MCP, self-hosting.",
+      "[Features]({features}): lista detallada de capacidades — chat multimodal, Telegram, MCP, self-hosting.",
     faqLine:
       "[FAQ]({faq}): preguntas frecuentes sobre privacidad, costo, bancos soportados e integraciones AI.",
     changelogLine: "[Changelog]({changelog}): historial de releases con SemVer.",
@@ -52,9 +52,8 @@ const STRINGS = {
       "Vercel AI SDK v6 + Vercel AI Gateway (multi-provider, zero data retention)",
       "NextAuth (credentials + Google OAuth)",
       "Vercel Blob para archivos",
-      "Twilio para WhatsApp (texto, imágenes, voz)",
+      "Telegram Bot API (texto, imágenes, voz)",
       "Whisper para transcripción de voz, OpenAI TTS para respuesta en audio",
-      "GoCardless Bank Account Data para Open Banking",
     ],
     supportHeading: "Soporte",
     supportLines: [
@@ -72,7 +71,7 @@ const STRINGS = {
     docsHeading: "Main documentation",
     aboutLine: "[About Clara]({about}): story, team (Trefolio), philosophy and origin of the name.",
     featuresLine:
-      "[Features]({features}): detailed capabilities — multimodal chat, Open Banking, WhatsApp, MCP, self-hosting.",
+      "[Features]({features}): detailed capabilities — multimodal chat, Telegram, MCP, self-hosting.",
     faqLine:
       "[FAQ]({faq}): frequently asked questions about privacy, cost, supported banks, and AI integrations.",
     changelogLine: "[Changelog]({changelog}): release history with SemVer.",
@@ -112,9 +111,8 @@ const STRINGS = {
       "Vercel AI SDK v6 + Vercel AI Gateway (multi-provider, zero data retention)",
       "NextAuth (credentials + Google OAuth)",
       "Vercel Blob for files",
-      "Twilio for WhatsApp (text, images, voice)",
+      "Telegram Bot API (text, images, voice)",
       "Whisper for voice transcription, OpenAI TTS for audio replies",
-      "GoCardless Bank Account Data for Open Banking",
     ],
     supportHeading: "Support",
     supportLines: [

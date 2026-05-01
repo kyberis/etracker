@@ -37,7 +37,7 @@ const COPY: Record<Locale, {
     intro:
       "El plan gratuito incluye 30 consultas con Clara por día. Si te queda corto y querés ayudar a mantener la infraestructura, hay dos formas:",
     benefits: [
-      "200 consultas con Clara por día (chat web y WhatsApp combinados).",
+      "200 consultas con Clara por día (chat web y Telegram combinados).",
       "Mismo agente, misma personalidad. Solo más cupo.",
       "Cancelás cuando quieras desde Configuración → Suscripción.",
     ],
@@ -60,7 +60,7 @@ const COPY: Record<Locale, {
     intro:
       "The free plan includes 30 Clara queries per day. If that's too tight and you want to help cover infrastructure, here are two ways:",
     benefits: [
-      "200 Clara queries per day (web chat and WhatsApp combined).",
+      "200 Clara queries per day (web chat and Telegram combined).",
       "Same agent, same personality. Just more headroom.",
       "Cancel anytime from Settings → Subscription.",
     ],
@@ -97,7 +97,7 @@ export function generateStaticParams() {
 }
 
 /**
- * Public marketing page for the Supporter tier. Linked from the WhatsApp
+ * Public marketing page for the Supporter tier. Linked from the in-chat
  * fallback message and from external channels. Hidden (404) when the
  * upsell isn't active globally so we don't dangle a marketing page that
  * leads nowhere.

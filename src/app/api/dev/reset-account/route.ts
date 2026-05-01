@@ -28,10 +28,9 @@ export async function POST() {
       db.monthRecord.deleteMany({ where: { userId } }),
       db.expense.deleteMany({ where: { userId } }),
       db.bank.deleteMany({ where: { userId } }),
-      db.whatsappMessage.deleteMany({ where: { userId } }),
       db.webChatMessage.deleteMany({ where: { userId } }),
+      db.telegramMessage.deleteMany({ where: { userId } }),
       db.agentMessageUsage.deleteMany({ where: { userId } }),
-      db.revolutConnection.deleteMany({ where: { userId } }),
       db.user.update({
         where: { id: userId },
         data: {

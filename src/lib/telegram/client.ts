@@ -1,7 +1,6 @@
 /**
  * Thin wrapper over the Telegram Bot API used by the inbound webhook and the
- * outbound reply path. Mirrors the shape of `lib/whatsapp/twilio.ts` (small,
- * dependency-free, throws on missing env) so the two channels feel familiar.
+ * outbound reply path. Small, dependency-free, throws on missing env.
  *
  * Auth model: Telegram authenticates outbound calls with the bot token in the
  * URL (`/bot<token>/...`) and authenticates the webhook by sending back the
@@ -83,8 +82,7 @@ async function callTelegram<T>(
 
 /**
  * Send a plain-text Telegram message. Telegram caps each message at 4096
- * chars; we segment the input the same way the Twilio client does so long
- * AI replies still arrive.
+ * chars; we segment the input so long AI replies still arrive.
  */
 export async function sendTelegramMessage(
   chatId: number | bigint,
@@ -242,7 +240,7 @@ export async function sendTelegramHtmlMessage(
   }
 }
 
-/** Chart PNG URLs first (same pipeline as WhatsApp), then HTML prose. */
+/** Chart PNG URLs first, then HTML prose. */
 export async function sendTelegramChartsThenHtmlMessage(
   chatId: number | bigint,
   opts: {

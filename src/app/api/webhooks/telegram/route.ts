@@ -145,8 +145,7 @@ export async function POST(request: Request) {
   // `waitUntil()` proved unreliable for our Telegram pipeline: production logs
   // showed only `telegram.inbound` with HTTP 200 and *zero* follow-up logs or
   // outbound replies for linked users (the scheduled work never ran or logs
-  // never flushed). The WhatsApp webhook documents the same class of issue for
-  // unfenced async work (whatsapp/route.ts).
+  // never flushed).
   //
   // So we **await the entire dispatch**, including the AI agent for linked
   // users, before returning `{ ok: true }`. Telegram tolerates slow webhook

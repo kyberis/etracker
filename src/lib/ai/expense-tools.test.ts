@@ -34,6 +34,25 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/savings", () => ({
+  getSavingsState: vi.fn(),
+  recordSavingsMovement: vi.fn(),
+  setMonthlySavingsContribution: vi.fn(),
+  removeMonthlySavingsContribution: vi.fn(),
+}));
+
+vi.mock("@/lib/month-bucket", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/month-bucket")>(
+      "@/lib/month-bucket",
+    );
+  return {
+    ...actual,
+    applyPrevMonthLeftoverDecision: vi.fn(),
+    mergePendingTemplateLinesIntoMonth: vi.fn(),
+  };
+});
+
 vi.mock("@/lib/cache/banks", () => ({
   getBanksCached: vi.fn(),
   invalidateBanksCache: vi.fn().mockResolvedValue(undefined),
@@ -57,6 +76,13 @@ import { db } from "@/lib/db";
 import { invalidateBanksCache } from "@/lib/cache/banks";
 import { FxUnavailableError, fetchFxRate } from "@/lib/fx/rates";
 import { expireYearTimeline } from "@/lib/year-timeline-data";
+import {
+  getSavingsState,
+  recordSavingsMovement,
+  removeMonthlySavingsContribution,
+  setMonthlySavingsContribution,
+} from "@/lib/savings";
+import { applyPrevMonthLeftoverDecision } from "@/lib/month-bucket";
 
 const USER_ID = "user_1";
 const OTHER_USER = "user_2";
@@ -427,5 +453,269 @@ describe("cross-user safety", () => {
     expect(db.bank.create).toHaveBeenCalledWith({
       data: { userId: OTHER_USER, name: "Other", color: null },
     });
+  });
+});
+
+// ── savings tools ───────────────────────────────────────────────────────────
+
+describe("getSavingsState (agent tool)", () => {
+  it("delegates to the savings service with the bound user and includes a summaryText", async () => {
+    vi.mocked(getSavingsState).mockResolvedValue({
+      balance: 1234.5,
+      currency: "EUR",
+      movements: [
+        {
+          id: "mv_1",
+          kind: "MANUAL_DEPOSIT" as never,
+          amount: 1234.5,
+          currency: "EUR",
+          note: null,
+          monthRecordId: null,
+          monthKey: null,
+          occurredOn: "2026-04-15",
+          createdAt: "2026-04-15T00:00:00.000Z",
+        },
+      ],
+    });
+    const result = await tools().getSavingsState.execute!({}, execOpts);
+    expect(getSavingsState).toHaveBeenCalledWith(USER_ID, { limit: 20 });
+    expect(result).toMatchObject({
+      balance: 1234.5,
+      currency: "EUR",
+      summaryText: expect.stringContaining("EUR"),
+    });
+  });
+});
+
+describe("addSavingsMovement (agent tool)", () => {
+  it("blocks MANUAL_WITHDRAWAL when the pile is shorter than the requested amount", async () => {
+    vi.mocked(db.user.findUnique).mockResolvedValue({
+      primaryCurrency: "EUR",
+      savings: new Prisma.Decimal("10"),
+    } as never);
+    const result = await tools().addSavingsMovement.execute!(
+      { kind: "MANUAL_WITHDRAWAL", amount: 50 },
+      execOpts,
+    );
+    expect(result).toMatchObject({ error: expect.stringContaining("no alcanza") });
+    expect(recordSavingsMovement).not.toHaveBeenCalled();
+  });
+
+  it("records a deposit with a positive signed amount under the bound user", async () => {
+    vi.mocked(db.user.findUnique).mockResolvedValue({
+      primaryCurrency: "EUR",
+      savings: new Prisma.Decimal("0"),
+    } as never);
+    vi.mocked(recordSavingsMovement).mockResolvedValue({
+      movement: {
+        id: "mv_x",
+        kind: "MANUAL_DEPOSIT",
+        amount: new Prisma.Decimal("75.00"),
+        currency: "EUR",
+        note: null,
+        monthRecordId: null,
+        userId: USER_ID,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        occurredOn: new Date(Date.UTC(2026, 4, 1)),
+      } as never,
+      balance: 75,
+    });
+
+    const result = await tools().addSavingsMovement.execute!(
+      { kind: "MANUAL_DEPOSIT", amount: 75 },
+      execOpts,
+    );
+    const arg = vi.mocked(recordSavingsMovement).mock.calls[0][0];
+    expect(arg.userId).toBe(USER_ID);
+    expect(arg.kind).toBe("MANUAL_DEPOSIT");
+    expect(Number(arg.amount)).toBe(75);
+    expect(result).toMatchObject({ ok: true, balance: 75 });
+  });
+
+  it("flips the sign for MANUAL_WITHDRAWAL when the pile is enough", async () => {
+    vi.mocked(db.user.findUnique).mockResolvedValue({
+      primaryCurrency: "EUR",
+      savings: new Prisma.Decimal("100"),
+    } as never);
+    vi.mocked(recordSavingsMovement).mockResolvedValue({
+      movement: {
+        id: "mv_x",
+        kind: "MANUAL_WITHDRAWAL",
+        amount: new Prisma.Decimal("-30.00"),
+        currency: "EUR",
+        note: null,
+        monthRecordId: null,
+        userId: USER_ID,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        occurredOn: new Date(Date.UTC(2026, 4, 1)),
+      } as never,
+      balance: 70,
+    });
+
+    await tools().addSavingsMovement.execute!(
+      { kind: "MANUAL_WITHDRAWAL", amount: 30 },
+      execOpts,
+    );
+    const arg = vi.mocked(recordSavingsMovement).mock.calls[0][0];
+    expect(Number(arg.amount)).toBe(-30);
+  });
+});
+
+describe("setMonthlySavingsContribution (agent tool)", () => {
+  it("rejects when the month is not configured", async () => {
+    vi.mocked(db.user.findUnique).mockResolvedValue({
+      primaryCurrency: "EUR",
+    } as never);
+    vi.mocked(db.monthRecord.findFirst).mockResolvedValue(null);
+    const result = await tools().setMonthlySavingsContribution.execute!(
+      { month: "2026-05", amount: 100 },
+      execOpts,
+    );
+    expect(result).toMatchObject({ error: expect.stringContaining("createMonthIfNeeded") });
+    expect(setMonthlySavingsContribution).not.toHaveBeenCalled();
+  });
+
+  it("upserts the contribution and reports replaced/balance back to the agent", async () => {
+    vi.mocked(db.user.findUnique).mockResolvedValue({
+      primaryCurrency: "EUR",
+    } as never);
+    vi.mocked(db.monthRecord.findFirst).mockResolvedValue({
+      id: "mr_1",
+    } as never);
+    vi.mocked(setMonthlySavingsContribution).mockResolvedValue({
+      movement: {
+        id: "mv_x",
+        amount: new Prisma.Decimal("250.00"),
+      } as never,
+      balance: 250,
+      replaced: true,
+    });
+
+    const result = await tools().setMonthlySavingsContribution.execute!(
+      { month: "2026-05", amount: 250 },
+      execOpts,
+    );
+    expect(setMonthlySavingsContribution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: USER_ID,
+        monthRecordId: "mr_1",
+        currency: "EUR",
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      replaced: true,
+      balance: 250,
+      month: "2026-05",
+      amount: 250,
+    });
+  });
+});
+
+describe("removeMonthlySavingsContribution (agent tool)", () => {
+  it("returns error when the month is not configured", async () => {
+    vi.mocked(db.monthRecord.findFirst).mockResolvedValue(null);
+    const result = await tools().removeMonthlySavingsContribution.execute!(
+      { month: "2026-05" },
+      execOpts,
+    );
+    expect(result).toMatchObject({ error: expect.any(String) });
+    expect(removeMonthlySavingsContribution).not.toHaveBeenCalled();
+  });
+
+  it("delegates to the service and propagates removed/balance", async () => {
+    vi.mocked(db.monthRecord.findFirst).mockResolvedValue({
+      id: "mr_1",
+    } as never);
+    vi.mocked(removeMonthlySavingsContribution).mockResolvedValue({
+      removed: true,
+      balance: 0,
+    });
+    const result = await tools().removeMonthlySavingsContribution.execute!(
+      { month: "2026-05" },
+      execOpts,
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      removed: true,
+      balance: 0,
+      month: "2026-05",
+    });
+  });
+});
+
+describe("applyPrevMonthLeftover (agent tool, deficit modes)", () => {
+  it("accepts coverFromSavings and propagates covered/remainingDebt", async () => {
+    vi.mocked(applyPrevMonthLeftoverDecision).mockResolvedValue({
+      type: "applied",
+      mode: "coverFromSavings",
+      leftover: -100,
+      covered: 60,
+      remainingDebt: 40,
+    });
+    const result = await tools().applyPrevMonthLeftover.execute!(
+      { month: "2026-05", mode: "coverFromSavings" },
+      execOpts,
+    );
+    expect(applyPrevMonthLeftoverDecision).toHaveBeenCalledWith(
+      USER_ID,
+      "2026-05",
+      "coverFromSavings",
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      applied: true,
+      mode: "coverFromSavings",
+      leftover: -100,
+      covered: 60,
+      remainingDebt: 40,
+    });
+  });
+
+  it("accepts carryDebt and surfaces the remainingDebt", async () => {
+    vi.mocked(applyPrevMonthLeftoverDecision).mockResolvedValue({
+      type: "applied",
+      mode: "carryDebt",
+      leftover: -200,
+      remainingDebt: 200,
+    });
+    const result = await tools().applyPrevMonthLeftover.execute!(
+      { month: "2026-05", mode: "carryDebt" },
+      execOpts,
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      applied: true,
+      mode: "carryDebt",
+      leftover: -200,
+      remainingDebt: 200,
+    });
+  });
+
+  it("returns a rioplatense error when the chosen mode does not match the sign of the leftover", async () => {
+    vi.mocked(applyPrevMonthLeftoverDecision).mockResolvedValue({
+      type: "modeMismatch",
+      expected: "deficit",
+    });
+    const result = await tools().applyPrevMonthLeftover.execute!(
+      { month: "2026-05", mode: "setAside" },
+      execOpts,
+    );
+    expect(result).toMatchObject({
+      error: expect.stringContaining("deuda"),
+    });
+  });
+
+  it("rejects unknown modes via the input schema", () => {
+    const schema = (
+      tools().applyPrevMonthLeftover as unknown as {
+        inputSchema: import("zod").ZodTypeAny;
+      }
+    ).inputSchema;
+    expect(schema.safeParse({ mode: "bogus" }).success).toBe(false);
+    expect(schema.safeParse({ mode: "coverFromSavings" }).success).toBe(true);
+    expect(schema.safeParse({ mode: "carryDebt" }).success).toBe(true);
   });
 });

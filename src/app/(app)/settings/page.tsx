@@ -12,7 +12,7 @@ import { requireUserId } from "@/lib/session";
 async function loadSettingsData() {
   const userId = await requireUserId();
   const now = new Date();
-  const [user, banks, revolutConnection, apiTokens, donationCount, upsellOn, passkeys] =
+  const [user, apiTokens, donationCount, upsellOn, passkeys] =
     await Promise.all([
     db.user.findUnique({
       where: { id: userId },
@@ -23,10 +23,6 @@ async function loadSettingsData() {
         primaryCurrency: true,
         primaryCurrencyConfirmedAt: true,
         locale: true,
-        whatsappPhone: true,
-        whatsappVerifiedAt: true,
-        whatsappLinkCode: true,
-        whatsappLinkCodeExpires: true,
         telegramUserId: true,
         telegramUsername: true,
         telegramVerifiedAt: true,
@@ -37,21 +33,6 @@ async function loadSettingsData() {
         subscriptionCurrentPeriodEnd: true,
         dailyAgentMessageLimit: true,
         accounts: { select: { provider: true } },
-      },
-    }),
-    db.bank.findMany({
-      where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    db.revolutConnection.findUnique({
-      where: { userId },
-      select: {
-        status: true,
-        institutionId: true,
-        accountId: true,
-        lastSyncAt: true,
-        defaultImportBankId: true,
       },
     }),
     db.apiToken.findMany({
@@ -87,17 +68,10 @@ async function loadSettingsData() {
     throw new Error("User not found.");
   }
 
-  const waPending =
-    user.whatsappLinkCode &&
-    user.whatsappLinkCodeExpires &&
-    user.whatsappLinkCodeExpires > now;
-
   const tgPending =
     user.telegramLinkCode &&
     user.telegramLinkCodeExpires &&
     user.telegramLinkCodeExpires > now;
-
-  const linked = Boolean(revolutConnection?.accountId);
 
   return {
     initialUser: {
@@ -108,16 +82,6 @@ async function loadSettingsData() {
       primaryCurrencyConfirmedAt: user.primaryCurrencyConfirmedAt?.toISOString() ?? null,
       locale: isLocale(user.locale) ? user.locale : "es",
       linkedProviders: user.accounts.map((a) => a.provider),
-    },
-    initialWhatsapp: {
-      phone: user.whatsappVerifiedAt ? user.whatsappPhone : null,
-      verifiedAt: user.whatsappVerifiedAt
-        ? user.whatsappVerifiedAt.toISOString()
-        : null,
-      pendingCode: waPending ? user.whatsappLinkCode : null,
-      pendingExpiresAt: waPending
-        ? user.whatsappLinkCodeExpires!.toISOString()
-        : null,
     },
     initialTelegram: {
       linked: Boolean(user.telegramVerifiedAt),
@@ -135,17 +99,6 @@ async function loadSettingsData() {
         ? user.telegramLinkCodeExpires!.toISOString()
         : null,
     },
-    initialBanks: banks.map((b) => ({ id: b.id, name: b.name })),
-    initialRevolut: revolutConnection
-      ? ({
-          connected: true as const,
-          linked,
-          pending: !linked,
-          institutionId: revolutConnection.institutionId,
-          lastSyncAt: revolutConnection.lastSyncAt?.toISOString() ?? null,
-          defaultImportBankId: revolutConnection.defaultImportBankId,
-        } as const)
-      : ({ connected: false as const } as const),
     initialApiTokens: apiTokens.map((t) => ({
       id: t.id,
       name: t.name,
@@ -206,10 +159,7 @@ export default async function SettingsPage() {
       ) : null}
       <SettingsManager
         initialUser={data.initialUser}
-        initialWhatsapp={data.initialWhatsapp}
         initialTelegram={data.initialTelegram}
-        initialBanks={data.initialBanks}
-        initialRevolut={data.initialRevolut}
         initialApiTokens={data.initialApiTokens}
         initialPasskeys={data.initialPasskeys}
         googleAuthConfigured={isGoogleAuthConfigured()}

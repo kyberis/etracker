@@ -1,8 +1,17 @@
-import { type Expense, type ExpenseCategory, Prisma } from "@prisma/client";
+import {
+  type Expense,
+  type ExpenseCategory,
+  Prisma,
+  SavingsMovementKind,
+} from "@prisma/client";
 
 import { db } from "@/lib/db";
 import type { PendingTemplateExpense } from "@/lib/month-page-types";
 import { expenseAppliesToMonth, parseMonthKey, toMonthStart } from "@/lib/months";
+import {
+  coverMonthDebt as coverMonthDebtFromSavingsService,
+  recordSavingsMovement,
+} from "@/lib/savings";
 
 type LineInput = {
   templateId: string | null;
@@ -174,19 +183,28 @@ export async function findPreviousMonthWithRecord(userId: string, beforeMonth: D
 }
 
 /**
- * Real cash leftover from the most recent previous month with a record.
- * Defined as `(income + carryoverFromPrev) − sum(paid line.amountConverted)`,
- * so it represents money that came in but was not actually spent. Returns
- * `null` when there is no previous month or the leftover is ≤ 0.
+ * Saldo de caja firmado del mes anterior con registro:
+ * `(income + carryoverFromPrev) − sum(paid line.amountConverted)`.
+ *
+ * Positivo → sobró plata (decisión "qué hacer con el sobrante").
+ * Negativo → cerró en rojo (decisión "cubrir con ahorro o arrastrar deuda").
+ * Cero → no hay decisión que tomar.
+ *
+ * Devuelve `null` cuando no hay mes previo con registro.
  */
-export async function getPrevMonthLeftover(
+export async function getPrevMonthBalance(
   userId: string,
   currentMonth: Date,
-): Promise<{ prevMonthKey: string; amount: number } | null> {
+): Promise<{
+  prevMonthKey: string;
+  prevMonthRecordId: string;
+  amount: number;
+} | null> {
   const prev = await db.monthRecord.findFirst({
     where: { userId, month: { lt: toMonthStart(currentMonth) } },
     orderBy: { month: "desc" },
     select: {
+      id: true,
       month: true,
       income: true,
       carryoverFromPrev: true,
@@ -200,44 +218,92 @@ export async function getPrevMonthLeftover(
     (sum, line) => (line.paid ? sum + Number(line.amountConverted) : sum),
     0,
   );
-  const amount = available - paid;
-  if (amount <= 0) return null;
-
   return {
     prevMonthKey: `${prev.month.getUTCFullYear()}-${String(prev.month.getUTCMonth() + 1).padStart(2, "0")}`,
-    amount,
+    prevMonthRecordId: prev.id,
+    amount: available - paid,
   };
 }
 
 /**
- * Apply the user's decision about the previous month's leftover to the
- * current month. `addToIncome` bumps `MonthRecord.carryoverFromPrev`; `setAside`
- * accumulates into `User.savings`. Either way `carryoverDecidedAt` is set so
- * the prompt never reappears for this month.
+ * Compatibilidad histórica: solo devuelve el sobrante POSITIVO del mes
+ * anterior (`null` cuando es ≤ 0). Se mantiene para callers que solo se
+ * preocupan del flujo "hubo sobrante". Para flujos que también manejan
+ * el caso negativo (cobertura desde ahorro) usar `getPrevMonthBalance`.
+ */
+export async function getPrevMonthLeftover(
+  userId: string,
+  currentMonth: Date,
+): Promise<{ prevMonthKey: string; amount: number } | null> {
+  const balance = await getPrevMonthBalance(userId, currentMonth);
+  if (!balance || balance.amount <= 0) return null;
+  return { prevMonthKey: balance.prevMonthKey, amount: balance.amount };
+}
+
+export type CarryoverDecisionMode =
+  | "addToIncome"
+  | "setAside"
+  | "coverFromSavings"
+  | "carryDebt";
+
+export type CarryoverDecisionResult =
+  | {
+      type: "applied";
+      mode: CarryoverDecisionMode;
+      /** Sobrante firmado del mes anterior. Positivo = sobró; negativo = deuda. */
+      leftover: number;
+      /** Cuánto se cubrió desde ahorros (solo `coverFromSavings`). */
+      covered?: number;
+      /** Deuda neta arrastrada al mes actual (≥ 0). */
+      remainingDebt?: number;
+    }
+  | { type: "alreadyDecided" }
+  | { type: "noLeftover" }
+  | { type: "noRecord" }
+  | { type: "modeMismatch"; expected: "leftover" | "deficit" };
+
+/**
+ * Aplica la decisión del usuario sobre el saldo del mes anterior al mes
+ * actual. Maneja tanto el caso de sobrante (positivo) como el de deuda
+ * (negativo). Sea cual sea el resultado, sella `carryoverDecidedAt` para
+ * que el prompt no vuelva a aparecer en este mes.
+ *
+ * - `addToIncome` (sobrante): suma el sobrante a `MonthRecord.carryoverFromPrev`.
+ * - `setAside` (sobrante): suma a la pila de ahorros vía
+ *   `recordSavingsMovement(CARRYOVER_DEPOSIT)`.
+ * - `coverFromSavings` (deuda): retira `min(savings, |deuda|)` de la pila
+ *   (movimiento `DEBT_COVERAGE`) y deja la deuda restante (si la hay)
+ *   como `carryoverFromPrev` negativo en el mes actual.
+ * - `carryDebt` (deuda): no toca la pila; deja la deuda completa como
+ *   `carryoverFromPrev` negativo en el mes actual.
+ *
+ * Devuelve `modeMismatch` cuando el `mode` no concuerda con el signo del
+ * sobrante (p. ej. `coverFromSavings` cuando sobró plata).
  */
 export async function applyPrevMonthLeftoverDecision(
   userId: string,
   monthKey: string,
-  mode: "addToIncome" | "setAside",
-): Promise<
-  | { type: "applied"; amount: number; mode: "addToIncome" | "setAside" }
-  | { type: "alreadyDecided" }
-  | { type: "noLeftover" }
-  | { type: "noRecord" }
-> {
+  mode: CarryoverDecisionMode,
+): Promise<CarryoverDecisionResult> {
   const month = parseMonthKey(monthKey);
   const start = toMonthStart(month);
 
-  const record = await db.monthRecord.findFirst({
-    where: { userId, month: start },
-    select: { id: true, carryoverDecidedAt: true },
-  });
+  const [record, user] = await Promise.all([
+    db.monthRecord.findFirst({
+      where: { userId, month: start },
+      select: { id: true, carryoverDecidedAt: true },
+    }),
+    db.user.findUnique({
+      where: { id: userId },
+      select: { primaryCurrency: true },
+    }),
+  ]);
   if (!record) return { type: "noRecord" };
   if (record.carryoverDecidedAt) return { type: "alreadyDecided" };
 
-  const leftover = await getPrevMonthLeftover(userId, month);
-  if (!leftover) {
-    // Mark as decided anyway so we don't keep re-asking on every visit.
+  const balance = await getPrevMonthBalance(userId, month);
+  if (!balance || balance.amount === 0) {
+    // No hay decisión que tomar: marcamos como decidida y salimos.
     await db.monthRecord.update({
       where: { id: record.id },
       data: { carryoverDecidedAt: new Date() },
@@ -245,30 +311,90 @@ export async function applyPrevMonthLeftoverDecision(
     return { type: "noLeftover" };
   }
 
-  const amountDecimal = new Prisma.Decimal(leftover.amount.toFixed(2));
+  const isPositive = balance.amount > 0;
+  const expectsLeftover = mode === "addToIncome" || mode === "setAside";
+  const expectsDeficit = mode === "coverFromSavings" || mode === "carryDebt";
+  if (isPositive && !expectsLeftover) {
+    return { type: "modeMismatch", expected: "leftover" };
+  }
+  if (!isPositive && !expectsDeficit) {
+    return { type: "modeMismatch", expected: "deficit" };
+  }
+
+  const primaryCurrency = user?.primaryCurrency ?? "USD";
+  const absAmount = new Prisma.Decimal(Math.abs(balance.amount).toFixed(2));
 
   if (mode === "addToIncome") {
     await db.monthRecord.update({
       where: { id: record.id },
       data: {
-        carryoverFromPrev: amountDecimal,
+        carryoverFromPrev: absAmount,
         carryoverDecidedAt: new Date(),
       },
     });
-  } else {
-    await db.$transaction([
-      db.user.update({
-        where: { id: userId },
-        data: { savings: { increment: amountDecimal } },
-      }),
-      db.monthRecord.update({
-        where: { id: record.id },
-        data: { carryoverDecidedAt: new Date() },
-      }),
-    ]);
+    return { type: "applied", mode, leftover: balance.amount };
   }
 
-  return { type: "applied", amount: leftover.amount, mode };
+  if (mode === "setAside") {
+    await db.$transaction(async (tx) => {
+      await recordSavingsMovement(
+        {
+          userId,
+          kind: SavingsMovementKind.CARRYOVER_DEPOSIT,
+          amount: absAmount,
+          currency: primaryCurrency,
+          monthRecordId: balance.prevMonthRecordId,
+          note: null,
+        },
+        tx,
+      );
+      await tx.monthRecord.update({
+        where: { id: record.id },
+        data: { carryoverDecidedAt: new Date() },
+      });
+    });
+    return { type: "applied", mode, leftover: balance.amount };
+  }
+
+  if (mode === "carryDebt") {
+    // Deuda completa al mes actual como carryover negativo.
+    await db.monthRecord.update({
+      where: { id: record.id },
+      data: {
+        carryoverFromPrev: absAmount.negated(),
+        carryoverDecidedAt: new Date(),
+      },
+    });
+    return {
+      type: "applied",
+      mode,
+      leftover: balance.amount,
+      remainingDebt: Number(absAmount),
+    };
+  }
+
+  // mode === "coverFromSavings"
+  const coverage = await coverMonthDebtFromSavingsService({
+    userId,
+    monthRecordId: balance.prevMonthRecordId,
+    deficit: absAmount,
+    currency: primaryCurrency,
+  });
+  const remainingDebtDecimal = new Prisma.Decimal(coverage.remainingDebt.toFixed(2));
+  await db.monthRecord.update({
+    where: { id: record.id },
+    data: {
+      carryoverFromPrev: remainingDebtDecimal.negated(),
+      carryoverDecidedAt: new Date(),
+    },
+  });
+  return {
+    type: "applied",
+    mode,
+    leftover: balance.amount,
+    covered: coverage.covered,
+    remainingDebt: coverage.remainingDebt,
+  };
 }
 
 /**
