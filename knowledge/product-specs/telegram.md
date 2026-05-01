@@ -11,11 +11,21 @@
   opens `https://t.me/<bot>?start=<token>` in a new tab.
 - Tapping **Start** in Telegram pipes `/start <token>` to the bot. Our
   webhook verifies the HMAC, persists `telegramUserId` / `telegramUsername`
-  / `telegramChatId` / `telegramVerifiedAt`, and replies with a localized
-  welcome message that includes an inline-keyboard menu.
+  / `telegramChatId` / `telegramVerifiedAt`, and replies with a welcome:
+  - **Account already set up** (currency confirmed AND at least one income
+    or expense in the current month): localized static `welcomeLinked` +
+    inline-keyboard menu, same as before.
+  - **Account not yet set up**: the AI generates the welcome itself. The
+    webhook feeds the agent a synthetic kickoff message
+    (`__telegram_setup_kickoff__`), and the system prompt gains a *setup
+    guide* block that instructs Clara to greet warmly, ask whether to start
+    with an income or an expense, and recommend 3-4 example prompts.
+    Falls back to the static welcome if the kickoff dispatch throws.
 - Once linked, the user can send text, photos (treated as images for the
   multimodal agent) or voice notes (transcribed via Whisper) and Clara
-  replies in their preferred language.
+  replies in their preferred language. While the account remains
+  un-set-up, every turn carries the same setup hint so the agent keeps
+  guiding (without insisting if the user changes the topic).
 - Slash commands: `/start`, `/help`, `/menu` (re-renders the inline keyboard),
   `/unlink` (clears the four `telegram*` columns).
 - Group support is **stubbed** today: the bot only responds in private chats.
@@ -30,6 +40,7 @@
 | Bot API client | [`src/lib/telegram/client.ts`](../../src/lib/telegram/client.ts) |
 | Signed deep-link tokens | [`src/lib/telegram/link.ts`](../../src/lib/telegram/link.ts) |
 | Slash commands + inline menu | [`src/lib/telegram/menu.ts`](../../src/lib/telegram/menu.ts) |
+| First-run setup hint | [`src/lib/telegram/setup-state.ts`](../../src/lib/telegram/setup-state.ts) |
 | Webhook handler | [`src/app/api/webhooks/telegram/route.ts`](../../src/app/api/webhooks/telegram/route.ts) |
 | Settings API | [`src/app/api/settings/telegram/route.ts`](../../src/app/api/settings/telegram/route.ts) |
 | Settings UI card | `TelegramLinkCard` in [`src/components/settings-manager.tsx`](../../src/components/settings-manager.tsx) |
@@ -88,11 +99,18 @@ New table `TelegramMessage`:
   Verification is HMAC-only with a 15-minute TTL embedded in the payload.
 - The Telegram channel uses the **same daily quota** as the web chat
   (`consumeAgentQuota(userId)`); a user can't double their cap by
-  switching channels.
+  switching channels. The AI-generated first welcome counts as one turn.
 - The agent receives `source: "telegram"` so the `feature:chat-telegram`
   Vercel AI Gateway tag distinguishes it in observability.
 - Group messages are dropped on the floor unless the bot is explicitly
   addressed; group conversation threads are **not** persisted today.
+- **Setup hint** (`loadTelegramSetupHint`) is computed per turn and is
+  `needsSetup = primaryCurrencyConfirmedAt IS NULL OR (no MonthIncomeLine
+  AND no MonthExpenseLine in the current UTC month)`. It only changes the
+  *dramaturgy* of the agent's reply — it never adds new tools, never
+  bypasses the existing currency-confirmation rule, and never persists new
+  PII to the model (the only fields shipped are derived booleans plus the
+  already-known primary currency).
 
 ## Environment variables
 

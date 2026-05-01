@@ -174,6 +174,26 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.7.2",
+      date: "2026-05-01",
+      title: "Telegram te recibe con una guía paso a paso",
+      highlights: [
+        "Cuando vinculás Telegram por primera vez, Clara genera la bienvenida con IA: te saluda, te pregunta si arrancás por un ingreso o un gasto y te tira 3-4 ejemplos para que toques o reescribas.",
+        "Mientras la cuenta no esté seteada (sin moneda confirmada o sin movimientos del mes), cada turno te empuja amablemente al siguiente paso usando las mismas tools que ya conocés (setMonthIncome, addMonthLine, setPrimaryCurrency).",
+        "Si ya tenías la cuenta lista por la web, el saludo estático y el menú inline siguen igual — la guía solo aparece cuando hace falta.",
+      ],
+    },
+    {
+      version: "0.7.1",
+      date: "2026-05-01",
+      title: "Clara también borra y resta de tus ahorros desde el chat",
+      highlights: [
+        "Decile 'borrá ese movimiento de ahorros' o 'sacá el depósito que cargué mal' y Clara lo borra del ledger (solo movimientos manuales — los del sistema se deshacen rehaciendo la decisión del mes).",
+        "'Restale 50 a la pila' o 'saqué 200 de los ahorros' ahora dispara un retiro manual sin que tengas que ir a la página de ahorros.",
+        "Mismo poder desde MCP: cualquier cliente AI tuyo puede listar la pila, sumar, restar y borrar movimientos manuales con tu permiso.",
+      ],
+    },
+    {
       version: "0.7.0",
       date: "2026-05-01",
       title: "Cumplimiento GDPR: consentimiento, exportación, borrado y contacto",
@@ -682,6 +702,26 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.7.2",
+      date: "2026-05-01",
+      title: "Telegram greets you with a step-by-step guide",
+      highlights: [
+        "The first time you link Telegram, Clara generates the welcome with AI: she greets you, asks whether to start with an income or an expense, and offers 3-4 example prompts you can tap or rewrite.",
+        "Until the account is set up (no confirmed currency or no movements yet this month), every turn nudges you to the next step using the same tools you already know (setMonthIncome, addMonthLine, setPrimaryCurrency).",
+        "If your account was already set up via the web, the static welcome and inline menu stay the same — the guide only appears when it's actually useful.",
+      ],
+    },
+    {
+      version: "0.7.1",
+      date: "2026-05-01",
+      title: "Clara can now delete and subtract savings from chat",
+      highlights: [
+        "Say 'delete that savings movement' or 'remove the deposit I logged by mistake' and Clara wipes it from the ledger (manual movements only — system ones still need you to redo the carryover decision).",
+        "'Subtract 50 from the pile' or 'I took 200 out of savings' now triggers a manual withdrawal without leaving the chat.",
+        "Same power via MCP: any AI client of yours can list, top up, withdraw from and delete manual entries on the pile with your permission.",
+      ],
+    },
     {
       version: "0.7.0",
       date: "2026-05-01",

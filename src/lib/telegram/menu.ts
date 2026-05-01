@@ -42,7 +42,18 @@ type MenuStringKey =
   | "menuMonth"
   | "menuAddExpense"
   | "menuSummary"
-  | "menuLanguage";
+  | "menuLanguage"
+  | "setupKickoffPrompt";
+
+/**
+ * Synthetic user message we feed the agent on the very first Telegram turn
+ * for an unset-up account. The system prompt knows how to interpret it (see
+ * `setupGuideBlock` in `src/lib/ai/run-expense-agent.ts`) and replies with a
+ * warm welcome + concrete examples instead of waiting for the user to type.
+ *
+ * Exposed so tests and the webhook can reference the exact same string.
+ */
+export const TELEGRAM_SETUP_KICKOFF_TOKEN = "__telegram_setup_kickoff__";
 
 const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
   es: {
@@ -79,6 +90,7 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
     menuAddExpense: "Cargar un gasto",
     menuSummary: "Resumen del mes",
     menuLanguage: "Cambiar idioma",
+    setupKickoffPrompt: TELEGRAM_SETUP_KICKOFF_TOKEN,
   },
   en: {
     welcomeLinked:
@@ -113,6 +125,7 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
     menuAddExpense: "Add an expense",
     menuSummary: "Monthly summary",
     menuLanguage: "Change language",
+    setupKickoffPrompt: TELEGRAM_SETUP_KICKOFF_TOKEN,
   },
 };
 

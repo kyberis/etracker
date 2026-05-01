@@ -7,6 +7,7 @@ import {
 } from "ai";
 
 import { buildExpenseTools } from "@/lib/ai/expense-tools";
+import type { TelegramSetupHint } from "@/lib/telegram/setup-state";
 import {
   logAIFinish,
   logAIRequest,
@@ -110,7 +111,64 @@ type SystemPromptOptions = {
   primaryCurrency?: string;
   primaryCurrencyConfirmedAt?: Date | null;
   locale?: Locale;
+  /**
+   * Telegram-only: when present and `needsSetup` is true, the agent receives
+   * an extra block instructing it to drive a first-run setup conversation.
+   * See `src/lib/telegram/setup-state.ts` for the derivation rules.
+   */
+  setupHint?: TelegramSetupHint;
 };
+
+/**
+ * AI-driven first-run guide for Telegram. Only injected when the source is
+ * `telegram` AND `setupHint.needsSetup === true`. Keep it short and
+ * prescriptive: this changes the dramaturgy of the first turn but reuses
+ * every existing tool (`setPrimaryCurrency`, `setMonthIncome`, `addMonthLine`).
+ */
+function setupGuideBlock(hint: TelegramSetupHint, locale: Locale): string {
+  const examplesEs = [
+    "*Mi sueldo es ARS 800.000*",
+    "*Gasté 5.000 en supermercado*",
+    "*Mandame una captura del banco y la proceso*",
+    "*¿Cómo voy este mes?*",
+  ];
+  const examplesEn = [
+    "*My salary is USD 3,000*",
+    "*I spent 50 on groceries*",
+    "*Send a bank screenshot and I'll process it*",
+    "*How am I doing this month?*",
+  ];
+
+  if (locale === "en") {
+    return `
+
+Telegram first-run setup (active because the user has not finished setup yet):
+- Status: currencyConfirmed=${hint.currencyConfirmed}, hasIncomeThisMonth=${hint.hasIncomeThisMonth}, hasExpenseThisMonth=${hint.hasExpenseThisMonth}.
+- If the user just sent the synthetic kickoff text "__telegram_setup_kickoff__" or any other "help me start" style greeting, generate the welcome yourself in 4-6 lines:
+  1. Warm one-line intro ("Hi, I'm Clara — I help you keep track of your money in Telegram, by chat, photo or voice").
+  2. ONE clear question: "Want to start by logging an income or an expense?".
+  3. A short markdown list with 3-4 example prompts the user can tap or rewrite, e.g.:
+     ${examplesEn.map((line) => `- ${line}`).join("\n     ")}
+- After the kickoff, KEEP guiding turn by turn until they confirm a primary currency AND log at least one income or expense — but never insist if the user changes the topic. When they come back, retake the suggestion in one short sentence ("Want to log that as income or expense?").
+- Currency: if currencyConfirmed=false, the existing rule applies — ask for the primary currency once and call \`setPrimaryCurrency\` when they answer.
+- Use the existing tools (\`setPrimaryCurrency\`, \`setMonthIncome\`, \`createMonthIfNeeded\`, \`addMonthLine\`) — never invent data.
+- Tone: friendly and concise. Prefer the conversational style for these onboarding turns even if the request looked terse.`;
+  }
+
+  return `
+
+Setup inicial de Telegram (activo porque el usuario todavía no terminó de configurar la cuenta):
+- Estado: currencyConfirmed=${hint.currencyConfirmed}, hasIncomeThisMonth=${hint.hasIncomeThisMonth}, hasExpenseThisMonth=${hint.hasExpenseThisMonth}.
+- Si el usuario te manda el texto sintético "__telegram_setup_kickoff__" o cualquier saludo del estilo "ayudame a arrancar", generá vos la bienvenida en 4-6 líneas:
+  1. Una línea cálida de presentación ("Hola, soy Clara — te ayudo a llevar tu plata desde Telegram: por chat, foto o nota de voz").
+  2. UNA pregunta clara: "¿Arrancamos cargando un ingreso o un gasto?".
+  3. Una lista corta en markdown con 3-4 ejemplos que el usuario puede tocar o reescribir, p. ej.:
+     ${examplesEs.map((line) => `- ${line}`).join("\n     ")}
+- Después del kickoff, SEGUÍ guiando turno a turno hasta que confirme su moneda principal Y cargue al menos un ingreso o un gasto — pero nunca insistas si el usuario cambia de tema. Cuando vuelva, retomá la sugerencia en una frase corta ("¿Lo cargamos como ingreso o como gasto?").
+- Moneda: si currencyConfirmed=false, aplica la regla existente — preguntá la moneda principal una vez y llamá \`setPrimaryCurrency\` cuando la conteste.
+- Usá las tools que ya existen (\`setPrimaryCurrency\`, \`setMonthIncome\`, \`createMonthIfNeeded\`, \`addMonthLine\`) — no inventes datos.
+- Tono: cálido y al grano. Para estos turnos de onboarding preferí estilo conversacional aunque el pedido haya sido corto.`;
+}
 
 function buildSystemPrompt(
   userImportInstructions?: string | null,
@@ -124,6 +182,9 @@ function buildSystemPrompt(
   const primaryCurrency = options?.primaryCurrency ?? "USD";
   const currencyConfirmed = Boolean(options?.primaryCurrencyConfirmedAt);
   const locale: Locale = options?.locale ?? "es";
+  const setupBlock = options?.setupHint?.needsSetup
+    ? setupGuideBlock(options.setupHint, locale)
+    : "";
 
   if (locale === "en") {
     const personal = userImportInstructions?.trim()
@@ -179,7 +240,7 @@ Editing from chat (banks, templates, lines):
   · \`type=leftover\` → briefly congratulate the user for spending less than their income, tell them how much was left, and offer two options: add it to this month's income (\`mode=addToIncome\`) or set it aside as savings (\`mode=setAside\`).
   · \`type=deficit\` → without scolding, tell the user the previous month closed in the red by \`amount\` and offer two options: cover with savings (\`mode=coverFromSavings\` — partial cover allowed if savings are short; the rest stays as carried debt) or carry the debt into this month (\`mode=carryDebt\`).
   Call \`applyPrevMonthLeftover\` with the chosen \`mode\` and confirm in one line. Don't start this flow if there's no \`carryoverPrompt\`.
-- Savings (pile global): the user has a savings pile that grows from carryover deposits, monthly contributions, or manual deposits, and shrinks from manual withdrawals or DEBT_COVERAGE. Use \`getSavingsState\` to read it. \`addSavingsMovement\` for ad-hoc deposits/withdrawals. \`setMonthlySavingsContribution\` for the user's INFORMATIONAL monthly contribution: it does NOT reduce that month's balance and does NOT appear as an expense; it just declares "this is what I'm dedicating to savings this month" and adds to the pile. To cover a previous month's debt from savings, use \`applyPrevMonthLeftover\` with \`mode=coverFromSavings\` (don't use \`addSavingsMovement\` for that case).
+- Savings (pile global): the user has a savings pile that grows from carryover deposits, monthly contributions, or manual deposits, and shrinks from manual withdrawals or DEBT_COVERAGE. Use \`getSavingsState\` to read it. \`addSavingsMovement\` for ad-hoc deposits or withdrawals — when the user says "I took out X from savings", "subtract X from the pile", "spent X from my savings", call it with \`kind=MANUAL_WITHDRAWAL\` (the sign is applied server-side). \`setMonthlySavingsContribution\` for the user's INFORMATIONAL monthly contribution: it does NOT reduce that month's balance and does NOT appear as an expense; it just declares "this is what I'm dedicating to savings this month" and adds to the pile. To cover a previous month's debt from savings, use \`applyPrevMonthLeftover\` with \`mode=coverFromSavings\` (don't use \`addSavingsMovement\` for that case). To remove a savings record: \`deleteSavingsMovement\` works only for MANUAL_DEPOSIT/MANUAL_WITHDRAWAL — confirm with the user, then call it with the movement id (use \`getSavingsState\` first if you don't have it). For MONTHLY_CONTRIBUTION use \`removeMonthlySavingsContribution\`; CARRYOVER_DEPOSIT and DEBT_COVERAGE can't be deleted directly — explain the user has to redo the carryover decision for the originating month.
 - Month income: if the user says "my income is X", "I got paid X", "we earned X" → setMonthIncome (DON'T use updateMonthLine, that's for expense lines). If the month doesn't exist, first createMonthIfNeeded then setMonthIncome.
 - Image (bank screenshot, receipt): extract transactions, show them in a compact list grouped by bank, and ask for confirmation before applying anything. For each transaction pick updateMonthLine (if a similar line already exists) or addMonthLine (new transaction).
 - CSV / text statement: sometimes the user pastes or attaches a CSV already converted to a list in the message (dates, descriptions, amounts). Treat it like bank transactions: same rule as an image — compact list, respect the user's personal instructions on what to ignore or how to categorize, and ask for confirmation before using tools.
@@ -201,7 +262,7 @@ Charts (renderChart):
 - After emitting the chart, add ONE short sentence with the takeaway (e.g. "Remaining to pay: ${primaryCurrency} 320") and, if useful, a next-step suggestion.
 
 Language switching:
-- If the user asks to change language ("switch to Spanish", "habla en inglés", "cambiá a inglés"), call \`setUserLocale\` first with the requested locale ("es" or "en"). After the tool resolves, your NEXT reply MUST already be in the new locale, with a short acknowledgement.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${personal}`;
+- If the user asks to change language ("switch to Spanish", "habla en inglés", "cambiá a inglés"), call \`setUserLocale\` first with the requested locale ("es" or "en"). After the tool resolves, your NEXT reply MUST already be in the new locale, with a short acknowledgement.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${personal}${setupBlock}`;
   }
 
   // Spanish (default)
@@ -259,7 +320,7 @@ Edición desde el chat (gestión de bancos, plantillas y líneas):
   · \`type=leftover\` → felicitá brevemente al usuario por gastar menos que el ingreso, decile cuánto le sobró y ofrecele dos opciones: sumarlo al ingreso de este mes (\`mode=addToIncome\`) o dejarlo aparte como ahorros (\`mode=setAside\`).
   · \`type=deficit\` → sin sermones, decile que el mes anterior cerró en rojo por \`amount\` y ofrecele dos opciones: cubrirlo con ahorros (\`mode=coverFromSavings\` — cobertura parcial si \`savings < amount\`; lo que queda pasa como deuda al mes actual) o arrastrar la deuda completa al mes actual (\`mode=carryDebt\`).
   Cuando el usuario elija, llamá \`applyPrevMonthLeftover\` con el \`mode\` correspondiente y confirmá en una frase. No inicies este flujo por tu cuenta si no hay \`carryoverPrompt\`.
-- Ahorros (pila global): el usuario tiene una pila de ahorro que crece con derivaciones de sobrante, aportes mensuales o depósitos manuales, y baja con retiros manuales o DEBT_COVERAGE. Usá \`getSavingsState\` para leerla. \`addSavingsMovement\` para depósitos/retiros ad-hoc. \`setMonthlySavingsContribution\` para el aporte INFORMATIVO del mes: NO descuenta del balance del mes ni aparece como gasto, solo declara "esto es lo que dedico a ahorro este mes" y suma a la pila. Para cubrir deuda del mes anterior con ahorros, usá \`applyPrevMonthLeftover\` con \`mode=coverFromSavings\` (no uses \`addSavingsMovement\` para ese caso).
+- Ahorros (pila global): el usuario tiene una pila de ahorro que crece con derivaciones de sobrante, aportes mensuales o depósitos manuales, y baja con retiros manuales o DEBT_COVERAGE. Usá \`getSavingsState\` para leerla. \`addSavingsMovement\` para depósitos o retiros ad-hoc — cuando el usuario diga "saqué X de los ahorros", "restale X a la pila", "gasté X de los ahorros", llamalo con \`kind=MANUAL_WITHDRAWAL\` (el signo lo aplicamos server-side). \`setMonthlySavingsContribution\` para el aporte INFORMATIVO del mes: NO descuenta del balance del mes ni aparece como gasto, solo declara "esto es lo que dedico a ahorro este mes" y suma a la pila. Para cubrir deuda del mes anterior con ahorros, usá \`applyPrevMonthLeftover\` con \`mode=coverFromSavings\` (no uses \`addSavingsMovement\` para ese caso). Para borrar un movimiento del ledger: \`deleteSavingsMovement\` solo funciona para MANUAL_DEPOSIT/MANUAL_WITHDRAWAL — pedí confirmación corta y pasá el id (si no lo tenés, llamá antes a \`getSavingsState\` para listarlos). Para el aporte mensual usá \`removeMonthlySavingsContribution\`; CARRYOVER_DEPOSIT y DEBT_COVERAGE no se borran directo — explicale al usuario que tiene que rehacer la decisión de carryover del mes que los originó.
 - Ingreso del mes: si el usuario dice "mi ingreso es X", "cobré X", "ganaste/cobramos X" → setMonthIncome (NO uses updateMonthLine, que es para líneas de gasto). Si el mes no existe, primero createMonthIfNeeded y después setMonthIncome.
 - Imagen (captura del banco, ticket): extraé las transacciones, mostralas en una lista compacta agrupadas por banco y pedí confirmación antes de aplicar nada. Para cada movimiento elegí updateMonthLine (si ya existe una línea similar) o addMonthLine (movimiento nuevo).
 - CSV / extracto en texto: a veces el usuario pega o adjunta un CSV ya convertido a lista en el mensaje (fechas, descripciones, importes). Tratalo como movimientos del banco: misma regla que una imagen — lista compacta, respetá las instrucciones personales del usuario sobre qué ignorar o cómo categorizar, y pedí confirmación antes de usar tools.
@@ -281,7 +342,7 @@ Gráficos (renderChart):
 - Tras emitir el gráfico, agregá UNA frase corta con la conclusión (p. ej. "Restante a pagar: ${primaryCurrency} 320") y, si corresponde, una sugerencia de siguiente paso.
 
 Cambio de idioma:
-- Si el usuario pide cambiar el idioma ("habla en inglés", "switch to English", "cambiá a inglés"), llamá \`setUserLocale\` primero con el locale pedido ("es" o "en"). Después de que resuelva, tu PRÓXIMA respuesta YA tiene que estar en el nuevo idioma, con un acuse breve.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${personal}`;
+- Si el usuario pide cambiar el idioma ("habla en inglés", "switch to English", "cambiá a inglés"), llamá \`setUserLocale\` primero con el locale pedido ("es" o "en"). Después de que resuelva, tu PRÓXIMA respuesta YA tiene que estar en el nuevo idioma, con un acuse breve.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${personal}${setupBlock}`;
 }
 
 export type ExpenseAgentMessages = Array<ModelMessage>;
@@ -406,11 +467,14 @@ export async function generateExpenseAgentReply({
   messages,
   source = "telegram",
   responseStyle = "concise",
+  setupHint,
 }: {
   userId: string;
   messages: ExpenseAgentMessages;
   source?: AgentSource;
   responseStyle?: ExpenseAgentResponseStyle;
+  /** Telegram first-run setup hint. See `loadTelegramSetupHint`. */
+  setupHint?: TelegramSetupHint;
 }): Promise<{
   text: string;
   /** HTTPS PNG URLs for messaging channels (Telegram photo). */
@@ -447,6 +511,7 @@ export async function generateExpenseAgentReply({
       primaryCurrency: user?.primaryCurrency,
       primaryCurrencyConfirmedAt: user?.primaryCurrencyConfirmedAt ?? null,
       locale,
+      setupHint,
     }),
     messages,
     tools: buildExpenseTools(userId),

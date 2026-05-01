@@ -25,6 +25,10 @@ import {
   verifyTelegramWebhookRequest,
 } from "@/lib/telegram/client";
 import { verifyLinkToken } from "@/lib/telegram/link";
+import {
+  loadTelegramSetupHint,
+  type TelegramSetupHint,
+} from "@/lib/telegram/setup-state";
 
 // AI tool loops can run a long time. We `await` the full handler before
 // returning 200 (see below) so the heavy work must stay under this cap.
@@ -334,6 +338,49 @@ async function completeTelegramLink(
 
   const locale = await getUserLocale(userId);
   const t = getTelegramStrings(locale);
+
+  // If the account hasn't been set up yet (no confirmed currency, no income
+  // and no expense in the current month), let the AI drive the welcome
+  // instead of the static `welcomeLinked` string. The agent receives the
+  // setup hint and replies with a warm greeting + 3-4 example prompts the
+  // user can tap or rewrite. Falls back to the static welcome on failure
+  // so the user is never left in silence.
+  let setupHint: TelegramSetupHint | null = null;
+  try {
+    setupHint = await loadTelegramSetupHint(userId);
+  } catch (error) {
+    log.error("telegram.setup_hint_error", {
+      error: serializeError(error),
+      userId,
+      stage: "complete_link",
+    });
+  }
+
+  if (setupHint?.needsSetup) {
+    log.info("telegram.first_run_kickoff", {
+      userId,
+      currencyConfirmed: setupHint.currencyConfirmed,
+      hasIncomeThisMonth: setupHint.hasIncomeThisMonth,
+      hasExpenseThisMonth: setupHint.hasExpenseThisMonth,
+    });
+    try {
+      await respondToLinkedUserText(
+        userId,
+        message.chat.id,
+        t.setupKickoffPrompt,
+        undefined,
+        setupHint,
+      );
+      return;
+    } catch (error) {
+      log.error("telegram.first_run_kickoff_error", {
+        error: serializeError(error),
+        userId,
+      });
+      // Fall through to the static welcome below.
+    }
+  }
+
   await sendTelegramMessage(message.chat.id, t.welcomeLinked, {
     replyMarkup: buildMenuKeyboard(locale),
   });
@@ -577,6 +624,7 @@ async function respondToLinkedUserText(
   chatId: number,
   text: string,
   image?: { mediaType: string; buffer: Buffer },
+  precomputedSetupHint?: TelegramSetupHint,
 ) {
   const pipelineStarted = Date.now();
   const locale = await getUserLocale(userId);
@@ -622,11 +670,30 @@ async function respondToLinkedUserText(
   await sendChatAction(chatId, "typing");
 
   const history = await loadHistory(userId);
+
+  // Load the setup hint (if not already pre-computed by the caller). When
+  // `needsSetup` is true the agent gets an extra system-prompt block that
+  // turns the turn into a guided onboarding step.
+  let setupHint: TelegramSetupHint | undefined = precomputedSetupHint;
+  if (!setupHint) {
+    try {
+      setupHint = await loadTelegramSetupHint(userId);
+    } catch (error) {
+      log.error("telegram.setup_hint_error", {
+        error: serializeError(error),
+        userId,
+        stage: "respond",
+      });
+      setupHint = undefined;
+    }
+  }
+
   log.info("telegram.agent_start", {
     userId,
     historyTurns: history.length,
     hasImage: Boolean(image),
     textPreview: previewText(text, 80),
+    needsSetup: Boolean(setupHint?.needsSetup),
   });
 
   const userMessage: ModelMessage = image
@@ -654,6 +721,7 @@ async function respondToLinkedUserText(
       userId,
       messages: [...history, userMessage],
       source: "telegram",
+      setupHint,
     });
     reply = result.text;
     chartImageUrls = result.chartImageUrls;
