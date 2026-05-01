@@ -496,10 +496,8 @@ function DataExportCard() {
           {t.settings.exportDescription}
         </p>
         <div className="flex items-center gap-3">
-          <Button asChild>
-            <a href="/api/account/export" download>
-              {t.settings.exportButton}
-            </a>
+          <Button render={<a href="/api/account/export" download />}>
+            {t.settings.exportButton}
           </Button>
           <p className="text-muted-foreground text-xs">
             {t.settings.exportLimit}
