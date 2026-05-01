@@ -117,7 +117,7 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
           className="flex shrink-0 items-center gap-2.5 focus-visible:outline-none"
         >
           <Image
-            src="/ada-avatar.png"
+            src="/clara-avatar-simple.png"
             alt={t.brand.avatarAlt}
             width={40}
             height={40}

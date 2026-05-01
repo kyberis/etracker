@@ -20,7 +20,7 @@ const BUSINESS_ERRORS: Record<string, { status: number; message: string }> = {
     status: 404,
     message: "The source month does not exist or is not set up yet.",
   },
-  NO_RECORD: { status: 404, message: "El mes no está configurado aún." },
+  NO_RECORD: { status: 404, message: "This month is not set up yet." },
 };
 
 type ApiHandler<T> = () => Promise<T>;
@@ -67,7 +67,7 @@ export async function withApi<T>(handler: ApiHandler<T>): Promise<Response> {
       error instanceof Prisma.PrismaClientRustPanicError
     ) {
       return jsonError(
-        "No se pudo conectar a la base de datos. Revisá DATABASE_URL.",
+        "Could not connect to the database. Check DATABASE_URL.",
         500,
       );
     }

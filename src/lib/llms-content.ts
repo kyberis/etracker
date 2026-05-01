@@ -224,7 +224,7 @@ export function renderLlmsFull(locale: Locale): string {
   "mcpServers": {
     "clara": {
       "url": "${mcpUser}",
-      "headers": { "Authorization": "Bearer <ada_pat_…>" }
+      "headers": { "Authorization": "Bearer <clara_pat_…>" }
     }
   }
 }

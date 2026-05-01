@@ -21,14 +21,14 @@ export async function POST(request: Request) {
 
     if (!isBillingEnabled()) {
       return jsonError(
-        "El sistema de pagos no está configurado en este servidor.",
+        "The payment system is not configured on this server.",
         503,
       );
     }
     const stripe = getStripe();
     if (!stripe) {
       return jsonError(
-        "El sistema de pagos no está configurado en este servidor.",
+        "The payment system is not configured on this server.",
         503,
       );
     }
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     });
     if (!user?.stripeCustomerId) {
       return jsonError(
-        "Todavía no tenés un perfil de pago en Stripe.",
+        "You don't have a Stripe billing profile yet.",
         404,
       );
     }

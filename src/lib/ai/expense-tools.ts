@@ -64,7 +64,7 @@ function normalizeHexColor(input: string | null | undefined): string | null {
 
 const monthKey = z
   .string()
-  .regex(/^\d{4}-\d{2}$/u, "Mes en formato yyyy-MM (p. ej. 2026-04).");
+  .regex(/^\d{4}-\d{2}$/u, "Month in yyyy-MM format (e.g. 2026-04).");
 const optionalMonthKey = monthKey.optional();
 const categoryEnum = z.enum(expenseCategoryOptions);
 const incomeCategoryEnum = z.enum(incomeCategoryOptions);
@@ -88,7 +88,7 @@ export function buildExpenseTools(userId: string) {
   return {
     getMonthState: tool({
       description:
-        "Lee el estado del usuario para un mes (yyyy-MM). Si no se pasa mes, usa el mes actual. Devuelve `primaryCurrency`, ingreso recibido, ingreso previsto, líneas de ingreso (cada cobro con su moneda original + monto convertido + flag `received`), carryover del mes anterior, líneas de gasto, totales planificado/pagado/restante (en moneda principal), balance (ingreso recibido + carryover − planificado), pila de ahorros y, si aplica, `carryoverPrompt` con el saldo del mes anterior pendiente de decisión.",
+        "Reads the user's state for a month (yyyy-MM). If no month is passed, uses the current month. Returns `primaryCurrency`, received income, expected income, income lines (each with its original currency + converted amount + `received` flag), carryover from the previous month, expense lines, planned/paid/remaining totals (in the primary currency), balance (received income + carryover − planned), savings stack, and if applicable `carryoverPrompt` with the previous month's balance pending a decision.",
       inputSchema: z.object({ month: optionalMonthKey }),
       execute: async ({ month }) => {
         const target = month ?? getCurrentMonthKey();
@@ -100,14 +100,14 @@ export function buildExpenseTools(userId: string) {
             defaultIncome: data.defaultIncome,
             primaryCurrency: data.primaryCurrency,
             note:
-              "El mes no está configurado todavía. Podés crearlo con createMonthIfNeeded.",
+              "The month is not set up yet. You can create it with createMonthIfNeeded.",
           };
         }
         const carryoverNote =
           data.carryoverPrompt &&
           (data.carryoverPrompt.type === "leftover"
-            ? `El usuario cerró ${data.carryoverPrompt.prevMonth} con ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.amount)} sin gastar y todavía no decidió qué hacer con ese sobrante. Felicitalo y ofrecele dos opciones: sumarlo al ingreso de ${target} (\`mode=addToIncome\`) o dejarlo aparte como ahorros (\`mode=setAside\`). Cuando elija, llamá applyPrevMonthLeftover.`
-            : `El usuario cerró ${data.carryoverPrompt.prevMonth} en rojo por ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.amount)} y todavía no decidió cómo manejarlo. Pila de ahorro disponible: ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.savings)}. Sin sermones, ofrecele dos opciones: cubrir con ahorros (\`mode=coverFromSavings\` — cobertura parcial si la pila no alcanza) o arrastrar la deuda al mes actual (\`mode=carryDebt\`). Cuando elija, llamá applyPrevMonthLeftover.`);
+            ? `The user closed ${data.carryoverPrompt.prevMonth} with ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.amount)} unspent and hasn't decided what to do with the leftover. Congratulate them and offer two options: add it to the income of ${target} (\`mode=addToIncome\`) or set it aside as savings (\`mode=setAside\`). When they choose, call applyPrevMonthLeftover.`
+            : `The user closed ${data.carryoverPrompt.prevMonth} in the red by ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.amount)} and hasn't decided how to handle it. Savings stack available: ${data.primaryCurrency} ${formatMoney(data.carryoverPrompt.savings)}. Without lecturing, offer two options: cover with savings (\`mode=coverFromSavings\` — partial coverage if the stack isn't enough) or carry the debt over to the current month (\`mode=carryDebt\`). When they choose, call applyPrevMonthLeftover.`);
         return {
           month: target,
           hasRecord: true as const,
@@ -124,15 +124,15 @@ export function buildExpenseTools(userId: string) {
           totals: data.totals,
           balance: data.balance,
           summaryText:
-            `Ingreso recibido ${data.primaryCurrency} ${formatMoney(data.income)}` +
+            `Received income ${data.primaryCurrency} ${formatMoney(data.income)}` +
             (data.incomeTotals.pending > 0
-              ? ` (+ ${data.primaryCurrency} ${formatMoney(data.incomeTotals.pending)} previsto sin recibir)`
+              ? ` (+ ${data.primaryCurrency} ${formatMoney(data.incomeTotals.pending)} expected not yet received)`
               : "") +
             (data.carryoverFromPrev > 0
               ? ` (+ ${data.primaryCurrency} ${formatMoney(data.carryoverFromPrev)} carryover)`
               : "") +
-            `, planificado ${data.primaryCurrency} ${formatMoney(data.totals.planned)}, ` +
-            `pagado ${data.primaryCurrency} ${formatMoney(data.totals.paid)}, restante ${data.primaryCurrency} ${formatMoney(data.totals.remaining)}, ` +
+            `, planned ${data.primaryCurrency} ${formatMoney(data.totals.planned)}, ` +
+            `paid ${data.primaryCurrency} ${formatMoney(data.totals.paid)}, remaining ${data.primaryCurrency} ${formatMoney(data.totals.remaining)}, ` +
             `balance ${data.primaryCurrency} ${formatMoney(data.balance)}.`,
           banks: data.banks,
           bankTotals: data.bankTotals,
@@ -146,7 +146,7 @@ export function buildExpenseTools(userId: string) {
 
     listBanks: tool({
       description:
-        "Lista los bancos del usuario con id y nombre. Útil cuando el usuario menciona un banco por nombre.",
+        "Lists the user's banks with id and name. Useful when the user mentions a bank by name.",
       inputSchema: z.object({}),
       execute: async () => {
         const banks = await getBanksCached(userId);
@@ -158,9 +158,9 @@ export function buildExpenseTools(userId: string) {
 
     createBank: tool({
       description:
-        "Crea un nuevo banco/cuenta para el usuario (p. ej. 'Visa', 'Galicia', 'Efectivo'). " +
-        "Si ya existe uno con el mismo nombre devuelve `error` con código duplicado. " +
-        "`color` opcional en hex (con o sin `#`).",
+        "Creates a new bank/account for the user (e.g. 'Visa', 'Chase', 'Cash'). " +
+        "If one already exists with the same name, returns `error` with a duplicate code. " +
+        "`color` is optional in hex (with or without `#`).",
       inputSchema: z.object({
         name: z.string().min(1).max(80),
         color: hexColorSchema.optional(),
@@ -181,7 +181,7 @@ export function buildExpenseTools(userId: string) {
           };
         } catch (error) {
           if (isUniqueViolation(error)) {
-            return { error: `Ya existe un banco llamado "${name.trim()}".` };
+            return { error: `A bank named "${name.trim()}" already exists.` };
           }
           throw error;
         }
@@ -190,24 +190,24 @@ export function buildExpenseTools(userId: string) {
 
     updateBank: tool({
       description:
-        "Renombra un banco o cambia su color. Pasá los campos a modificar; los omitidos quedan igual. " +
-        "Verifica que el banco pertenezca al usuario.",
+        "Renames a bank or changes its color. Pass the fields to modify; omitted ones stay the same. " +
+        "Verifies the bank belongs to the user.",
       inputSchema: z.object({
         id: z.string().min(1),
         name: z.string().min(1).max(80).optional(),
         color: hexColorSchema.nullable().optional().describe(
-          "Color hex (con o sin `#`). Pasá `null` para limpiar el color.",
+          "Hex color (with or without `#`). Pass `null` to clear the color.",
         ),
       }),
       execute: async ({ id, name, color }) => {
         const existing = await db.bank.findFirst({ where: { id, userId } });
-        if (!existing) return { error: "El banco indicado no existe." };
+        if (!existing) return { error: "The specified bank doesn't exist." };
 
         const data: { name?: string; color?: string | null } = {};
         if (name !== undefined) data.name = name.trim();
         if (color !== undefined) data.color = normalizeHexColor(color);
         if (Object.keys(data).length === 0) {
-          return { error: "Nada para actualizar." };
+          return { error: "Nothing to update." };
         }
 
         try {
@@ -220,7 +220,7 @@ export function buildExpenseTools(userId: string) {
         } catch (error) {
           if (isUniqueViolation(error)) {
             return {
-              error: `Ya existe un banco con ese nombre. Elegí otro o renombrá el anterior.`,
+              error: `A bank with that name already exists. Pick another one or rename the existing one.`,
             };
           }
           throw error;
@@ -230,17 +230,17 @@ export function buildExpenseTools(userId: string) {
 
     deleteBank: tool({
       description:
-        "Borra un banco del usuario. Bloqueado si el banco tiene plantillas (`Expense`) o " +
-        "líneas (`MonthExpenseLine`) asociadas: en ese caso devuelve los conteos para que " +
-        "ofrezcas reasignar a otro banco o borrar primero esos registros. Pedí confirmación " +
-        "verbal al usuario antes de llamar este tool.",
+        "Deletes a user's bank. Blocked if the bank has associated templates (`Expense`) or " +
+        "lines (`MonthExpenseLine`): in that case returns the counts so you can offer to " +
+        "reassign to another bank or delete those records first. Ask the user for verbal " +
+        "confirmation before calling this tool.",
       inputSchema: z.object({ id: z.string().min(1) }),
       execute: async ({ id }) => {
         const existing = await db.bank.findFirst({
           where: { id, userId },
           select: { id: true, name: true },
         });
-        if (!existing) return { error: "El banco indicado no existe." };
+        if (!existing) return { error: "The specified bank doesn't exist." };
 
         const [templateCount, lineCount] = await Promise.all([
           db.expense.count({ where: { bankId: id, userId } }),
@@ -249,8 +249,8 @@ export function buildExpenseTools(userId: string) {
         if (templateCount > 0 || lineCount > 0) {
           return {
             error:
-              `No puedo borrar "${existing.name}": tiene ${templateCount} plantilla(s) y ${lineCount} línea(s) asociadas. ` +
-              "Reasigná esos registros a otro banco o borralos primero.",
+              `Can't delete "${existing.name}": it has ${templateCount} template(s) and ${lineCount} line(s) associated. ` +
+              "Reassign those records to another bank or delete them first.",
             templateCount,
             lineCount,
           };
@@ -264,7 +264,7 @@ export function buildExpenseTools(userId: string) {
 
     listExpenseTemplates: tool({
       description:
-        "Lista las plantillas de gastos del usuario (recurrentes y de un solo mes).",
+        "Lists the user's expense templates (recurring and one-off).",
       inputSchema: z.object({}),
       execute: async () => {
         const expenses = await db.expense.findMany({
@@ -289,7 +289,7 @@ export function buildExpenseTools(userId: string) {
 
     createExpenseTemplate: tool({
       description:
-        "Crea una plantilla de gasto (recurrente o puntual). Si no sabés el bankId pedíselo al usuario o usá listBanks. Para gastos recurrentes a partir de hoy usá el mes actual.",
+        "Creates an expense template (recurring or one-off). If you don't know the bankId, ask the user or use listBanks. For recurring expenses starting today use the current month.",
       inputSchema: z.object({
         name: z.string().min(1).max(120),
         amount: z.number().positive(),
@@ -308,7 +308,7 @@ export function buildExpenseTools(userId: string) {
           where: { id: payload.bankId, userId },
           select: { id: true, name: true },
         });
-        if (!bank) return { error: "El banco indicado no existe." };
+        if (!bank) return { error: "The specified bank doesn't exist." };
 
         const created = await db.expense.create({
           data: {
@@ -340,9 +340,9 @@ export function buildExpenseTools(userId: string) {
 
     updateExpenseTemplate: tool({
       description:
-        "Actualiza una plantilla de gasto existente. Pasá solo los campos a modificar (nombre, monto, banco, categoría, recurrencia, mes de inicio/fin). " +
-        "No materializa cambios sobre meses ya creados; los meses futuros (o los que se sincronicen con `mergePendingTemplates`) tomarán los nuevos valores. " +
-        "Si pasás `endMonth=null`, lo dejamos abierto (sin fecha de cierre).",
+        "Updates an existing expense template. Pass only the fields to modify (name, amount, bank, category, recurrence, start/end month). " +
+        "Does not materialize changes onto months already created; future months (or those synced with `mergePendingTemplates`) will pick up the new values. " +
+        "If you pass `endMonth=null`, it's left open (no end date).",
       inputSchema: z.object({
         id: z.string().min(1),
         name: z.string().min(1).max(120).optional(),
@@ -364,7 +364,7 @@ export function buildExpenseTools(userId: string) {
         category,
       }) => {
         const existing = await db.expense.findFirst({ where: { id, userId } });
-        if (!existing) return { error: "La plantilla indicada no existe." };
+        if (!existing) return { error: "The specified template doesn't exist." };
 
         const data: {
           name?: string;
@@ -390,12 +390,12 @@ export function buildExpenseTools(userId: string) {
             where: { id: bankId, userId },
             select: { id: true },
           });
-          if (!bank) return { error: "El banco indicado no existe." };
+          if (!bank) return { error: "The specified bank doesn't exist." };
           data.bankId = bankId;
         }
 
         if (Object.keys(data).length === 0) {
-          return { error: "Nada para actualizar." };
+          return { error: "Nothing to update." };
         }
 
         // Cross-field validation: one-off templates must not have endMonth, and
@@ -404,10 +404,10 @@ export function buildExpenseTools(userId: string) {
         const nextStart = data.startMonth ?? existing.startMonth;
         const nextEnd = data.endMonth !== undefined ? data.endMonth : existing.endMonth;
         if (!nextRecurring && nextEnd) {
-          return { error: "Las plantillas puntuales no pueden tener endMonth." };
+          return { error: "One-off templates can't have an endMonth." };
         }
         if (nextEnd && nextEnd < nextStart) {
-          return { error: "endMonth tiene que ser >= startMonth." };
+          return { error: "endMonth must be >= startMonth." };
         }
 
         const updated = await db.expense.update({
@@ -434,16 +434,16 @@ export function buildExpenseTools(userId: string) {
 
     deleteExpenseTemplate: tool({
       description:
-        "Borra una plantilla (`Expense`). Las líneas (`MonthExpenseLine`) ya materializadas en " +
-        "meses existentes se preservan y simplemente quedan desvinculadas (`templateId=null`), así que el " +
-        "histórico no se pierde. Pedí confirmación verbal al usuario antes de llamar este tool.",
+        "Deletes a template (`Expense`). Lines (`MonthExpenseLine`) already materialized in " +
+        "existing months are preserved and simply left unlinked (`templateId=null`), so history " +
+        "isn't lost. Ask the user for verbal confirmation before calling this tool.",
       inputSchema: z.object({ id: z.string().min(1) }),
       execute: async ({ id }) => {
         const existing = await db.expense.findFirst({
           where: { id, userId },
           select: { id: true, name: true },
         });
-        if (!existing) return { error: "La plantilla indicada no existe." };
+        if (!existing) return { error: "The specified template doesn't exist." };
 
         const lineCount = await db.monthExpenseLine.count({
           where: { templateId: id, userId },
@@ -459,15 +459,15 @@ export function buildExpenseTools(userId: string) {
 
     addMonthLine: tool({
       description:
-        "Agrega un gasto puntual al mes actual (no crea plantilla). Solo se permite el mes en curso. " +
-        "Útil cuando el usuario reporta un gasto suelto (foto del banco, mensaje, ticket). " +
-        "Por defecto la línea se crea como **pagada** (`paid=true`) porque el usuario está reportando " +
-        "algo que ya gastó. Pasá `paid=false` SOLO si el usuario aclara explícitamente que aún no lo pagó. " +
-        "Si el gasto está en otra moneda que la principal del usuario, pasá `currency` (ISO 4217). " +
-        "Podés overridear el tipo de cambio con `fxRate` (p. ej. dólar blue en Argentina); si lo omitís, " +
-        "buscamos un rate automático y lo dejamos congelado en la línea. " +
-        "Las líneas son únicas por (usuario, fecha, descripción, monto, moneda): " +
-        "si ya existe una idéntica el tool devuelve `duplicate=true` sin crear nada.",
+        "Adds a one-off expense to the current month (does not create a template). Only the current month is allowed. " +
+        "Useful when the user reports a one-off expense (bank screenshot, message, receipt). " +
+        "By default the line is created as **paid** (`paid=true`) because the user usually reports " +
+        "something already spent. Pass `paid=false` ONLY if the user explicitly says it isn't paid yet. " +
+        "If the expense is in a currency other than the user's primary, pass `currency` (ISO 4217). " +
+        "You can override the exchange rate with `fxRate` (e.g. parallel market rates); if omitted, " +
+        "we fetch an automatic rate and freeze it onto the line. " +
+        "Lines are unique by (user, date, description, amount, currency): " +
+        "if an identical one already exists the tool returns `duplicate=true` without creating anything.",
       inputSchema: z.object({
         name: z.string().min(1).max(120),
         amount: z.number().positive(),
@@ -478,26 +478,26 @@ export function buildExpenseTools(userId: string) {
           .optional()
           .default(true)
           .describe(
-            "Si el gasto ya está pagado. Default true porque el usuario suele reportar gastos hechos.",
+            "Whether the expense is already paid. Default true because users usually report expenses already made.",
           ),
         currency: currencySchema
           .optional()
           .describe(
-            "ISO 4217 (3 letras). Default = moneda principal del usuario. Pasala cuando el usuario diga 'compré en USD/ARS/EUR'.",
+            "ISO 4217 (3 letters). Default = user's primary currency. Pass it when the user says 'I paid in USD/ARS/EUR'.",
           ),
         fxRate: z
           .number()
           .positive()
           .optional()
           .describe(
-            "Override manual del tipo de cambio. Útil para casos como dólar blue/MEP. Si la omitís, usamos el rate del momento.",
+            "Manual override of the exchange rate. Useful for cases like parallel-market rates. If omitted, we use the live rate.",
           ),
         occurredOn: z
           .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
           .optional()
           .describe(
-            "Fecha real del gasto (yyyy-MM-dd). Default = hoy. Pasala si el usuario indica una fecha distinta (p. ej. 'la semana pasada', un comprobante con fecha).",
+            "Actual date of the expense (yyyy-MM-dd). Default = today. Pass it if the user indicates a different date (e.g. 'last week', a dated receipt).",
           ),
       }),
       execute: async (input) => {
@@ -510,18 +510,18 @@ export function buildExpenseTools(userId: string) {
           }),
           db.monthRecord.findFirst({ where: { userId, month: monthStart } }),
         ]);
-        if (!user) return { error: "Usuario no encontrado." };
+        if (!user) return { error: "User not found." };
         if (!record) {
           return {
             error:
-              "El mes en curso no está configurado todavía. Pedíle al usuario crearlo con createMonthIfNeeded.",
+              "The current month is not set up yet. Ask the user to create it with createMonthIfNeeded.",
           };
         }
         const bank = await db.bank.findFirst({
           where: { id: input.bankId, userId },
           select: { id: true, name: true },
         });
-        if (!bank) return { error: "El banco indicado no existe." };
+        if (!bank) return { error: "The specified bank doesn't exist." };
 
         let converted;
         try {
@@ -534,7 +534,7 @@ export function buildExpenseTools(userId: string) {
         } catch (error) {
           if (error instanceof FxUnavailableError) {
             return {
-              error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate y volvé a intentar pasando "fxRate".`,
+              error: `Couldn't fetch the exchange rate ${error.from}->${error.to}. Ask the user for a rate and retry passing "fxRate".`,
             };
           }
           throw error;
@@ -565,7 +565,7 @@ export function buildExpenseTools(userId: string) {
               ok: true as const,
               duplicate: true as const,
               note:
-                "Ya existía un gasto con esa fecha, descripción y monto. No lo dupliqué.",
+                "An expense with that date, description, and amount already existed. Did not duplicate it.",
             };
           }
           throw error;
@@ -592,9 +592,9 @@ export function buildExpenseTools(userId: string) {
 
     updateMonthLine: tool({
       description:
-        "Actualiza una línea del mes. Campos editables: `paid`, `amount`, `name`, `currency`, `fxRate`, `bankId`, `category`, `occurredOn` (yyyy-MM-dd). " +
-        "Útil para conciliar con una foto del banco, mover una línea a otro banco/categoría, corregir la fecha real o marcar pagos. " +
-        "Si pasás `currency` o `fxRate`, recalculamos `amountConverted` con el rate correspondiente; si solo cambia `amount` y la moneda no varía, mantenemos el rate ya fijado en la línea.",
+        "Updates a month line. Editable fields: `paid`, `amount`, `name`, `currency`, `fxRate`, `bankId`, `category`, `occurredOn` (yyyy-MM-dd). " +
+        "Useful for reconciling with a bank screenshot, moving a line to another bank/category, correcting the actual date, or marking payments. " +
+        "If you pass `currency` or `fxRate`, we recalculate `amountConverted` with the matching rate; if only `amount` changes and the currency stays the same, we keep the rate already fixed on the line.",
       inputSchema: z.object({
         id: z.string().min(1),
         paid: z.boolean().optional(),
@@ -606,7 +606,7 @@ export function buildExpenseTools(userId: string) {
         category: categoryEnum.optional(),
         occurredOn: z
           .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
           .optional(),
       }),
       execute: async ({
@@ -624,7 +624,7 @@ export function buildExpenseTools(userId: string) {
           where: { id, monthRecord: { userId } },
           include: { monthRecord: { select: { month: true } } },
         });
-        if (!existing) return { error: "Línea no encontrada." };
+        if (!existing) return { error: "Line not found." };
 
         const data: {
           paid?: boolean;
@@ -643,7 +643,7 @@ export function buildExpenseTools(userId: string) {
 
         if (occurredOn !== undefined) {
           const parsed = parseIsoDate(occurredOn);
-          if (!parsed) return { error: "occurredOn inválido (yyyy-MM-dd)." };
+          if (!parsed) return { error: "Invalid occurredOn (yyyy-MM-dd)." };
           data.occurredOn = parsed;
         }
 
@@ -652,7 +652,7 @@ export function buildExpenseTools(userId: string) {
             where: { id: bankId, userId },
             select: { id: true },
           });
-          if (!bank) return { error: "El banco indicado no existe." };
+          if (!bank) return { error: "The specified bank doesn't exist." };
           data.bankId = bankId;
         }
 
@@ -664,7 +664,7 @@ export function buildExpenseTools(userId: string) {
             where: { id: userId },
             select: { primaryCurrency: true },
           });
-          if (!user) return { error: "Usuario no encontrado." };
+          if (!user) return { error: "User not found." };
           const nextCurrency = currency ?? existing.currency;
           const nextAmount = amount ?? Number(existing.amount);
           // Just amount edit + same currency: keep the locked rate.
@@ -687,7 +687,7 @@ export function buildExpenseTools(userId: string) {
           } catch (error) {
             if (error instanceof FxUnavailableError) {
               return {
-                error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate y volvé a intentar pasando "fxRate".`,
+                error: `Couldn't fetch the exchange rate ${error.from}->${error.to}. Ask the user for a rate and retry passing "fxRate".`,
               };
             }
             throw error;
@@ -695,7 +695,7 @@ export function buildExpenseTools(userId: string) {
         }
 
         if (Object.keys(data).length === 0) {
-          return { error: "Nada para actualizar." };
+          return { error: "Nothing to update." };
         }
 
         let updated;
@@ -708,7 +708,7 @@ export function buildExpenseTools(userId: string) {
           if (isUniqueViolation(error)) {
             return {
               error:
-                "Ya hay un gasto con esa fecha, descripción y monto; no puedo dejar dos idénticos.",
+                "There's already an expense with that date, description, and amount; I can't leave two identical ones.",
             };
           }
           throw error;
@@ -737,15 +737,15 @@ export function buildExpenseTools(userId: string) {
 
     deleteMonthLine: tool({
       description:
-        "Borra una línea del mes (`MonthExpenseLine`). No toca la plantilla original. " +
-        "Pedí confirmación verbal al usuario antes de llamar este tool.",
+        "Deletes a month line (`MonthExpenseLine`). Does not touch the original template. " +
+        "Ask the user for verbal confirmation before calling this tool.",
       inputSchema: z.object({ id: z.string().min(1) }),
       execute: async ({ id }) => {
         const existing = await db.monthExpenseLine.findFirst({
           where: { id, monthRecord: { userId } },
           include: { monthRecord: { select: { month: true } } },
         });
-        if (!existing) return { error: "Línea no encontrada." };
+        if (!existing) return { error: "Line not found." };
 
         await db.monthExpenseLine.delete({ where: { id } });
         await expireYearTimeline(
@@ -766,8 +766,8 @@ export function buildExpenseTools(userId: string) {
 
     listIncomeTemplates: tool({
       description:
-        "Lista las plantillas de ingreso del usuario (recurrentes y de un solo mes). Útil cuando " +
-        "el usuario habla de 'mi sueldo', 'lo que cobro de alquiler', 'el freelance fijo', etc.",
+        "Lists the user's income templates (recurring and one-off). Useful when " +
+        "the user talks about 'my salary', 'what I earn from rent', 'the fixed freelance retainer', etc.",
       inputSchema: z.object({}),
       execute: async () => {
         const incomes = await db.income.findMany({
@@ -793,11 +793,11 @@ export function buildExpenseTools(userId: string) {
 
     createIncomeTemplate: tool({
       description:
-        "Crea una plantilla de ingreso (recurrente o puntual). Usalo cuando el usuario te cuente " +
-        "un cobro fijo: sueldo mensual, alquiler que cobra, freelance retainer, etc. " +
-        "`bankId` es OPCIONAL (los cobros no siempre se asocian a una cuenta — si el usuario no " +
-        "lo aclara, dejalo vacío). Para ingresos en moneda distinta a la principal, pasá " +
-        "`currency`. `category` ayuda a clasificar (SUELDO, FREELANCE, NEGOCIO, INVERSIONES, " +
+        "Creates an income template (recurring or one-off). Use it when the user mentions " +
+        "a fixed incoming payment: monthly salary, rent they receive, freelance retainer, etc. " +
+        "`bankId` is OPTIONAL (incoming payments aren't always tied to an account — if the user " +
+        "doesn't clarify, leave it empty). For income in a currency other than the primary, pass " +
+        "`currency`. `category` helps classify (SUELDO, FREELANCE, NEGOCIO, INVERSIONES, " +
         "ALQUILER, BONO, REEMBOLSO, REGALO, OTROS).",
       inputSchema: z.object({
         name: z.string().min(1).max(120),
@@ -820,13 +820,13 @@ export function buildExpenseTools(userId: string) {
             where: { id: payload.bankId, userId },
             select: { id: true },
           });
-          if (!bank) return { error: "El banco indicado no existe." };
+          if (!bank) return { error: "The specified bank doesn't exist." };
         }
         const user = await db.user.findUnique({
           where: { id: userId },
           select: { primaryCurrency: true },
         });
-        if (!user) return { error: "Usuario no encontrado." };
+        if (!user) return { error: "User not found." };
 
         const created = await db.income.create({
           data: {
@@ -861,11 +861,11 @@ export function buildExpenseTools(userId: string) {
 
     updateIncomeTemplate: tool({
       description:
-        "Actualiza una plantilla de ingreso existente. Pasá solo los campos a modificar " +
-        "(nombre, monto, banco, moneda, categoría, recurrencia, mes de inicio/fin). " +
-        "Pasá `bankId=null` para desasociar el banco. No materializa cambios sobre meses ya " +
-        "creados; los meses futuros (o los que se sincronicen con `mergePendingTemplates`) " +
-        "tomarán los nuevos valores.",
+        "Updates an existing income template. Pass only the fields to modify " +
+        "(name, amount, bank, currency, category, recurrence, start/end month). " +
+        "Pass `bankId=null` to unlink the bank. Does not materialize changes onto months already " +
+        "created; future months (or those synced with `mergePendingTemplates`) " +
+        "will pick up the new values.",
       inputSchema: z.object({
         id: z.string().min(1),
         name: z.string().min(1).max(120).optional(),
@@ -889,7 +889,7 @@ export function buildExpenseTools(userId: string) {
         currency,
       }) => {
         const existing = await db.income.findFirst({ where: { id, userId } });
-        if (!existing) return { error: "La plantilla indicada no existe." };
+        if (!existing) return { error: "The specified template doesn't exist." };
 
         const data: {
           name?: string;
@@ -920,23 +920,23 @@ export function buildExpenseTools(userId: string) {
               where: { id: bankId, userId },
               select: { id: true },
             });
-            if (!bank) return { error: "El banco indicado no existe." };
+            if (!bank) return { error: "The specified bank doesn't exist." };
             data.bankId = bankId;
           }
         }
 
         if (Object.keys(data).length === 0) {
-          return { error: "Nada para actualizar." };
+          return { error: "Nothing to update." };
         }
 
         const nextRecurring = data.isRecurring ?? existing.isRecurring;
         const nextStart = data.startMonth ?? existing.startMonth;
         const nextEnd = data.endMonth !== undefined ? data.endMonth : existing.endMonth;
         if (!nextRecurring && nextEnd) {
-          return { error: "Las plantillas puntuales no pueden tener endMonth." };
+          return { error: "One-off templates can't have an endMonth." };
         }
         if (nextEnd && nextEnd < nextStart) {
-          return { error: "endMonth tiene que ser >= startMonth." };
+          return { error: "endMonth must be >= startMonth." };
         }
 
         const updated = await db.income.update({
@@ -964,16 +964,16 @@ export function buildExpenseTools(userId: string) {
 
     deleteIncomeTemplate: tool({
       description:
-        "Borra una plantilla de ingreso. Las líneas (`MonthIncomeLine`) ya materializadas en " +
-        "meses existentes se preservan y simplemente quedan desvinculadas (`templateId=null`). " +
-        "Pedí confirmación verbal al usuario antes de llamar este tool.",
+        "Deletes an income template. Lines (`MonthIncomeLine`) already materialized in " +
+        "existing months are preserved and simply left unlinked (`templateId=null`). " +
+        "Ask the user for verbal confirmation before calling this tool.",
       inputSchema: z.object({ id: z.string().min(1) }),
       execute: async ({ id }) => {
         const existing = await db.income.findFirst({
           where: { id, userId },
           select: { id: true, name: true },
         });
-        if (!existing) return { error: "La plantilla indicada no existe." };
+        if (!existing) return { error: "The specified template doesn't exist." };
 
         const lineCount = await db.monthIncomeLine.count({
           where: { templateId: id, userId },
@@ -989,16 +989,16 @@ export function buildExpenseTools(userId: string) {
 
     addIncomeLine: tool({
       description:
-        "Registra un cobro PUNTUAL en el mes en curso (no crea plantilla). Solo se permite el " +
-        "mes en curso. Usalo cuando el usuario diga 'cobré X', 'me pagaron $Y', 'me " +
-        "transfirieron $Z de freelance', 'me llegó el bono', 'me devolvieron plata', etc. " +
-        "Por defecto la línea se crea como **recibida** (`received=true`) porque el usuario " +
-        "está reportando algo que ya entró. Pasá `received=false` SOLO si aclara que todavía " +
-        "está esperando el pago (p. ej. 'la próxima quincena cobro X'). " +
-        "`bankId` es OPCIONAL: si el usuario no lo aclara, dejalo vacío. " +
-        "Si el cobro está en otra moneda que la principal, pasá `currency` (ISO 4217). " +
-        "Las líneas son únicas por (usuario, fecha, descripción, monto, moneda): " +
-        "si ya existe una idéntica el tool devuelve `duplicate=true` sin crear nada.",
+        "Records a ONE-OFF incoming payment in the current month (does not create a template). Only the " +
+        "current month is allowed. Use it when the user says 'I got paid X', 'they paid me $Y', 'they " +
+        "transferred me $Z for freelance', 'the bonus came in', 'I got a refund', etc. " +
+        "By default the line is created as **received** (`received=true`) because the user " +
+        "is reporting something already received. Pass `received=false` ONLY if they clarify they're still " +
+        "waiting for the payment (e.g. 'next payday I'll get X'). " +
+        "`bankId` is OPTIONAL: if the user doesn't clarify, leave it empty. " +
+        "If the payment is in a currency other than the primary, pass `currency` (ISO 4217). " +
+        "Lines are unique by (user, date, description, amount, currency): " +
+        "if an identical one already exists the tool returns `duplicate=true` without creating anything.",
       inputSchema: z.object({
         name: z.string().min(1).max(120),
         amount: z.number().positive(),
@@ -1009,26 +1009,26 @@ export function buildExpenseTools(userId: string) {
           .optional()
           .default(true)
           .describe(
-            "Si la plata ya entró. Default true porque el usuario suele reportar cobros hechos.",
+            "Whether the money has already arrived. Default true because users usually report payments already received.",
           ),
         currency: currencySchema
           .optional()
           .describe(
-            "ISO 4217. Default = moneda principal del usuario. Pasala cuando el usuario diga 'cobré en USD/ARS/EUR'.",
+            "ISO 4217. Default = user's primary currency. Pass it when the user says 'I got paid in USD/ARS/EUR'.",
           ),
         fxRate: z
           .number()
           .positive()
           .optional()
           .describe(
-            "Override manual del tipo de cambio. Útil para casos como dólar blue/MEP cuando el cobro entra en moneda distinta a la principal.",
+            "Manual override of the exchange rate. Useful for cases like parallel-market rates when the payment arrives in a currency other than the primary.",
           ),
         occurredOn: z
           .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
           .optional()
           .describe(
-            "Fecha real del cobro (yyyy-MM-dd). Default = hoy. Pasala si el usuario indica una fecha distinta.",
+            "Actual date of the payment (yyyy-MM-dd). Default = today. Pass it if the user indicates a different date.",
           ),
       }),
       execute: async (input) => {
@@ -1041,11 +1041,11 @@ export function buildExpenseTools(userId: string) {
           }),
           db.monthRecord.findFirst({ where: { userId, month: monthStart } }),
         ]);
-        if (!user) return { error: "Usuario no encontrado." };
+        if (!user) return { error: "User not found." };
         if (!record) {
           return {
             error:
-              "El mes en curso no está configurado todavía. Pedíle al usuario crearlo con createMonthIfNeeded.",
+              "The current month is not set up yet. Ask the user to create it with createMonthIfNeeded.",
           };
         }
         let bankName: string | null = null;
@@ -1054,7 +1054,7 @@ export function buildExpenseTools(userId: string) {
             where: { id: input.bankId, userId },
             select: { id: true, name: true },
           });
-          if (!bank) return { error: "El banco indicado no existe." };
+          if (!bank) return { error: "The specified bank doesn't exist." };
           bankName = bank.name;
         }
 
@@ -1069,7 +1069,7 @@ export function buildExpenseTools(userId: string) {
         } catch (error) {
           if (error instanceof FxUnavailableError) {
             return {
-              error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate y volvé a intentar pasando "fxRate".`,
+              error: `Couldn't fetch the exchange rate ${error.from}->${error.to}. Ask the user for a rate and retry passing "fxRate".`,
             };
           }
           throw error;
@@ -1100,7 +1100,7 @@ export function buildExpenseTools(userId: string) {
               ok: true as const,
               duplicate: true as const,
               note:
-                "Ya existía un cobro con esa fecha, descripción y monto. No lo dupliqué.",
+                "An incoming payment with that date, description, and amount already existed. Did not duplicate it.",
             };
           }
           throw error;
@@ -1129,12 +1129,12 @@ export function buildExpenseTools(userId: string) {
 
     updateIncomeLine: tool({
       description:
-        "Actualiza una línea de ingreso del mes. Campos editables: `received`, `amount`, " +
+        "Updates a month income line. Editable fields: `received`, `amount`, " +
         "`name`, `currency`, `fxRate`, `bankId`, `category`, `occurredOn`. " +
-        "Útil para confirmar que un cobro previsto ya entró (`received=true`), corregir " +
-        "monto/fecha, o moverlo a otro banco/categoría. Si pasás `currency` o `fxRate`, " +
-        "recalculamos `amountConverted`; si solo cambia `amount` y la moneda no varía, " +
-        "mantenemos el rate ya fijado.",
+        "Useful to confirm that an expected payment arrived (`received=true`), correct " +
+        "amount/date, or move it to another bank/category. If you pass `currency` or `fxRate`, " +
+        "we recalculate `amountConverted`; if only `amount` changes and the currency stays the same, " +
+        "we keep the rate already fixed.",
       inputSchema: z.object({
         id: z.string().min(1),
         received: z.boolean().optional(),
@@ -1146,7 +1146,7 @@ export function buildExpenseTools(userId: string) {
         category: incomeCategoryEnum.optional(),
         occurredOn: z
           .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
           .optional(),
       }),
       execute: async ({
@@ -1164,7 +1164,7 @@ export function buildExpenseTools(userId: string) {
           where: { id, userId },
           include: { monthRecord: { select: { month: true } } },
         });
-        if (!existing) return { error: "Línea de ingreso no encontrada." };
+        if (!existing) return { error: "Income line not found." };
 
         const data: {
           received?: boolean;
@@ -1183,7 +1183,7 @@ export function buildExpenseTools(userId: string) {
 
         if (occurredOn !== undefined) {
           const parsed = parseIsoDate(occurredOn);
-          if (!parsed) return { error: "occurredOn inválido (yyyy-MM-dd)." };
+          if (!parsed) return { error: "Invalid occurredOn (yyyy-MM-dd)." };
           data.occurredOn = parsed;
         }
 
@@ -1195,7 +1195,7 @@ export function buildExpenseTools(userId: string) {
               where: { id: bankId, userId },
               select: { id: true },
             });
-            if (!bank) return { error: "El banco indicado no existe." };
+            if (!bank) return { error: "The specified bank doesn't exist." };
             data.bankId = bankId;
           }
         }
@@ -1208,7 +1208,7 @@ export function buildExpenseTools(userId: string) {
             where: { id: userId },
             select: { primaryCurrency: true },
           });
-          if (!user) return { error: "Usuario no encontrado." };
+          if (!user) return { error: "User not found." };
           const nextCurrency = currency ?? existing.currency;
           const nextAmount = amount ?? Number(existing.amount);
           const useExistingRate =
@@ -1230,7 +1230,7 @@ export function buildExpenseTools(userId: string) {
           } catch (error) {
             if (error instanceof FxUnavailableError) {
               return {
-                error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate y volvé a intentar pasando "fxRate".`,
+                error: `Couldn't fetch the exchange rate ${error.from}->${error.to}. Ask the user for a rate and retry passing "fxRate".`,
               };
             }
             throw error;
@@ -1238,7 +1238,7 @@ export function buildExpenseTools(userId: string) {
         }
 
         if (Object.keys(data).length === 0) {
-          return { error: "Nada para actualizar." };
+          return { error: "Nothing to update." };
         }
 
         let updated;
@@ -1248,7 +1248,7 @@ export function buildExpenseTools(userId: string) {
           if (isUniqueViolation(error)) {
             return {
               error:
-                "Ya hay un cobro con esa fecha, descripción y monto; no puedo dejar dos idénticos.",
+                "There's already an incoming payment with that date, description, and amount; I can't leave two identical ones.",
             };
           }
           throw error;
@@ -1277,15 +1277,15 @@ export function buildExpenseTools(userId: string) {
 
     deleteIncomeLine: tool({
       description:
-        "Borra una línea de ingreso del mes (`MonthIncomeLine`). No toca la plantilla " +
-        "original. Pedí confirmación verbal al usuario antes de llamar este tool.",
+        "Deletes a month income line (`MonthIncomeLine`). Does not touch the original " +
+        "template. Ask the user for verbal confirmation before calling this tool.",
       inputSchema: z.object({ id: z.string().min(1) }),
       execute: async ({ id }) => {
         const existing = await db.monthIncomeLine.findFirst({
           where: { id, userId },
           include: { monthRecord: { select: { month: true } } },
         });
-        if (!existing) return { error: "Línea de ingreso no encontrada." };
+        if (!existing) return { error: "Income line not found." };
 
         await db.monthIncomeLine.delete({ where: { id } });
         await expireYearTimeline(
@@ -1306,7 +1306,7 @@ export function buildExpenseTools(userId: string) {
 
     createMonthIfNeeded: tool({
       description:
-        "Crea el bucket de un mes si todavía no existe, copiando desde plantillas (mode=templates) o desde otro mes (mode=copyFrom + copyFromMonth).",
+        "Creates a month bucket if it doesn't exist yet, copying from templates (mode=templates) or from another month (mode=copyFrom + copyFromMonth).",
       inputSchema: z.object({
         month: monthKey,
         mode: z.enum(["templates", "copyFrom"]).default("templates"),
@@ -1335,7 +1335,7 @@ export function buildExpenseTools(userId: string) {
             await createMonthFromCopy(userId, payload.month, payload.copyFromMonth);
           } catch (e) {
             if (e instanceof Error && e.message === "SOURCE_NOT_FOUND") {
-              return { error: "El mes origen no existe." };
+              return { error: "The source month doesn't exist." };
             }
             throw e;
           }
@@ -1346,9 +1346,9 @@ export function buildExpenseTools(userId: string) {
 
     mergePendingTemplates: tool({
       description:
-        "Vuelca las plantillas (gastos + ingresos) vigentes que aún no están en el mes a las " +
-        "líneas correspondientes (idempotente). Devuelve el conteo de líneas creadas por cada " +
-        "tipo (`addedExpenses`, `addedIncomes`).",
+        "Pours active templates (expenses + incomes) that aren't yet in the month into the " +
+        "matching lines (idempotent). Returns the count of lines created per " +
+        "type (`addedExpenses`, `addedIncomes`).",
       inputSchema: z.object({ month: monthKey }),
       execute: async ({ month }) => {
         try {
@@ -1363,7 +1363,7 @@ export function buildExpenseTools(userId: string) {
           };
         } catch (e) {
           if (e instanceof Error && e.message === "NO_RECORD") {
-            return { error: "El mes no está configurado." };
+            return { error: "The month is not set up." };
           }
           throw e;
         }
@@ -1372,15 +1372,15 @@ export function buildExpenseTools(userId: string) {
 
     applyPrevMonthLeftover: tool({
       description:
-        "Aplica la decisión del usuario sobre el saldo del mes anterior al mes elegido (default = mes actual). " +
-        "Si el mes anterior cerró con SOBRANTE: usá `addToIncome` (lo suma a `carryoverFromPrev` del mes) o " +
-        "`setAside` (lo acumula en la pila de ahorros como movimiento CARRYOVER_DEPOSIT). " +
-        "Si cerró con DEUDA (saldo negativo): usá `coverFromSavings` (retira hasta `min(savings, |deuda|)` " +
-        "como movimiento DEBT_COVERAGE; si no alcanza, la deuda restante queda como `carryoverFromPrev` " +
-        "negativo del mes actual) o `carryDebt` (toda la deuda pasa al mes actual sin tocar la pila). " +
-        "Idempotente: si ya se decidió, devuelve `alreadyDecided=true`. Llamalo SOLO cuando getMonthState " +
-        "haya devuelto un `carryoverPrompt` y el usuario haya elegido una opción válida según el `type` " +
-        "del prompt (`leftover` o `deficit`).",
+        "Applies the user's decision about the previous month's balance to the chosen month (default = current month). " +
+        "If the previous month closed with a LEFTOVER: use `addToIncome` (adds to `carryoverFromPrev` of the month) or " +
+        "`setAside` (accumulates in the savings stack as a CARRYOVER_DEPOSIT movement). " +
+        "If it closed with DEBT (negative balance): use `coverFromSavings` (withdraws up to `min(savings, |debt|)` " +
+        "as a DEBT_COVERAGE movement; if it's not enough, the remaining debt stays as a negative " +
+        "`carryoverFromPrev` on the current month) or `carryDebt` (all the debt moves to the current month without touching the stack). " +
+        "Idempotent: if already decided, returns `alreadyDecided=true`. Call it ONLY when getMonthState " +
+        "has returned a `carryoverPrompt` and the user has chosen a valid option according to the prompt's `type` " +
+        "(`leftover` or `deficit`).",
       inputSchema: z.object({
         month: optionalMonthKey,
         mode: z.enum(["addToIncome", "setAside", "coverFromSavings", "carryDebt"]),
@@ -1391,7 +1391,7 @@ export function buildExpenseTools(userId: string) {
         if (result.type === "noRecord") {
           return {
             error:
-              "El mes no está configurado todavía. Llamá createMonthIfNeeded antes de aplicar el sobrante.",
+              "The month is not set up yet. Call createMonthIfNeeded before applying the leftover.",
           };
         }
         if (result.type === "alreadyDecided") {
@@ -1404,15 +1404,15 @@ export function buildExpenseTools(userId: string) {
             applied: false as const,
             month: target,
             note:
-              "No había saldo pendiente del mes anterior. Marcamos la decisión como tomada para no volver a preguntar.",
+              "There was no pending balance from the previous month. We marked the decision as taken so we don't ask again.",
           };
         }
         if (result.type === "modeMismatch") {
           return {
             error:
               result.expected === "leftover"
-                ? "El mes anterior cerró con sobrante: usá `addToIncome` o `setAside`."
-                : "El mes anterior cerró con deuda: usá `coverFromSavings` o `carryDebt`.",
+                ? "The previous month closed with a leftover: use `addToIncome` or `setAside`."
+                : "The previous month closed with debt: use `coverFromSavings` or `carryDebt`.",
           };
         }
         return {
@@ -1432,11 +1432,11 @@ export function buildExpenseTools(userId: string) {
 
     getSavingsState: tool({
       description:
-        "Lee el estado actual de la pila global de ahorros: balance acumulado y los últimos N movimientos " +
-        "(default 20, máx 100) más recientes primero. Cada movimiento incluye `kind` " +
-        "(MONTHLY_CONTRIBUTION = aporte mensual informativo, CARRYOVER_DEPOSIT = sobrante derivado a ahorro, " +
-        "DEBT_COVERAGE = retiro para cubrir mes negativo, MANUAL_DEPOSIT/MANUAL_WITHDRAWAL = ad-hoc), " +
-        "monto FIRMADO (positivo entra, negativo sale), `monthKey` cuando hay mes asociado, fecha y nota.",
+        "Reads the current state of the global savings stack: accumulated balance and the last N movements " +
+        "(default 20, max 100) most recent first. Each movement includes `kind` " +
+        "(MONTHLY_CONTRIBUTION = informational monthly contribution, CARRYOVER_DEPOSIT = leftover routed to savings, " +
+        "DEBT_COVERAGE = withdrawal to cover a negative month, MANUAL_DEPOSIT/MANUAL_WITHDRAWAL = ad-hoc), " +
+        "SIGNED amount (positive in, negative out), `monthKey` when there's an associated month, date, and note.",
       inputSchema: z.object({
         limit: z.number().int().min(1).max(100).optional(),
       }),
@@ -1447,29 +1447,29 @@ export function buildExpenseTools(userId: string) {
           currency: state.currency,
           movements: state.movements,
           summaryText:
-            `Pila de ahorro: ${state.currency} ${formatMoney(state.balance)} ` +
-            `(${state.movements.length} movimiento(s) recientes).`,
+            `Savings stack: ${state.currency} ${formatMoney(state.balance)} ` +
+            `(${state.movements.length} recent movement(s)).`,
         };
       },
     }),
 
     addSavingsMovement: tool({
       description:
-        "Registra un movimiento manual en la pila de ahorros. " +
-        "`kind=MANUAL_DEPOSIT` para meter plata (SUMA a la pila). " +
-        "`kind=MANUAL_WITHDRAWAL` para sacar plata (RESTA de la pila — usalo cuando el usuario diga " +
-        "'saqué/retiré X de los ahorros', 'restale X', 'gasté X de la pila'). " +
-        "`amount` siempre positivo; el signo lo aplicamos según `kind`. Para retiros, validamos que la " +
-        "pila alcance — si no, devolvemos `error`. " +
-        "NO uses este tool para el aporte mensual del usuario (usá `setMonthlySavingsContribution`) ni para " +
-        "cubrir deuda del mes anterior (usá `applyPrevMonthLeftover` con `mode=coverFromSavings`).",
+        "Records a manual movement in the savings stack. " +
+        "`kind=MANUAL_DEPOSIT` to add money (ADDS to the stack). " +
+        "`kind=MANUAL_WITHDRAWAL` to take money out (SUBTRACTS from the stack — use it when the user says " +
+        "'I withdrew X from savings', 'subtract X', 'I spent X from the stack'). " +
+        "`amount` is always positive; we apply the sign based on `kind`. For withdrawals, we validate that the " +
+        "stack has enough — otherwise we return `error`. " +
+        "Do NOT use this tool for the user's monthly contribution (use `setMonthlySavingsContribution`) or to " +
+        "cover the previous month's debt (use `applyPrevMonthLeftover` with `mode=coverFromSavings`).",
       inputSchema: z.object({
         kind: z.enum(["MANUAL_DEPOSIT", "MANUAL_WITHDRAWAL"]),
         amount: z.number().positive(),
         note: z.string().max(500).optional(),
         occurredOn: z
           .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
           .optional(),
       }),
       execute: async ({ kind, amount, note, occurredOn }) => {
@@ -1477,13 +1477,13 @@ export function buildExpenseTools(userId: string) {
           where: { id: userId },
           select: { primaryCurrency: true, savings: true },
         });
-        if (!user) return { error: "Usuario no encontrado." };
+        if (!user) return { error: "User not found." };
         const magnitude = new Prisma.Decimal(amount.toFixed(2));
         if (kind === "MANUAL_WITHDRAWAL" && user.savings.lessThan(magnitude)) {
           return {
             error:
-              `La pila tiene ${user.primaryCurrency} ${formatMoney(Number(user.savings))} ` +
-              `y no alcanza para retirar ${user.primaryCurrency} ${formatMoney(amount)}.`,
+              `The stack has ${user.primaryCurrency} ${formatMoney(Number(user.savings))} ` +
+              `and isn't enough to withdraw ${user.primaryCurrency} ${formatMoney(amount)}.`,
           };
         }
         const signed =
@@ -1516,36 +1516,36 @@ export function buildExpenseTools(userId: string) {
 
     deleteSavingsMovement: tool({
       description:
-        "Borra un movimiento manual del ledger de ahorros (`MANUAL_DEPOSIT` o `MANUAL_WITHDRAWAL`) y " +
-        "revierte su efecto sobre la pila. Usalo cuando el usuario diga 'borrá ese movimiento de ahorros', " +
-        "'sacá el depósito que cargué mal', 'borrá el retiro de X', etc. " +
-        "Bloqueado para movimientos del sistema (`MONTHLY_CONTRIBUTION`, `CARRYOVER_DEPOSIT`, " +
-        "`DEBT_COVERAGE`): para deshacer un aporte mensual usá `removeMonthlySavingsContribution`; " +
-        "para deshacer una decisión de carryover (sobrante derivado o cobertura de deuda) " +
-        "no hay tool de revert directo, avisale al usuario que tiene que rehacer la decisión del mes. " +
-        "Si dudás del id, primero llamá `getSavingsState` para listar los movimientos. " +
-        "Pedí confirmación verbal corta antes de llamar este tool.",
+        "Deletes a manual movement from the savings ledger (`MANUAL_DEPOSIT` or `MANUAL_WITHDRAWAL`) and " +
+        "reverts its effect on the stack. Use it when the user says 'delete that savings movement', " +
+        "'remove the deposit I entered wrong', 'delete the withdrawal of X', etc. " +
+        "Blocked for system movements (`MONTHLY_CONTRIBUTION`, `CARRYOVER_DEPOSIT`, " +
+        "`DEBT_COVERAGE`): to undo a monthly contribution use `removeMonthlySavingsContribution`; " +
+        "to undo a carryover decision (leftover routed or debt coverage) " +
+        "there's no direct revert tool — tell the user they need to redo the month's decision. " +
+        "If unsure about the id, first call `getSavingsState` to list the movements. " +
+        "Ask for brief verbal confirmation before calling this tool.",
       inputSchema: z.object({ id: z.string().min(1) }),
       execute: async ({ id }) => {
         const existing = await db.savingsMovement.findFirst({
           where: { id, userId },
           select: { id: true, kind: true, amount: true, currency: true },
         });
-        if (!existing) return { error: "El movimiento indicado no existe." };
+        if (!existing) return { error: "The specified movement doesn't exist." };
         if (
           existing.kind !== SavingsMovementKind.MANUAL_DEPOSIT &&
           existing.kind !== SavingsMovementKind.MANUAL_WITHDRAWAL
         ) {
           return {
             error:
-              `Ese movimiento es del sistema (${existing.kind}) y no se puede borrar a mano. ` +
-              "Para el aporte mensual usá removeMonthlySavingsContribution; para los movimientos de " +
-              "carryover (CARRYOVER_DEPOSIT/DEBT_COVERAGE) hay que rehacer la decisión del mes que los originó.",
+              `That movement is a system one (${existing.kind}) and can't be deleted by hand. ` +
+              "For the monthly contribution use removeMonthlySavingsContribution; for carryover " +
+              "movements (CARRYOVER_DEPOSIT/DEBT_COVERAGE) you need to redo the decision of the month that originated them.",
             kind: existing.kind,
           };
         }
         const result = await deleteSavingsMovement(id, userId);
-        if (!result.ok) return { error: "El movimiento indicado no existe." };
+        if (!result.ok) return { error: "The specified movement doesn't exist." };
         return {
           ok: true as const,
           balance: result.balance,
@@ -1561,23 +1561,23 @@ export function buildExpenseTools(userId: string) {
 
     dedupeSavingsMovements: tool({
       description:
-        "Detecta y borra movimientos MANUAL_* duplicados del ledger de ahorros. " +
-        "Dos movimientos cuentan como duplicados si comparten `kind`, monto firmado, moneda, " +
-        "fecha (`occurredOn`) y nota (nota nula y vacía cuentan iguales). Solo afecta " +
-        "`MANUAL_DEPOSIT` y `MANUAL_WITHDRAWAL`: los kinds del sistema " +
-        "(MONTHLY_CONTRIBUTION, CARRYOVER_DEPOSIT, DEBT_COVERAGE) ya tienen unicidad por mes y se ignoran. " +
-        "Por defecto corre en `dryRun=true` y devuelve los grupos detectados sin borrar nada — usalo " +
-        "para mostrarle al usuario qué se duplicó y pedir confirmación. Recién después llamalo con " +
-        "`dryRun=false` para aplicar el borrado: en cada grupo conserva el movimiento más antiguo " +
-        "(por `createdAt`) y borra el resto, ajustando la pila en una sola transacción. " +
-        "Pedí confirmación verbal corta antes de pasar `dryRun=false`.",
+        "Detects and deletes duplicate MANUAL_* movements from the savings ledger. " +
+        "Two movements count as duplicates if they share `kind`, signed amount, currency, " +
+        "date (`occurredOn`), and note (null and empty note count the same). Only affects " +
+        "`MANUAL_DEPOSIT` and `MANUAL_WITHDRAWAL`: system kinds " +
+        "(MONTHLY_CONTRIBUTION, CARRYOVER_DEPOSIT, DEBT_COVERAGE) already have per-month uniqueness and are ignored. " +
+        "By default runs in `dryRun=true` and returns detected groups without deleting anything — use it " +
+        "to show the user what was duplicated and ask for confirmation. Only then call it with " +
+        "`dryRun=false` to apply the deletion: in each group it keeps the oldest movement " +
+        "(by `createdAt`) and deletes the rest, adjusting the stack in a single transaction. " +
+        "Ask for brief verbal confirmation before passing `dryRun=false`.",
       inputSchema: z.object({
         dryRun: z
           .boolean()
           .optional()
           .default(true)
           .describe(
-            "Si es true (default), solo lista los duplicados detectados. Pasá false para borrarlos.",
+            "If true (default), only lists the detected duplicates. Pass false to delete them.",
           ),
       }),
       execute: async ({ dryRun }) => {
@@ -1594,7 +1594,7 @@ export function buildExpenseTools(userId: string) {
             dryRun: isDryRun,
             groups: [],
             totalDuplicates: 0,
-            note: "No encontré movimientos manuales duplicados en la pila.",
+            note: "No duplicate manual movements were found in the stack.",
           };
         }
         if (isDryRun) {
@@ -1614,8 +1614,8 @@ export function buildExpenseTools(userId: string) {
               extraCount: g.duplicateIds.length,
             })),
             note:
-              `Detecté ${groups.length} grupo(s) con ${totalDuplicates} movimiento(s) extra. ` +
-              "Pedile confirmación al usuario y volvé a llamar con dryRun=false para borrarlos.",
+              `Detected ${groups.length} group(s) with ${totalDuplicates} extra movement(s). ` +
+              "Ask the user for confirmation and call again with dryRun=false to delete them.",
           };
         }
         const idsToDelete = groups.flatMap((g) => g.duplicateIds);
@@ -1643,10 +1643,10 @@ export function buildExpenseTools(userId: string) {
 
     setMonthlySavingsContribution: tool({
       description:
-        "Upsert del aporte mensual INFORMATIVO del usuario para un mes (yyyy-MM). El monto entra a la pila " +
-        "como movimiento `MONTHLY_CONTRIBUTION` pero NO afecta el balance del mes (no se descuenta del " +
-        "ingreso ni aparece como gasto). Hay UN solo aporte por mes; si ya existía, lo reemplaza. " +
-        "Requiere que el mes esté creado (createMonthIfNeeded antes si no).",
+        "Upsert of the user's INFORMATIONAL monthly contribution for a month (yyyy-MM). The amount enters the stack " +
+        "as a `MONTHLY_CONTRIBUTION` movement but does NOT affect the month's balance (it's not deducted from " +
+        "income nor shown as an expense). There's ONLY ONE contribution per month; if one already existed, it's replaced. " +
+        "Requires the month to be created (createMonthIfNeeded first if not).",
       inputSchema: z.object({
         month: monthKey,
         amount: z.number().positive(),
@@ -1664,11 +1664,11 @@ export function buildExpenseTools(userId: string) {
             select: { id: true },
           }),
         ]);
-        if (!user) return { error: "Usuario no encontrado." };
+        if (!user) return { error: "User not found." };
         if (!monthRecord) {
           return {
             error:
-              "El mes no está configurado todavía. Llamá createMonthIfNeeded antes.",
+              "The month is not set up yet. Call createMonthIfNeeded first.",
           };
         }
         const result = await setMonthlySavingsContribution({
@@ -1691,8 +1691,8 @@ export function buildExpenseTools(userId: string) {
 
     removeMonthlySavingsContribution: tool({
       description:
-        "Borra el aporte mensual informativo del usuario para un mes (yyyy-MM) si existe. Revierte el " +
-        "efecto sobre la pila. Devuelve `removed=false` cuando no había aporte registrado.",
+        "Deletes the user's informational monthly contribution for a month (yyyy-MM) if it exists. Reverts the " +
+        "effect on the stack. Returns `removed=false` when there was no contribution recorded.",
       inputSchema: z.object({ month: monthKey }),
       execute: async ({ month }) => {
         const monthStart = toMonthStart(parseMonthKey(month));
@@ -1701,7 +1701,7 @@ export function buildExpenseTools(userId: string) {
           select: { id: true },
         });
         if (!monthRecord) {
-          return { error: "El mes no está configurado todavía." };
+          return { error: "The month is not set up yet." };
         }
         const result = await removeMonthlySavingsContribution({
           userId,
@@ -1713,7 +1713,7 @@ export function buildExpenseTools(userId: string) {
 
     setUserLocale: tool({
       description:
-        "Updates the user's UI/agent language. Call when the user explicitly asks to switch language (e.g. 'habla en inglés', 'switch to Spanish', 'cambiá a español'). After this tool runs, the agent's NEXT reply MUST already be in the new locale, with a short acknowledgement.",
+        "Updates the user's UI/agent language. Call when the user explicitly asks to switch language (e.g. 'speak English', 'switch to Spanish', 'use Spanish for replies'). After this tool runs, the agent's NEXT reply MUST already be in the new locale, with a short acknowledgement.",
       inputSchema: z.object({
         locale: z
           .enum(["es", "en"])
@@ -1730,14 +1730,14 @@ export function buildExpenseTools(userId: string) {
 
     setPrimaryCurrency: tool({
       description:
-        "Define la moneda principal del usuario (ISO 4217, p. ej. USD/ARS/EUR). " +
-        "TODA la matemática (totales, balance, ingreso) se reporta en esta moneda; " +
-        "los gastos individuales pueden estar en otra y se convierten automáticamente. " +
-        "Llamala SOLO cuando el usuario confirma su moneda principal (texto explícito o respuesta a tu pregunta de onboarding). " +
-        "También marca `primaryCurrencyConfirmedAt` para que no volvamos a preguntarle.",
+        "Sets the user's primary currency (ISO 4217, e.g. USD/ARS/EUR). " +
+        "ALL the math (totals, balance, income) is reported in this currency; " +
+        "individual expenses can be in another one and are converted automatically. " +
+        "Call it ONLY when the user confirms their primary currency (explicit text or response to your onboarding question). " +
+        "Also sets `primaryCurrencyConfirmedAt` so we don't ask again.",
       inputSchema: z.object({
         currency: currencySchema.describe(
-          "Código ISO 4217 de 3 letras, en mayúsculas (USD, ARS, EUR, BRL, …).",
+          "3-letter ISO 4217 code, uppercase (USD, ARS, EUR, BRL, …).",
         ),
       }),
       execute: async ({ currency }) => {
@@ -1754,17 +1754,17 @@ export function buildExpenseTools(userId: string) {
           primaryCurrency: updated.primaryCurrency,
           confirmedAt: updated.primaryCurrencyConfirmedAt?.toISOString() ?? null,
           note:
-            "Las líneas existentes mantienen su tipo de cambio original; sólo cambian los totales nuevos.",
+            "Existing lines keep their original exchange rate; only new totals change.",
         };
       },
     }),
 
     getFxRate: tool({
       description:
-        "Consulta el tipo de cambio actual `1 from = X to`. Si omitís `to`, usamos la moneda principal del usuario. " +
-        "Útil para previsualizar conversiones antes de cargar un gasto, o cuando el usuario pregunta '¿a cuánto está USD/ARS?'. " +
-        "El rate se cachea por 1h. Si la fuente no responde, devolvemos `error` y conviene pedirle al usuario un rate manual " +
-        "para usar como `fxRate` en addMonthLine/updateMonthLine.",
+        "Queries the current exchange rate `1 from = X to`. If `to` is omitted, we use the user's primary currency. " +
+        "Useful to preview conversions before entering an expense, or when the user asks 'what's USD/ARS at?'. " +
+        "The rate is cached for 1h. If the source doesn't respond, we return `error` and it's best to ask the user for a manual rate " +
+        "to use as `fxRate` in addMonthLine/updateMonthLine.",
       inputSchema: z.object({
         from: currencySchema,
         to: currencySchema.optional(),
@@ -1776,7 +1776,7 @@ export function buildExpenseTools(userId: string) {
             where: { id: userId },
             select: { primaryCurrency: true },
           });
-          if (!user) return { error: "Usuario no encontrado." };
+          if (!user) return { error: "User not found." };
           target = user.primaryCurrency;
         }
         try {
@@ -1791,7 +1791,7 @@ export function buildExpenseTools(userId: string) {
         } catch (error) {
           if (error instanceof FxUnavailableError) {
             return {
-              error: `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Pedile al usuario un rate manual.`,
+              error: `Couldn't fetch the exchange rate ${error.from}->${error.to}. Ask the user for a manual rate.`,
             };
           }
           throw error;
@@ -1801,12 +1801,12 @@ export function buildExpenseTools(userId: string) {
 
     updateExpenseImportInstructions: tool({
       description:
-        "Guarda en la cuenta del usuario las instrucciones persistentes para importaciones (CSV, fotos), categorías y cómo marcar líneas (p. ej. pagado al importar). Usalo cuando pida recordar algo de forma permanente ('guardá que…', 'de ahora en más…', 'no quiero tener que repetir…'). Si solo agrega una regla nueva sin borrar el resto, usá mode=append (el texto actual está en el system prompt como bloque «Instrucciones personales»). Si reescribe todo el bloque, mode=replace. Después del tool, confirmá en una frase lo guardado.",
+        "Stores on the user's account persistent instructions for imports (CSV, photos), categories, and how to mark lines (e.g. paid on import). Use it when they ask to remember something permanently ('save that…', 'from now on…', 'I don't want to have to repeat…'). If they're only adding a new rule without deleting the rest, use mode=append (the current text is in the system prompt as the \"Personal instructions\" block). If they're rewriting the whole block, mode=replace. After the tool, confirm in one sentence what was saved.",
       inputSchema: z.object({
         mode: z
           .enum(["replace", "append"])
           .describe(
-            "append: concatena debajo de lo ya guardado. replace: reemplaza por completo.",
+            "append: appends below what's already saved. replace: replaces entirely.",
           ),
         instructions: z
           .string()
@@ -1827,7 +1827,7 @@ export function buildExpenseTools(userId: string) {
 
         if (next.length > MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS) {
           return {
-            error: `El texto supera el máximo de ${MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS} caracteres. Pedí al usuario que acorte o borre reglas viejas desde Configuración.`,
+            error: `The text exceeds the ${MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS}-character maximum. Ask the user to shorten it or delete old rules from Settings.`,
           };
         }
 
@@ -1847,12 +1847,12 @@ export function buildExpenseTools(userId: string) {
 
     renderChart: tool({
       description: [
-        "Muestra un gráfico embebido en el chat. Usalo cuando un visual ayude (ingreso vs gastos, distribución por categoría/banco, evolución mensual).",
-        "Llamálo SIEMPRE después de obtener los datos con otras tools (getMonthState, listExpenseTemplates, etc.). NO inventes números.",
-        "Tipos: 'bar' (comparar magnitudes; soporta stacked u horizontal), 'pie' (distribución 2-8 segmentos), 'line' (serie temporal), 'area' (line con relleno; soporta stacked).",
-        "Para bar/line/area: pasá 'xValues' (etiquetas del eje X) y 'series' (cada serie con label + values alineados 1:1 con xValues).",
-        "Para pie: pasá 'slices' (cada uno con name + value, sin negativos).",
-        "Mantené 'title' breve. Si son montos del usuario, seteá 'currency' (p. ej. 'USD' o 'ARS').",
+        "Renders a chart embedded in the chat. Use it when a visual helps (income vs expenses, distribution by category/bank, monthly evolution).",
+        "ALWAYS call it after fetching data with other tools (getMonthState, listExpenseTemplates, etc.). Do NOT make up numbers.",
+        "Types: 'bar' (compare magnitudes; supports stacked or horizontal), 'pie' (distribution, 2-8 segments), 'line' (time series), 'area' (line with fill; supports stacked).",
+        "For bar/line/area: pass 'xValues' (X-axis labels) and 'series' (each with label + values aligned 1:1 with xValues).",
+        "For pie: pass 'slices' (each with name + value, no negatives).",
+        "Keep 'title' short. If the numbers are user amounts, set 'currency' (e.g. 'USD' or 'ARS').",
       ].join(" "),
       inputSchema: chartSpecSchema,
       execute: async (spec) => {

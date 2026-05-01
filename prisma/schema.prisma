@@ -340,7 +340,7 @@ model MonthRecord {
   carryoverFromPrev   Decimal   @default(0) @db.Decimal(12, 2)
   /// Marca cuándo el usuario decidió qué hacer con el sobrante del mes anterior
   /// (sumarlo al ingreso o dejarlo aparte como ahorros). Null = todavía no se
-  /// preguntó/decidió, así que la UI/Ada deben mostrar el prompt.
+  /// preguntó/decidió, así que la UI / Clara deben mostrar el prompt.
   carryoverDecidedAt  DateTime?
   user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   lines     MonthExpenseLine[]

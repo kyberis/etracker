@@ -1,38 +1,112 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
+import type { Locale } from "@/lib/i18n/locale";
 import {
-  CHANGELOG,
-  ELEVATOR_PITCH,
-  FAQ,
-  FEATURES,
-  HERO_PITCH,
-  PRIVACY_SECTIONS,
+  marketingContent,
+  type LocalisedMarketingContent,
 } from "@/lib/marketing-content";
 import { SITE_DESCRIPTION, SITE_NAME, getSiteUrl } from "@/lib/seo";
 
 /**
+ * Per-locale labels for the markdown headings we emit. Keep in sync with
+ * `marketingContent(locale)` so the public MCP feels native in both languages.
+ */
+const LABELS: Record<
+  Locale,
+  {
+    repoAndSupport: string;
+    features: string;
+    faq: string;
+    faqNoMatches: (filter: string) => string;
+    changelog: string;
+    privacy: string;
+    searchNoMatches: (query: string) => string;
+    searchResults: (count: number, query: string) => string;
+    sourceLabel: string;
+    aboutResource: string;
+    aboutDescription: string;
+    featuresResource: string;
+    featuresDescription: string;
+    faqResource: string;
+    faqDescription: string;
+    privacyResource: string;
+    privacyDescription: string;
+    changelogResource: string;
+    changelogDescription: string;
+  }
+> = {
+  es: {
+    repoAndSupport: "Repo y soporte",
+    features: "Features de Clara",
+    faq: "FAQ",
+    faqNoMatches: (filter) => `No hay preguntas que matcheen "${filter}".`,
+    changelog: "Changelog",
+    privacy: "Política de privacidad",
+    searchNoMatches: (query) =>
+      `No se encontraron coincidencias para "${query}".`,
+    searchResults: (count, query) =>
+      `Resultados (${count}) para "${query}"`,
+    sourceLabel: "Source",
+    aboutResource: "Sobre Clara",
+    aboutDescription:
+      "Pitch de Clara, features, equipo y links principales en formato markdown.",
+    featuresResource: "Features de Clara",
+    featuresDescription: "Lista detallada de capacidades de Clara.",
+    faqResource: "FAQ de Clara",
+    faqDescription: "Preguntas frecuentes con respuestas oficiales.",
+    privacyResource: "Política de privacidad",
+    privacyDescription: "Cómo Clara trata tus datos.",
+    changelogResource: "Changelog",
+    changelogDescription: "Historial completo de releases de Clara.",
+  },
+  en: {
+    repoAndSupport: "Repo and support",
+    features: "Clara features",
+    faq: "FAQ",
+    faqNoMatches: (filter) => `No questions match "${filter}".`,
+    changelog: "Changelog",
+    privacy: "Privacy policy",
+    searchNoMatches: (query) => `No matches found for "${query}".`,
+    searchResults: (count, query) => `Results (${count}) for "${query}"`,
+    sourceLabel: "Source",
+    aboutResource: "About Clara",
+    aboutDescription:
+      "Clara's pitch, features, team and main links in markdown.",
+    featuresResource: "Clara features",
+    featuresDescription: "Detailed list of Clara's capabilities.",
+    faqResource: "Clara FAQ",
+    faqDescription: "Frequently asked questions with official answers.",
+    privacyResource: "Privacy policy",
+    privacyDescription: "How Clara handles your data.",
+    changelogResource: "Changelog",
+    changelogDescription: "Full release history for Clara.",
+  },
+};
+
+/**
  * Renders Clara's marketing copy as a single markdown blob. Used by the
- * `ada://about` resource and the `getOverview` tool, plus a couple of the
+ * `clara://about` resource and the `getOverview` tool, plus a couple of the
  * search helpers below.
  */
-function renderOverview(): string {
+function renderOverview(content: LocalisedMarketingContent, l: Locale): string {
   return [
     `# ${SITE_NAME}`,
     "",
     SITE_DESCRIPTION,
     "",
-    HERO_PITCH,
+    content.HERO_PITCH,
     "",
-    ELEVATOR_PITCH,
+    content.ELEVATOR_PITCH,
     "",
-    "## Features",
+    `## ${LABELS[l].features}`,
     "",
-    ...FEATURES.map(
-      ({ emoji, title, description }) => `- **${emoji} ${title}** — ${description}`,
+    ...content.FEATURES.map(
+      ({ emoji, title, description }) =>
+        `- **${emoji} ${title}** — ${description}`,
     ),
     "",
-    "## Repo y soporte",
+    `## ${LABELS[l].repoAndSupport}`,
     "",
     `- ${getSiteUrl()}`,
     "- https://github.com/kyberis/etracker",
@@ -40,11 +114,11 @@ function renderOverview(): string {
   ].join("\n");
 }
 
-function renderFeatures(): string {
+function renderFeatures(content: LocalisedMarketingContent, l: Locale): string {
   return [
-    "# Features de Clara",
+    `# ${LABELS[l].features}`,
     "",
-    ...FEATURES.flatMap(({ emoji, title, description }) => [
+    ...content.FEATURES.flatMap(({ emoji, title, description }) => [
       `## ${emoji} ${title}`,
       "",
       description,
@@ -53,26 +127,40 @@ function renderFeatures(): string {
   ].join("\n");
 }
 
-function renderFaq(filter?: string): string {
+function renderFaq(
+  content: LocalisedMarketingContent,
+  l: Locale,
+  filter?: string,
+): string {
   const list = filter
-    ? FAQ.filter(
+    ? content.FAQ.filter(
         ({ question, answer }) =>
           question.toLowerCase().includes(filter.toLowerCase()) ||
           answer.toLowerCase().includes(filter.toLowerCase()),
       )
-    : FAQ;
-  if (list.length === 0) return `No hay preguntas que matcheen "${filter}".`;
+    : content.FAQ;
+  if (list.length === 0) return LABELS[l].faqNoMatches(filter ?? "");
   return [
-    "# FAQ",
+    `# ${LABELS[l].faq}`,
     "",
-    ...list.flatMap(({ question, answer }) => [`## ${question}`, "", answer, ""]),
+    ...list.flatMap(({ question, answer }) => [
+      `## ${question}`,
+      "",
+      answer,
+      "",
+    ]),
   ].join("\n");
 }
 
-function renderChangelog(limit?: number): string {
-  const list = typeof limit === "number" ? CHANGELOG.slice(0, limit) : CHANGELOG;
+function renderChangelog(
+  content: LocalisedMarketingContent,
+  l: Locale,
+  limit?: number,
+): string {
+  const list =
+    typeof limit === "number" ? content.CHANGELOG.slice(0, limit) : content.CHANGELOG;
   return [
-    "# Changelog",
+    `# ${LABELS[l].changelog}`,
     "",
     ...list.flatMap((entry) => [
       `## v${entry.version} — ${entry.title} (${entry.date})`,
@@ -83,11 +171,14 @@ function renderChangelog(limit?: number): string {
   ].join("\n");
 }
 
-function renderPrivacy(): string {
+function renderPrivacy(
+  content: LocalisedMarketingContent,
+  l: Locale,
+): string {
   return [
-    "# Política de privacidad",
+    `# ${LABELS[l].privacy}`,
     "",
-    ...PRIVACY_SECTIONS.flatMap(({ heading, body }) => [
+    ...content.PRIVACY_SECTIONS.flatMap(({ heading, body }) => [
       `## ${heading}`,
       "",
       ...body.flatMap((p) => [p, ""]),
@@ -95,25 +186,33 @@ function renderPrivacy(): string {
   ].join("\n");
 }
 
-function searchDocs(query: string): string {
+function searchDocs(
+  content: LocalisedMarketingContent,
+  l: Locale,
+  query: string,
+): string {
   const haystack: { source: string; title: string; text: string }[] = [
-    { source: "overview", title: "Overview", text: renderOverview() },
-    ...FEATURES.map((f) => ({
+    {
+      source: "overview",
+      title: "Overview",
+      text: renderOverview(content, l),
+    },
+    ...content.FEATURES.map((f) => ({
       source: "features",
       title: `Feature: ${f.title}`,
       text: `${f.title}\n\n${f.description}`,
     })),
-    ...FAQ.map((q) => ({
+    ...content.FAQ.map((q) => ({
       source: "faq",
       title: q.question,
       text: q.answer,
     })),
-    ...CHANGELOG.map((c) => ({
+    ...content.CHANGELOG.map((c) => ({
       source: "changelog",
       title: `v${c.version} — ${c.title}`,
       text: c.highlights.join("\n"),
     })),
-    ...PRIVACY_SECTIONS.map((p) => ({
+    ...content.PRIVACY_SECTIONS.map((p) => ({
       source: "privacy",
       title: p.heading,
       text: p.body.join("\n"),
@@ -124,104 +223,128 @@ function searchDocs(query: string): string {
     ({ title, text }) =>
       title.toLowerCase().includes(q) || text.toLowerCase().includes(q),
   );
-  if (matches.length === 0) {
-    return `No se encontraron coincidencias para "${query}".`;
-  }
+  if (matches.length === 0) return LABELS[l].searchNoMatches(query);
   return [
-    `# Resultados (${matches.length}) para "${query}"`,
+    `# ${LABELS[l].searchResults(matches.length, query)}`,
     "",
-    ...matches.flatMap(
-      ({ source, title, text }, idx) => [
-        `## ${idx + 1}. ${title}`,
-        `_Source: ${source}_`,
-        "",
-        text,
-        "",
-      ],
-    ),
+    ...matches.flatMap(({ source, title, text }, idx) => [
+      `## ${idx + 1}. ${title}`,
+      `_${LABELS[l].sourceLabel}: ${source}_`,
+      "",
+      text,
+      "",
+    ]),
   ].join("\n");
 }
 
 /**
  * Wires Clara's public, no-auth MCP server. Exposes the marketing copy as
  * resources, tools and prompts so any AI client (Claude Desktop, Cursor,
- * ChatGPT, etc.) can answer “what is Clara?” questions without needing a
+ * ChatGPT, etc.) can answer "what is Clara?" questions without needing a
  * user account.
+ *
+ * Resource URIs use the `clara://` scheme. Older clients may have cached the
+ * pre-rebrand `ada://` URIs; both schemes resolve to the same documents.
  */
-export function registerPublicMcp(server: McpServer): void {
+export function registerPublicMcp(
+  server: McpServer,
+  locale: Locale = "es",
+): void {
+  const content = marketingContent(locale);
+  const labels = LABELS[locale];
+
   // ── Resources ───────────────────────────────────────────────────────────
   server.registerResource(
     "about",
-    "ada://about",
+    "clara://about",
     {
-      title: "Sobre Clara",
-      description:
-        "Pitch de Clara, features, equipo y links principales en formato markdown.",
+      title: labels.aboutResource,
+      description: labels.aboutDescription,
       mimeType: "text/markdown",
     },
     async (uri) => ({
       contents: [
-        { uri: uri.href, mimeType: "text/markdown", text: renderOverview() },
+        {
+          uri: uri.href,
+          mimeType: "text/markdown",
+          text: renderOverview(content, locale),
+        },
       ],
     }),
   );
 
   server.registerResource(
     "features",
-    "ada://features",
+    "clara://features",
     {
-      title: "Features de Clara",
-      description: "Lista detallada de capacidades de Clara.",
+      title: labels.featuresResource,
+      description: labels.featuresDescription,
       mimeType: "text/markdown",
     },
     async (uri) => ({
       contents: [
-        { uri: uri.href, mimeType: "text/markdown", text: renderFeatures() },
+        {
+          uri: uri.href,
+          mimeType: "text/markdown",
+          text: renderFeatures(content, locale),
+        },
       ],
     }),
   );
 
   server.registerResource(
     "faq",
-    "ada://faq",
+    "clara://faq",
     {
-      title: "FAQ de Clara",
-      description: "Preguntas frecuentes con respuestas oficiales.",
+      title: labels.faqResource,
+      description: labels.faqDescription,
       mimeType: "text/markdown",
     },
     async (uri) => ({
       contents: [
-        { uri: uri.href, mimeType: "text/markdown", text: renderFaq() },
+        {
+          uri: uri.href,
+          mimeType: "text/markdown",
+          text: renderFaq(content, locale),
+        },
       ],
     }),
   );
 
   server.registerResource(
     "privacy",
-    "ada://privacy",
+    "clara://privacy",
     {
-      title: "Política de privacidad",
-      description: "Cómo Clara trata tus datos.",
+      title: labels.privacyResource,
+      description: labels.privacyDescription,
       mimeType: "text/markdown",
     },
     async (uri) => ({
       contents: [
-        { uri: uri.href, mimeType: "text/markdown", text: renderPrivacy() },
+        {
+          uri: uri.href,
+          mimeType: "text/markdown",
+          text: renderPrivacy(content, locale),
+        },
       ],
     }),
   );
 
   server.registerResource(
     "changelog",
-    "ada://changelog",
+    "clara://changelog",
     {
-      title: "Changelog",
-      description: "Historial completo de releases de Clara.",
+      title: labels.changelogResource,
+      description: labels.changelogDescription,
       mimeType: "text/markdown",
     },
     async (uri) => ({
       contents: [
-        { uri: uri.href, mimeType: "text/markdown", text: renderChangelog() },
+        {
+          uri: uri.href,
+          mimeType: "text/markdown",
+          text: renderChangelog(content, locale),
+        },
       ],
     }),
   );
@@ -230,38 +353,54 @@ export function registerPublicMcp(server: McpServer): void {
   server.registerTool(
     "getOverview",
     {
-      title: "Overview de Clara",
+      title: locale === "en" ? "Clara overview" : "Overview de Clara",
       description:
-        "Devuelve un resumen markdown con qué es Clara, sus features y links principales.",
+        locale === "en"
+          ? "Returns a markdown summary of what Clara is, its features and main links."
+          : "Devuelve un resumen markdown con qué es Clara, sus features y links principales.",
       inputSchema: {},
     },
     async () => ({
-      content: [{ type: "text", text: renderOverview() }],
+      content: [{ type: "text", text: renderOverview(content, locale) }],
     }),
   );
 
   server.registerTool(
     "getFeatures",
     {
-      title: "Listar features",
-      description: "Lista detallada de capacidades de Clara en markdown.",
+      title: locale === "en" ? "List features" : "Listar features",
+      description:
+        locale === "en"
+          ? "Detailed list of Clara's capabilities in markdown."
+          : "Lista detallada de capacidades de Clara en markdown.",
       inputSchema: {},
     },
-    async () => ({ content: [{ type: "text", text: renderFeatures() }] }),
+    async () => ({
+      content: [{ type: "text", text: renderFeatures(content, locale) }],
+    }),
   );
 
   server.registerTool(
     "getFaq",
     {
-      title: "Preguntas frecuentes",
+      title: locale === "en" ? "Frequently asked questions" : "Preguntas frecuentes",
       description:
-        "Devuelve la FAQ de Clara. Si pasás `query`, filtra preguntas/respuestas que contengan ese texto.",
+        locale === "en"
+          ? "Returns Clara's FAQ. Pass `query` to filter questions/answers containing that text."
+          : "Devuelve la FAQ de Clara. Si pasás `query`, filtra preguntas/respuestas que contengan ese texto.",
       inputSchema: {
-        query: z.string().optional().describe("Texto a buscar (case-insensitive)."),
+        query: z
+          .string()
+          .optional()
+          .describe(
+            locale === "en"
+              ? "Search text (case-insensitive)."
+              : "Texto a buscar (case-insensitive).",
+          ),
       },
     },
     async ({ query }) => ({
-      content: [{ type: "text", text: renderFaq(query) }],
+      content: [{ type: "text", text: renderFaq(content, locale, query) }],
     }),
   );
 
@@ -269,28 +408,43 @@ export function registerPublicMcp(server: McpServer): void {
     "getChangelog",
     {
       title: "Changelog",
-      description: "Historial de releases. Pasá `limit` para acotar.",
+      description:
+        locale === "en"
+          ? "Release history. Pass `limit` to cap results."
+          : "Historial de releases. Pasá `limit` para acotar.",
       inputSchema: {
         limit: z.number().int().min(1).max(50).optional(),
       },
     },
     async ({ limit }) => ({
-      content: [{ type: "text", text: renderChangelog(limit) }],
+      content: [
+        { type: "text", text: renderChangelog(content, locale, limit) },
+      ],
     }),
   );
 
   server.registerTool(
     "searchDocs",
     {
-      title: "Buscar en docs públicas",
+      title:
+        locale === "en" ? "Search public docs" : "Buscar en docs públicas",
       description:
-        "Búsqueda full-text simple sobre overview, features, FAQ, changelog y privacy.",
+        locale === "en"
+          ? "Simple full-text search over overview, features, FAQ, changelog and privacy."
+          : "Búsqueda full-text simple sobre overview, features, FAQ, changelog y privacy.",
       inputSchema: {
-        query: z.string().min(2).describe("Texto a buscar (mínimo 2 chars)."),
+        query: z
+          .string()
+          .min(2)
+          .describe(
+            locale === "en"
+              ? "Search text (min. 2 chars)."
+              : "Texto a buscar (mínimo 2 chars).",
+          ),
       },
     },
     async ({ query }) => ({
-      content: [{ type: "text", text: searchDocs(query) }],
+      content: [{ type: "text", text: searchDocs(content, locale, query) }],
     }),
   );
 
@@ -298,25 +452,33 @@ export function registerPublicMcp(server: McpServer): void {
   server.registerPrompt(
     "pitch",
     {
-      title: "Pitch de Clara",
-      description: "Genera un pitch de Clara en N segundos.",
+      title: locale === "en" ? "Clara pitch" : "Pitch de Clara",
+      description:
+        locale === "en"
+          ? "Generate a Clara pitch lasting N seconds when read aloud."
+          : "Genera un pitch de Clara en N segundos.",
       argsSchema: {
         seconds: z
           .enum(["10", "30", "60"])
           .optional()
-          .describe("Duración aproximada del pitch."),
+          .describe(
+            locale === "en"
+              ? "Approximate pitch duration."
+              : "Duración aproximada del pitch.",
+          ),
       },
     },
     async ({ seconds }) => {
       const duration = seconds ?? "30";
+      const text =
+        locale === "en"
+          ? `Generate a pitch for Clara that lasts about ${duration} seconds when read aloud. Neutral tone, no marketing-speak. Use this material as the source of truth:\n\n${renderOverview(content, locale)}`
+          : `Generá un pitch de Clara que dure aproximadamente ${duration} segundos al ser leído en voz alta. Tono rioplatense, sin marketing-speak. Usá esta info como base:\n\n${renderOverview(content, locale)}`;
       return {
         messages: [
           {
             role: "user",
-            content: {
-              type: "text",
-              text: `Generá un pitch de Clara que dure aproximadamente ${duration} segundos al ser leído en voz alta. Tono rioplatense, sin marketing-speak. Usá esta info como base:\n\n${renderOverview()}`,
-            },
+            content: { type: "text", text },
           },
         ],
       };
@@ -326,48 +488,56 @@ export function registerPublicMcp(server: McpServer): void {
   server.registerPrompt(
     "compareWithCompetitors",
     {
-      title: "Comparar con competidores",
+      title:
+        locale === "en"
+          ? "Compare with competitors"
+          : "Comparar con competidores",
       description:
-        "Dado un competidor (Mint, YNAB, Fintonic, etc.), explicá las diferencias.",
+        locale === "en"
+          ? "Given a competitor (Mint, YNAB, Fintonic, etc.), explain the differences."
+          : "Dado un competidor (Mint, YNAB, Fintonic, etc.), explicá las diferencias.",
       argsSchema: {
         competitor: z.string().min(2),
       },
     },
-    async ({ competitor }) => ({
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: `Compará Clara con ${competitor}. Sé honesto y específico, no genérico. Usá esta documentación de Clara:\n\n${renderOverview()}\n\n${renderFeatures()}`,
-          },
-        },
-      ],
-    }),
+    async ({ competitor }) => {
+      const text =
+        locale === "en"
+          ? `Compare Clara to ${competitor}. Be honest and specific, not generic. Use this Clara documentation:\n\n${renderOverview(content, locale)}\n\n${renderFeatures(content, locale)}`
+          : `Compará Clara con ${competitor}. Sé honesto y específico, no genérico. Usá esta documentación de Clara:\n\n${renderOverview(content, locale)}\n\n${renderFeatures(content, locale)}`;
+      return {
+        messages: [
+          { role: "user", content: { type: "text", text } },
+        ],
+      };
+    },
   );
 
   server.registerPrompt(
     "howClaraWorks",
     {
-      title: "Cómo funciona Clara",
+      title: locale === "en" ? "How Clara works" : "Cómo funciona Clara",
       description:
-        "Explicá cómo funciona Clara bajo el capó (stack técnico + flow de datos).",
+        locale === "en"
+          ? "Explain how Clara works under the hood (tech stack + data flow)."
+          : "Explicá cómo funciona Clara bajo el capó (stack técnico + flow de datos).",
       argsSchema: {
         topic: z
           .enum(["pdf", "voz", "open-banking", "mcp", "general"])
           .optional(),
       },
     },
-    async ({ topic }) => ({
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: `Explicá cómo funciona ${topic ?? "Clara en general"} bajo el capó. Apuntá a un dev curioso. Material de referencia:\n\n${renderFeatures()}\n\n${renderFaq()}`,
-          },
-        },
-      ],
-    }),
+    async ({ topic }) => {
+      const tt = topic ?? "general";
+      const text =
+        locale === "en"
+          ? `Explain how ${tt === "general" ? "Clara overall" : tt} works under the hood. Aim at a curious developer. Reference material:\n\n${renderFeatures(content, locale)}\n\n${renderFaq(content, locale)}`
+          : `Explicá cómo funciona ${tt === "general" ? "Clara en general" : tt} bajo el capó. Apuntá a un dev curioso. Material de referencia:\n\n${renderFeatures(content, locale)}\n\n${renderFaq(content, locale)}`;
+      return {
+        messages: [
+          { role: "user", content: { type: "text", text } },
+        ],
+      };
+    },
   );
 }

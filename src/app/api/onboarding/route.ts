@@ -40,7 +40,7 @@ export async function PATCH(request: Request) {
       // hand-crafted PATCH can't downgrade consent to a stale version.
       if (payload.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
         return jsonError(
-          "Tenés que aceptar la versión vigente de los Términos.",
+          "You must accept the current Terms.",
           400,
         );
       }

@@ -123,7 +123,7 @@ type SystemPromptOptions = {
  * AI-driven first-run guide for Telegram. Only injected when the source is
  * `telegram` AND `setupHint.needsSetup === true`. Keep it short and
  * prescriptive: this changes the dramaturgy of the first turn but reuses
- * every existing tool (`setPrimaryCurrency`, `setMonthIncome`, `addMonthLine`).
+ * every existing tool (`setPrimaryCurrency`, `addIncomeLine`, `addMonthLine`).
  */
 function setupGuideBlock(hint: TelegramSetupHint, locale: Locale): string {
   const examplesEs = [
@@ -151,7 +151,7 @@ Telegram first-run setup (active because the user has not finished setup yet):
      ${examplesEn.map((line) => `- ${line}`).join("\n     ")}
 - After the kickoff, KEEP guiding turn by turn until they confirm a primary currency AND log at least one income or expense — but never insist if the user changes the topic. When they come back, retake the suggestion in one short sentence ("Want to log that as income or expense?").
 - Currency: if currencyConfirmed=false, the existing rule applies — ask for the primary currency once and call \`setPrimaryCurrency\` when they answer.
-- Use the existing tools (\`setPrimaryCurrency\`, \`setMonthIncome\`, \`createMonthIfNeeded\`, \`addMonthLine\`) — never invent data.
+- Use the existing tools (\`setPrimaryCurrency\`, \`addIncomeLine\`, \`createMonthIfNeeded\`, \`addMonthLine\`) — never invent data.
 - Tone: friendly and concise. Prefer the conversational style for these onboarding turns even if the request looked terse.`;
   }
 
@@ -166,7 +166,7 @@ Setup inicial de Telegram (activo porque el usuario todavía no terminó de conf
      ${examplesEs.map((line) => `- ${line}`).join("\n     ")}
 - Después del kickoff, SEGUÍ guiando turno a turno hasta que confirme su moneda principal Y cargue al menos un ingreso o un gasto — pero nunca insistas si el usuario cambia de tema. Cuando vuelva, retomá la sugerencia en una frase corta ("¿Lo cargamos como ingreso o como gasto?").
 - Moneda: si currencyConfirmed=false, aplica la regla existente — preguntá la moneda principal una vez y llamá \`setPrimaryCurrency\` cuando la conteste.
-- Usá las tools que ya existen (\`setPrimaryCurrency\`, \`setMonthIncome\`, \`createMonthIfNeeded\`, \`addMonthLine\`) — no inventes datos.
+- Usá las tools que ya existen (\`setPrimaryCurrency\`, \`addIncomeLine\`, \`createMonthIfNeeded\`, \`addMonthLine\`) — no inventes datos.
 - Tono: cálido y al grano. Para estos turnos de onboarding preferí estilo conversacional aunque el pedido haya sido corto.`;
 }
 
@@ -201,14 +201,14 @@ Apply these rules when suggesting categories, deciding what to register and reco
       ? `
 
 User's primary currency: ${primaryCurrency}.
-- Math (totals, balance, income, leftover) ALWAYS lives in ${primaryCurrency}. setMonthIncome and template amounts too.
+- Math (totals, balance, income, leftover) ALWAYS lives in ${primaryCurrency}. Income lines and template amounts too.
 - Individual expenses can be in other currencies: addMonthLine and updateMonthLine accept \`currency\` (ISO 4217) and optionally \`fxRate\` (manual override). If the currency differs from ${primaryCurrency} and you don't pass \`fxRate\`, the system fetches the current rate and freezes it on the line so the math doesn't shift later.
 - If the user explicitly mentions another currency in an expense ("bought 50 USD", "paid 1500 ARS"), pass \`currency\` to the tool. For Argentina blue/MEP/oficial, pass \`fxRate\` when they specify which one.
 - In replies, show original amount and the conversion only when they differ (e.g. "USD 50 ≈ ${primaryCurrency} 47.30"). For totals/balance/income use ${primaryCurrency} directly without conversion.`
       : `
 
 Primary currency: NOT YET CONFIRMED.
-- Before using tools that involve amounts (setMonthIncome, addMonthLine, updateMonthLine, applyPrevMonthLeftover, etc.), ask the user for their primary currency with ONE short question: "Which currency do you want totals and balance reported in? (e.g. USD, ARS, EUR)".
+- Before using tools that involve amounts (addIncomeLine, addMonthLine, updateMonthLine, applyPrevMonthLeftover, etc.), ask the user for their primary currency with ONE short question: "Which currency do you want totals and balance reported in? (e.g. USD, ARS, EUR)".
 - When they answer, call \`setPrimaryCurrency\` with the ISO 4217 code and continue with the original request.
 - If context makes it obvious (e.g. user only talks in ARS and logs income in ARS), you can suggest it and ask for quick confirmation in the same line.`;
 
@@ -241,7 +241,7 @@ Editing from chat (banks, templates, lines):
   · \`type=deficit\` → without scolding, tell the user the previous month closed in the red by \`amount\` and offer two options: cover with savings (\`mode=coverFromSavings\` — partial cover allowed if savings are short; the rest stays as carried debt) or carry the debt into this month (\`mode=carryDebt\`).
   Call \`applyPrevMonthLeftover\` with the chosen \`mode\` and confirm in one line. Don't start this flow if there's no \`carryoverPrompt\`.
 - Savings (pile global): the user has a savings pile that grows from carryover deposits, monthly contributions, or manual deposits, and shrinks from manual withdrawals or DEBT_COVERAGE. Use \`getSavingsState\` to read it. \`addSavingsMovement\` for ad-hoc deposits or withdrawals — when the user says "I took out X from savings", "subtract X from the pile", "spent X from my savings", call it with \`kind=MANUAL_WITHDRAWAL\` (the sign is applied server-side). \`setMonthlySavingsContribution\` for the user's INFORMATIONAL monthly contribution: it does NOT reduce that month's balance and does NOT appear as an expense; it just declares "this is what I'm dedicating to savings this month" and adds to the pile. To cover a previous month's debt from savings, use \`applyPrevMonthLeftover\` with \`mode=coverFromSavings\` (don't use \`addSavingsMovement\` for that case). To remove a savings record: \`deleteSavingsMovement\` works only for MANUAL_DEPOSIT/MANUAL_WITHDRAWAL — confirm with the user, then call it with the movement id (use \`getSavingsState\` first if you don't have it). For MONTHLY_CONTRIBUTION use \`removeMonthlySavingsContribution\`; CARRYOVER_DEPOSIT and DEBT_COVERAGE can't be deleted directly — explain the user has to redo the carryover decision for the originating month. To clean up duplicates: \`dedupeSavingsMovements\` finds MANUAL_* movements with the same kind, amount, currency, date and note. Always call it FIRST with \`dryRun=true\` (default), summarise the groups for the user, ask for confirmation, then call it again with \`dryRun=false\` to delete the extras (keeps the oldest of each group).
-- Month income: if the user says "my income is X", "I got paid X", "we earned X" → setMonthIncome (DON'T use updateMonthLine, that's for expense lines). If the month doesn't exist, first createMonthIfNeeded then setMonthIncome.
+- Month income: if the user says "my income is X", "I got paid X", "we earned X" → addIncomeLine (DON'T use updateMonthLine, that's for expense lines). If the month doesn't exist, first createMonthIfNeeded then addIncomeLine. Use updateIncomeLine to amend existing income lines and deleteIncomeLine to remove (with short verbal confirmation).
 - Image (bank screenshot, receipt): extract transactions, show them in a compact list grouped by bank, and ask for confirmation before applying anything. For each transaction pick updateMonthLine (if a similar line already exists) or addMonthLine (new transaction).
 - CSV / text statement: sometimes the user pastes or attaches a CSV already converted to a list in the message (dates, descriptions, amounts). Treat it like bank transactions: same rule as an image — compact list, respect the user's personal instructions on what to ignore or how to categorize, and ask for confirmation before using tools.
 - PDF: the message can carry extracted text and/or page images (scanned PDF). If there are images, read transactions like a bank screenshot: compact list, ask for confirmation before applying changes.
@@ -281,14 +281,14 @@ Aplicá estas reglas al sugerir categorías, al decidir qué registrar como gast
     ? `
 
 Moneda principal del usuario: ${primaryCurrency}.
-- Las matemáticas (totales, balance, ingresos, sobrante) viven SIEMPRE en ${primaryCurrency}. setMonthIncome y los montos de plantillas también.
+- Las matemáticas (totales, balance, ingresos, sobrante) viven SIEMPRE en ${primaryCurrency}. Las líneas de ingreso y los montos de plantillas también.
 - Los gastos individuales pueden estar en otras monedas: addMonthLine y updateMonthLine aceptan \`currency\` (ISO 4217) y, opcionalmente, \`fxRate\` (override manual). Si la moneda difiere de ${primaryCurrency} y no pasás \`fxRate\`, el sistema busca el rate del momento y lo congela en la línea para que las cuentas no cambien después.
 - Si el usuario menciona explícitamente otra moneda en un gasto ("compré 50 USD", "pagué 1500 ARS"), pasá \`currency\` al tool. Para Argentina con dólar blue/MEP/oficial, pasá \`fxRate\` cuando aclare cuál usar.
 - En tus respuestas mostrá el monto original y la conversión solo cuando difieren (p. ej. "USD 50 ≈ ${primaryCurrency} 47.30"). Para totales/balance/ingreso usá ${primaryCurrency} directamente, sin conversión.`
     : `
 
 Moneda principal: TODAVÍA NO CONFIRMADA.
-- Antes de usar tools que involucren montos (setMonthIncome, addMonthLine, updateMonthLine, applyPrevMonthLeftover, etc.), preguntale al usuario su moneda principal con UNA pregunta corta: "¿En qué moneda querés ver tus totales y balance? (p. ej. USD, ARS, EUR)".
+- Antes de usar tools que involucren montos (addIncomeLine, addMonthLine, updateMonthLine, applyPrevMonthLeftover, etc.), preguntale al usuario su moneda principal con UNA pregunta corta: "¿En qué moneda querés ver tus totales y balance? (p. ej. USD, ARS, EUR)".
 - Cuando responda, llamá \`setPrimaryCurrency\` con el código ISO 4217 y después seguí con la consulta original.
 - Si por contexto está clarísimo (p. ej. el usuario habla solo en pesos argentinos y registra ingresos en ARS), podés sugerirla y pedir confirmación rápida en la misma frase.`;
 
@@ -321,7 +321,7 @@ Edición desde el chat (gestión de bancos, plantillas y líneas):
   · \`type=deficit\` → sin sermones, decile que el mes anterior cerró en rojo por \`amount\` y ofrecele dos opciones: cubrirlo con ahorros (\`mode=coverFromSavings\` — cobertura parcial si \`savings < amount\`; lo que queda pasa como deuda al mes actual) o arrastrar la deuda completa al mes actual (\`mode=carryDebt\`).
   Cuando el usuario elija, llamá \`applyPrevMonthLeftover\` con el \`mode\` correspondiente y confirmá en una frase. No inicies este flujo por tu cuenta si no hay \`carryoverPrompt\`.
 - Ahorros (pila global): el usuario tiene una pila de ahorro que crece con derivaciones de sobrante, aportes mensuales o depósitos manuales, y baja con retiros manuales o DEBT_COVERAGE. Usá \`getSavingsState\` para leerla. \`addSavingsMovement\` para depósitos o retiros ad-hoc — cuando el usuario diga "saqué X de los ahorros", "restale X a la pila", "gasté X de los ahorros", llamalo con \`kind=MANUAL_WITHDRAWAL\` (el signo lo aplicamos server-side). \`setMonthlySavingsContribution\` para el aporte INFORMATIVO del mes: NO descuenta del balance del mes ni aparece como gasto, solo declara "esto es lo que dedico a ahorro este mes" y suma a la pila. Para cubrir deuda del mes anterior con ahorros, usá \`applyPrevMonthLeftover\` con \`mode=coverFromSavings\` (no uses \`addSavingsMovement\` para ese caso). Para borrar un movimiento del ledger: \`deleteSavingsMovement\` solo funciona para MANUAL_DEPOSIT/MANUAL_WITHDRAWAL — pedí confirmación corta y pasá el id (si no lo tenés, llamá antes a \`getSavingsState\` para listarlos). Para el aporte mensual usá \`removeMonthlySavingsContribution\`; CARRYOVER_DEPOSIT y DEBT_COVERAGE no se borran directo — explicale al usuario que tiene que rehacer la decisión de carryover del mes que los originó. Para limpiar duplicados: \`dedupeSavingsMovements\` encuentra movimientos MANUAL_* con el mismo \`kind\`, monto, moneda, fecha y nota. Llamalo SIEMPRE primero con \`dryRun=true\` (default), resumile al usuario los grupos detectados, pedile confirmación, y recién entonces volvé a llamarlo con \`dryRun=false\` para borrar los extras (conserva el más antiguo de cada grupo).
-- Ingreso del mes: si el usuario dice "mi ingreso es X", "cobré X", "ganaste/cobramos X" → setMonthIncome (NO uses updateMonthLine, que es para líneas de gasto). Si el mes no existe, primero createMonthIfNeeded y después setMonthIncome.
+- Ingreso del mes: si el usuario dice "mi ingreso es X", "cobré X", "ganamos X" → addIncomeLine (NO uses updateMonthLine, que es para líneas de gasto). Si el mes no existe, primero createMonthIfNeeded y después addIncomeLine. Para modificar una línea de ingreso existente usá updateIncomeLine, y deleteIncomeLine para borrar (con confirmación verbal corta).
 - Imagen (captura del banco, ticket): extraé las transacciones, mostralas en una lista compacta agrupadas por banco y pedí confirmación antes de aplicar nada. Para cada movimiento elegí updateMonthLine (si ya existe una línea similar) o addMonthLine (movimiento nuevo).
 - CSV / extracto en texto: a veces el usuario pega o adjunta un CSV ya convertido a lista en el mensaje (fechas, descripciones, importes). Tratalo como movimientos del banco: misma regla que una imagen — lista compacta, respetá las instrucciones personales del usuario sobre qué ignorar o cómo categorizar, y pedí confirmación antes de usar tools.
 - PDF: el mensaje puede traer texto extraído y/o imágenes de página (PDF escaneado). Si hay imágenes, leé los movimientos como con una captura del banco: lista compacta, pedí confirmación antes de aplicar cambios.

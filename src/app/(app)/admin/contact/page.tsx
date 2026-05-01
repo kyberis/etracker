@@ -106,8 +106,7 @@ export default async function AdminContactInbox({
       <header className="space-y-1">
         <h1 className="font-display text-2xl font-semibold">Bandeja de contacto</h1>
         <p className="text-muted-foreground text-sm">
-          Mensajes recibidos en /contact. Las solicitudes de privacidad / GDPR
-          tienen SLA de 30 días.
+          Messages from /contact. Privacy / GDPR requests have a 30-day SLA.
         </p>
       </header>
 
@@ -145,7 +144,7 @@ export default async function AdminContactInbox({
         <CardHeader>
           <CardTitle>Mensajes ({total})</CardTitle>
           <CardDescription>
-            Página {page} de {totalPages}.
+            Page {page} of {totalPages}.
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -313,7 +312,7 @@ function StatusBadges({
   return (
     <div className="flex flex-col gap-0.5">
       <span className={readAt ? "text-muted-foreground" : "text-foreground font-medium"}>
-        {readAt ? "Leído" : "Sin leer"}
+        {readAt ? "Read" : "Unread"}
       </span>
       <span className={repliedAt ? "text-muted-foreground" : "text-good"}>
         {repliedAt ? "Respondido" : "Pendiente"}

@@ -203,7 +203,7 @@ describe("createBank", () => {
       execOpts,
     );
 
-    expect(result).toEqual({ error: 'Ya existe un banco llamado "Galicia".' });
+    expect(result).toEqual({ error: 'A bank named "Galicia" already exists.' });
     expect(invalidateBanksCache).not.toHaveBeenCalled();
   });
 });
@@ -222,7 +222,7 @@ describe("updateBank", () => {
     expect(db.bank.findFirst).toHaveBeenCalledWith({
       where: { id: "bank_other", userId: USER_ID },
     });
-    expect(result).toEqual({ error: "El banco indicado no existe." });
+    expect(result).toEqual({ error: "The specified bank doesn't exist." });
     expect(db.bank.update).not.toHaveBeenCalled();
   });
 
@@ -246,12 +246,12 @@ describe("updateBank", () => {
     expect(result).toMatchObject({ ok: true, bank: { color: null } });
   });
 
-  it("returns 'nada para actualizar' when no fields are provided", async () => {
+  it("returns 'nothing to update' when no fields are provided", async () => {
     vi.mocked(db.bank.findFirst).mockResolvedValue({ id: "bank_1" } as never);
 
     const result = await tools().updateBank.execute!({ id: "bank_1" }, execOpts);
 
-    expect(result).toEqual({ error: "Nada para actualizar." });
+    expect(result).toEqual({ error: "Nothing to update." });
     expect(db.bank.update).not.toHaveBeenCalled();
   });
 });
@@ -310,7 +310,7 @@ describe("deleteBank", () => {
       execOpts,
     );
 
-    expect(result).toEqual({ error: "El banco indicado no existe." });
+    expect(result).toEqual({ error: "The specified bank doesn't exist." });
   });
 });
 
@@ -328,7 +328,7 @@ describe("expense templates", () => {
     expect(db.expense.findFirst).toHaveBeenCalledWith({
       where: { id: "tpl_1", userId: USER_ID },
     });
-    expect(result).toEqual({ error: "La plantilla indicada no existe." });
+    expect(result).toEqual({ error: "The specified template doesn't exist." });
   });
 
   it("forbids endMonth on one-off templates after the change", async () => {
@@ -345,7 +345,7 @@ describe("expense templates", () => {
     );
 
     expect(result).toEqual({
-      error: "Las plantillas puntuales no pueden tener endMonth.",
+      error: "One-off templates can't have an endMonth.",
     });
     expect(db.expense.update).not.toHaveBeenCalled();
   });
@@ -518,7 +518,7 @@ describe("deleteMonthLine", () => {
       where: { id: "line_other", monthRecord: { userId: USER_ID } },
       include: { monthRecord: { select: { month: true } } },
     });
-    expect(result).toEqual({ error: "Línea no encontrada." });
+    expect(result).toEqual({ error: "Line not found." });
     expect(db.monthExpenseLine.delete).not.toHaveBeenCalled();
   });
 
@@ -655,7 +655,7 @@ describe("addSavingsMovement (agent tool)", () => {
       { kind: "MANUAL_WITHDRAWAL", amount: 50 },
       execOpts,
     );
-    expect(result).toMatchObject({ error: expect.stringContaining("no alcanza") });
+    expect(result).toMatchObject({ error: expect.stringContaining("isn't enough") });
     expect(recordSavingsMovement).not.toHaveBeenCalled();
   });
 
@@ -728,7 +728,7 @@ describe("deleteSavingsMovement (agent tool)", () => {
       { id: "mv_404" },
       execOpts,
     );
-    expect(result).toMatchObject({ error: expect.stringContaining("no existe") });
+    expect(result).toMatchObject({ error: expect.stringContaining("doesn't exist") });
     expect(deleteSavingsMovement).not.toHaveBeenCalled();
   });
 
@@ -1071,7 +1071,7 @@ describe("applyPrevMonthLeftover (agent tool, deficit modes)", () => {
     });
   });
 
-  it("returns a rioplatense error when the chosen mode does not match the sign of the leftover", async () => {
+  it("returns an error when the chosen mode does not match the sign of the leftover", async () => {
     vi.mocked(applyPrevMonthLeftoverDecision).mockResolvedValue({
       type: "modeMismatch",
       expected: "deficit",
@@ -1081,7 +1081,7 @@ describe("applyPrevMonthLeftover (agent tool, deficit modes)", () => {
       execOpts,
     );
     expect(result).toMatchObject({
-      error: expect.stringContaining("deuda"),
+      error: expect.stringContaining("debt"),
     });
   });
 

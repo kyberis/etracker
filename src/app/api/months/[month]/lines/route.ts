@@ -33,7 +33,7 @@ export async function POST(request: Request, context: { params: Promise<{ month:
       db.monthRecord.findFirst({ where: { userId, month } }),
     ]);
     if (!user) return jsonError("Usuario no encontrado.", 404);
-    if (!monthRecord) return jsonError("Configurá el mes primero.", 404);
+    if (!monthRecord) return jsonError("Set up the month first.", 404);
 
     const bank = await db.bank.findFirst({ where: { id: payload.bankId, userId } });
     if (!bank) {
@@ -51,7 +51,7 @@ export async function POST(request: Request, context: { params: Promise<{ month:
     } catch (error) {
       if (error instanceof FxUnavailableError) {
         return jsonError(
-          `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Probá pasando un fxRate manual.`,
+          `Could not fetch exchange rate ${error.from}->${error.to}. Try passing fxRate manually.`,
           502,
         );
       }
@@ -82,7 +82,7 @@ export async function POST(request: Request, context: { params: Promise<{ month:
     } catch (error) {
       if (isUniqueViolation(error)) {
         return jsonError(
-          "Ya tenés un gasto con esa fecha, descripción y monto. No lo dupliqué.",
+          "An expense with the same date, description and amount already exists. Skipped to avoid duplicates.",
           409,
         );
       }

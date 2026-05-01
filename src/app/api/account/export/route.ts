@@ -31,7 +31,7 @@ export async function GET() {
       userId,
       3,
       "1 h",
-      "Llegaste al límite de exportaciones por hora. Probá de nuevo más tarde.",
+      "You've reached the hourly export limit. Try again later.",
     );
     if (!limit.ok) return limit.response;
 

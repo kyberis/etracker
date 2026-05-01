@@ -4,16 +4,41 @@ import type { InlineKeyboardMarkup } from "./client";
 
 /**
  * Slash-command catalogue Telegram clients show under the "/" menu. We push
- * this list to the Bot API once at deploy time via the setup script
- * (`scripts/setup-telegram-webhook.ts`); changing it here and re-running the
+ * these lists to the Bot API once at deploy time via the setup script
+ * (`scripts/setup-telegram-webhook.ts`); changing them here and re-running the
  * script is the only way to update the visible menu.
+ *
+ * The Bot API's `setMyCommands` accepts a `language_code` so each user sees
+ * the descriptions in their Telegram client's language. We register one set
+ * for the global default (`en`, used when no language matches) and one
+ * specifically for Spanish (`language_code: "es"`).
  */
-export const TELEGRAM_BOT_COMMANDS: { command: string; description: string }[] = [
-  { command: "start", description: "Empezar / Start chat with Clara" },
-  { command: "help", description: "Ayuda / Help" },
-  { command: "menu", description: "Mostrar opciones / Show quick actions" },
-  { command: "unlink", description: "Desvincular cuenta / Unlink account" },
-];
+export type TelegramBotCommand = { command: string; description: string };
+
+export const TELEGRAM_BOT_COMMANDS_BY_LOCALE: Record<
+  Locale,
+  TelegramBotCommand[]
+> = {
+  en: [
+    { command: "start", description: "Start chat with Clara" },
+    { command: "help", description: "Help" },
+    { command: "menu", description: "Show quick actions" },
+    { command: "unlink", description: "Unlink account" },
+  ],
+  es: [
+    { command: "start", description: "Empezar a chatear con Clara" },
+    { command: "help", description: "Ayuda" },
+    { command: "menu", description: "Mostrar opciones" },
+    { command: "unlink", description: "Desvincular cuenta" },
+  ],
+};
+
+/**
+ * Backwards-compat: callers that haven't been updated to the per-locale API
+ * still get the English (global default) catalogue.
+ */
+export const TELEGRAM_BOT_COMMANDS: TelegramBotCommand[] =
+  TELEGRAM_BOT_COMMANDS_BY_LOCALE.en;
 
 /**
  * Localised strings for the welcome messages and inline-keyboard labels. We
@@ -43,7 +68,11 @@ type MenuStringKey =
   | "menuAddExpense"
   | "menuSummary"
   | "menuLanguage"
-  | "setupKickoffPrompt";
+  | "setupKickoffPrompt"
+  | "pdfTooLarge"
+  | "pdfDownloadFailed"
+  | "pdfExtractFailed"
+  | "pdfAttachmentIntro";
 
 /**
  * Synthetic user message we feed the agent on the very first Telegram turn
@@ -91,6 +120,14 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
     menuSummary: "Resumen del mes",
     menuLanguage: "Cambiar idioma",
     setupKickoffPrompt: TELEGRAM_SETUP_KICKOFF_TOKEN,
+    pdfTooLarge:
+      "El PDF supera los 12 MB. Mandame uno más chico o una captura del extracto.",
+    pdfDownloadFailed:
+      "No pude descargar el PDF, ¿lo mandás de nuevo?",
+    pdfExtractFailed:
+      "No pude leer el PDF (¿escaneo sin OCR, contraseña o archivo dañado?). Probá una captura o un export CSV.",
+    pdfAttachmentIntro:
+      "Te adjunto un PDF: texto cuando el archivo tiene capa de texto, y/o páginas renderizadas como imagen si era escaneo. Tratalo como extracto bancario; respetá mis instrucciones personales y pedí confirmación antes de cargar o marcar pagos.",
   },
   en: {
     welcomeLinked:
@@ -126,6 +163,13 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
     menuSummary: "Monthly summary",
     menuLanguage: "Change language",
     setupKickoffPrompt: TELEGRAM_SETUP_KICKOFF_TOKEN,
+    pdfTooLarge:
+      "The PDF is over 12 MB. Send a smaller file or a screenshot of the statement.",
+    pdfDownloadFailed: "I couldn't download the PDF. Can you send it again?",
+    pdfExtractFailed:
+      "I couldn't read the PDF (scan without OCR, password-protected or corrupted file?). Try a screenshot or a CSV export.",
+    pdfAttachmentIntro:
+      "I'm attaching a PDF: text when the file has a text layer, and/or pages rendered as images if it was a scan. Treat it as a bank statement; respect my personal instructions and ask for confirmation before loading or marking payments.",
   },
 };
 

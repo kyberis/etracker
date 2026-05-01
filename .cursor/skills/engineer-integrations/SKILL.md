@@ -31,7 +31,6 @@ talking to.
 - **Always** route chat and classification through the Gateway. Reference
   models as `provider/model` strings and read from env:
   - `AI_MODEL` — main chat model (default `openai/gpt-5.4`).
-  - `AI_CLASSIFIER_MODEL` — classifier (default `openai/gpt-4.1-mini`).
 - Auth: `VERCEL_OIDC_TOKEN` (auto-provisioned by `vercel env pull`, rotates
   ~12h) is preferred. `AI_GATEWAY_API_KEY` is the fallback for CI / non-Vercel
   environments.

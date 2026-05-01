@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       "contact-form",
       5,
       "1 h",
-      "Demasiados envíos. Probá de nuevo en una hora.",
+      "Too many submissions. Try again in an hour.",
     );
     if (!limited.ok) return limited.response;
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     );
     if (!captchaOk) {
       return jsonError(
-        "No pudimos validar el captcha. Recargá la página y probá de nuevo.",
+        "We couldn't validate the captcha. Reload the page and try again.",
         403,
       );
     }
@@ -96,6 +96,10 @@ interface NotifyArgs {
 /**
  * Best-effort transactional ping to the controller. Returns nothing useful;
  * any error is logged and swallowed.
+ *
+ * Email body is English-only: this path is not user-facing, but we keep
+ * operator mail neutral so `no-spanish-in-api-errors` can treat all
+ * `src/app/api/**` strings as safe for international EN users.
  */
 async function notifyAdmin(args: NotifyArgs): Promise<void> {
   const to = getContactNotifyEmail();
@@ -119,18 +123,18 @@ async function notifyAdmin(args: NotifyArgs): Promise<void> {
 
   const subject = `[${args.kind}] ${args.name} via /contact`;
   const text = [
-    `Nuevo mensaje en /contact`,
+    `New /contact message`,
     `Controller: ${controller.name}`,
     "",
-    `Tipo: ${args.kind}`,
-    `Nombre: ${args.name}`,
+    `Kind: ${args.kind}`,
+    `Name: ${args.name}`,
     `Email: ${args.email}`,
-    args.userId ? `User logueado: ${args.userId}` : "User logueado: (anónimo)",
+    args.userId ? `Signed-in user: ${args.userId}` : "Signed-in user: (anonymous)",
     "",
-    "Mensaje:",
+    "Message:",
     args.body,
     "",
-    `Bandeja: ${adminLink}`,
+    `Inbox: ${adminLink}`,
   ].join("\n");
 
   try {

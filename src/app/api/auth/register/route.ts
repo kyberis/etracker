@@ -20,13 +20,13 @@ export async function POST(request: Request) {
       "auth-register",
       5,
       "15 m",
-      "Demasiados intentos de registro. Probá de nuevo en unos minutos.",
+      "Too many registration attempts. Try again in a few minutes.",
     );
     if (!limited.ok) return limited.response;
 
     if (!process.env.DATABASE_URL) {
       return jsonError(
-        "La base de datos no está configurada. Definí DATABASE_URL en tu .env y reiniciá la app.",
+        "The database is not configured. Set DATABASE_URL in your .env and restart the app.",
         500,
       );
     }
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     // but a hand-crafted POST shouldn't be able to consent to nothing.
     if (payload.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
       return jsonError(
-        "Tenés que aceptar la versión vigente de los Términos y la Política de Privacidad.",
+        "You must accept the current Terms and Privacy Policy.",
         400,
       );
     }
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     );
     if (!captchaOk) {
       return jsonError(
-        "No pudimos validar el captcha. Recargá la página y probá de nuevo.",
+        "We couldn't validate the captcha. Reload the page and try again.",
         403,
       );
     }
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     const existing = await db.user.findUnique({ where: { email: payload.email } });
     if (existing) {
       return jsonError(
-        "Ese correo ya está registrado. Si usás Google, iniciá sesión con Google.",
+        "That email is already registered. If you signed up with Google, sign in with Google.",
         409,
       );
     }

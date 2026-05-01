@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: { params: Promise<{ month:
 export async function PATCH() {
   return withApi(async () => {
     return jsonError(
-      "Este endpoint fue retirado. Usá POST /api/months/[month]/incomes para registrar un cobro o PATCH /api/months/[month]/incomes/[id] para editarlo.",
+      "This endpoint was retired. Use POST /api/months/[month]/incomes to register an income or PATCH /api/months/[month]/incomes/[id] to edit it.",
       410,
     );
   });

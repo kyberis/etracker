@@ -118,9 +118,9 @@ export async function GET() {
         bearerAuth: {
           type: "http",
           scheme: "bearer",
-          bearerFormat: "ada_pat",
+          bearerFormat: "clara_pat",
           description:
-            "Token personal de acceso para Clara (formato `ada_pat_<32-hex>`). " +
+            "Token personal de acceso para Clara (formato `clara_pat_<32-hex>`; tokens viejos con prefijo `ada_pat_` siguen funcionando). " +
             "Se genera en Settings → Acceso para AI.",
         },
       },

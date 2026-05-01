@@ -96,9 +96,12 @@ export type ChatExperienceProps = {
 const BALANCE_MUTATING_TOOLS = new Set([
   "addMonthLine",
   "updateMonthLine",
+  "deleteMonthLine",
   "createMonthIfNeeded",
   "mergePendingTemplates",
-  "setMonthIncome",
+  "addIncomeLine",
+  "updateIncomeLine",
+  "deleteIncomeLine",
   "applyPrevMonthLeftover",
 ]);
 

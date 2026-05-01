@@ -31,7 +31,7 @@ export async function GET(request: Request) {
         where: { id: userId },
         select: { primaryCurrency: true },
       });
-      if (!user) return jsonError("Usuario no encontrado.", 404);
+      if (!user) return jsonError("User not found.", 404);
       to = user.primaryCurrency;
     }
 
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     } catch (error) {
       if (error instanceof FxUnavailableError) {
         return jsonError(
-          `No pudimos obtener el tipo de cambio ${error.from}->${error.to}.`,
+          `Could not fetch exchange rate ${error.from}→${error.to}.`,
           502,
         );
       }

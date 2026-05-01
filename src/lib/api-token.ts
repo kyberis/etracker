@@ -2,8 +2,19 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { db } from "@/lib/db";
 
-/** Prefix all our personal-access tokens carry on the wire. */
-export const TOKEN_PREFIX = "ada_pat_";
+/**
+ * Prefix new personal-access tokens carry on the wire. Old tokens minted under
+ * the previous "ada" naming still carry `ada_pat_` and are accepted for
+ * backwards compatibility — see ACCEPTED_TOKEN_PREFIXES below.
+ */
+export const TOKEN_PREFIX = "clara_pat_";
+
+/**
+ * Token prefixes accepted at verification time. The first entry is the prefix
+ * we mint today; the rest exist only for tokens issued before a rename. New
+ * code MUST use `TOKEN_PREFIX` for generation and display.
+ */
+export const ACCEPTED_TOKEN_PREFIXES = [TOKEN_PREFIX, "ada_pat_"] as const;
 
 /** Bytes of randomness in the token body (32 bytes → 64 hex chars). */
 const TOKEN_BYTES = 32;
@@ -16,7 +27,7 @@ export type GeneratedToken = {
   plaintext: string;
   /** Hex sha-256 hash that goes into the DB. */
   tokenHash: string;
-  /** Short prefix for UI display (e.g. `ada_pat_3f8a`). */
+  /** Short prefix for UI display (e.g. `clara_pat_3f8a`). */
   prefix: string;
 };
 
@@ -61,7 +72,7 @@ export async function verifyBearerToken(
 ): Promise<AuthenticatedToken | null> {
   if (!bearer) return null;
   const trimmed = bearer.trim();
-  if (!trimmed.startsWith(TOKEN_PREFIX)) return null;
+  if (!ACCEPTED_TOKEN_PREFIXES.some((p) => trimmed.startsWith(p))) return null;
 
   const tokenHash = hashToken(trimmed);
   const row = await db.apiToken.findUnique({

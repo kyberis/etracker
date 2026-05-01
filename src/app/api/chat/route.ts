@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       userId,
       60,
       "1 h",
-      "Demasiados mensajes seguidos al asistente. Probá en un minuto.",
+      "Too many assistant messages in a row. Try again in a minute.",
     );
     if (!limited.ok) return limited.response;
 
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       !process.env.OPENAI_API_KEY
     ) {
       return jsonError(
-        "El asistente de IA no está configurado en el servidor. Configurá AI Gateway (`vercel link` + `vercel env pull`) o `OPENAI_API_KEY`.",
+        "The AI assistant is not configured on the server. Set up AI Gateway (`vercel link` + `vercel env pull`) or `OPENAI_API_KEY`.",
         503,
       );
     }
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     if (!quota.ok) {
       if (quota.reason === "disabled") {
         return jsonError(
-          "Tu cuenta está desactivada. Contactá al administrador.",
+          "Your account is disabled. Contact the administrator.",
           403,
         );
       }
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       const upsellOn = await isUpsellActive(userId);
       const res = NextResponse.json(
         {
-          error: `Llegaste al límite diario de ${quota.limit} mensajes con el asistente. Se reinicia a las 00:00 UTC.`,
+          error: `Daily assistant message limit reached (${quota.limit}). Resets at 00:00 UTC.`,
           kind: "quota_limit",
           limit: quota.limit,
           used: quota.used,

@@ -23,19 +23,19 @@ export async function POST(request: Request) {
       userId,
       30,
       "1 d",
-      "Llegaste al límite diario de audio del asistente.",
+      "You've reached the daily assistant audio limit.",
     );
     if (!limited.ok) return limited.response;
 
     if (!process.env.OPENAI_API_KEY?.trim()) {
       return jsonError(
-        "OPENAI_API_KEY no configurada — el TTS del chat no está disponible.",
+        "OPENAI_API_KEY is not configured — chat TTS is unavailable.",
         503,
       );
     }
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return jsonError(
-        "BLOB_READ_WRITE_TOKEN no configurado — el almacenamiento de audio no está disponible.",
+        "BLOB_READ_WRITE_TOKEN is not configured — audio storage is unavailable.",
         503,
       );
     }
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     try {
       body = await request.json();
     } catch {
-      return jsonError("JSON inválido.", 400);
+      return jsonError("Invalid JSON.", 400);
     }
 
     const text =
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
         : "";
 
     if (!text) {
-      return jsonError('Enviá { "text": "…" } con contenido.', 400);
+      return jsonError('Send { "text": "…" } with content.', 400);
     }
 
     const user = await db.user.findUnique({

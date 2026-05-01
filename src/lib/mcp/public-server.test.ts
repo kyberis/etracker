@@ -42,11 +42,11 @@ describe("public MCP server", () => {
       server as unknown as { _registeredPrompts: Record<string, unknown> }
     )._registeredPrompts;
     for (const uri of [
-      "ada://about",
-      "ada://features",
-      "ada://faq",
-      "ada://privacy",
-      "ada://changelog",
+      "clara://about",
+      "clara://features",
+      "clara://faq",
+      "clara://privacy",
+      "clara://changelog",
     ]) {
       expect(resources[uri]).toBeDefined();
     }

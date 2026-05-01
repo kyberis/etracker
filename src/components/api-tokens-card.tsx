@@ -138,7 +138,7 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
             </code>
             . {tr({ es: "Usá el token como header", en: "Use the token as header" })}{" "}
             <code className="bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-xs">
-              Authorization: Bearer ada_pat_…
+              Authorization: Bearer clara_pat_…
             </code>
             .
           </p>

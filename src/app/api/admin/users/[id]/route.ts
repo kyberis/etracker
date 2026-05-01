@@ -15,7 +15,7 @@ export async function PATCH(
 
     // Guardrail: don't let an admin lock themselves out of the panel.
     if (id === adminId && payload.isActive === false) {
-      return jsonError("No podés desactivar tu propia cuenta.", 400);
+      return jsonError("You cannot disable your own account.", 400);
     }
 
     const target = await db.user.findUnique({

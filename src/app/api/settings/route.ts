@@ -54,14 +54,14 @@ export async function PATCH(request: Request) {
     if (payload.newPassword) {
       if (user.passwordHash) {
         if (!payload.currentPassword) {
-          return jsonError("Tenés que ingresar la contraseña actual.", 400);
+          return jsonError("You must enter your current password.", 400);
         }
         const validCurrent = await bcrypt.compare(
           payload.currentPassword,
           user.passwordHash,
         );
         if (!validCurrent) {
-          return jsonError("La contraseña actual no es correcta.", 401);
+          return jsonError("The current password is incorrect.", 401);
         }
       }
     }

@@ -109,7 +109,7 @@ export default async function AdminPage() {
               <div className="flex-1">
                 <CardTitle>Bandeja de contacto</CardTitle>
                 <CardDescription>
-                  Mensajes recibidos en el formulario público de /contact (privacidad, abuso, bugs).
+                  Messages from the public /contact form (privacy, abuse, bugs).
                 </CardDescription>
               </div>
             </CardHeader>

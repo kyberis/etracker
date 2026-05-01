@@ -49,7 +49,7 @@ export async function GET() {
         version: "2025-06-18",
         authentication: {
           type: "bearer",
-          token_format: "ada_pat_<32-hex>",
+          token_format: "clara_pat_<32-hex>",
           documentation: `${site}/features#mcp`,
         },
         capabilities: {

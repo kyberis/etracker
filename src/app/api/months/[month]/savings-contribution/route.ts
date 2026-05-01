@@ -43,7 +43,7 @@ export async function POST(
     if (!user) return jsonError("Usuario no encontrado.", 404);
     if (!monthRecord) {
       return jsonError(
-        "El mes no está configurado todavía. Creá el mes primero.",
+        "This month is not set up yet. Set up the month first.",
         404,
       );
     }
@@ -97,7 +97,7 @@ export async function DELETE(
       select: { id: true },
     });
     if (!monthRecord) {
-      return jsonError("El mes no está configurado todavía.", 404);
+      return jsonError("This month is not set up yet.", 404);
     }
 
     const result = await removeMonthlySavingsContribution({

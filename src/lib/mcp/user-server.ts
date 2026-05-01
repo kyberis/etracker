@@ -689,14 +689,26 @@ export function registerUserMcp(server: McpServer): void {
     {
       title: "Eliminar línea del mes",
       description:
-        "Borra una línea de gasto de un mes específico. No toca la plantilla original.",
+        "Borra una línea de gasto de un mes específico. No toca la plantilla original. " +
+        "Tool destructivo: requiere `confirm: true` después de que el humano confirme. " +
+        "Cliente AI: leé la línea con getMonth, mostrale al usuario qué se va a borrar y solo pasá `confirm: true` cuando responda explícitamente que sí.",
       inputSchema: {
         lineId: z.string().min(1),
+        confirm: z
+          .literal(true)
+          .describe(
+            "Must be true after explicit human confirmation; otherwise the tool refuses.",
+          ),
       },
     },
-    async ({ lineId }, extra) => {
+    async ({ lineId, confirm }, extra) => {
       const userId = getUserIdFromExtra(extra);
       if (!userId) return errContent("Unauthorized.");
+      if (confirm !== true) {
+        return errContent(
+          "deleteLine refused: pass confirm=true after explicit human confirmation.",
+        );
+      }
       const line = await db.monthExpenseLine.findUnique({
         where: { id: lineId },
         include: { monthRecord: { select: { userId: true, month: true } } },
@@ -823,14 +835,26 @@ export function registerUserMcp(server: McpServer): void {
     {
       title: "Borrar movimiento manual de ahorro",
       description:
-        "Borra un movimiento MANUAL_DEPOSIT o MANUAL_WITHDRAWAL del ledger y revierte su efecto sobre la pila. Bloqueado para movimientos del sistema (MONTHLY_CONTRIBUTION, CARRYOVER_DEPOSIT, DEBT_COVERAGE): esos solo se deshacen rehaciendo la decisión del mes que los originó.",
+        "Borra un movimiento MANUAL_DEPOSIT o MANUAL_WITHDRAWAL del ledger y revierte su efecto sobre la pila. " +
+        "Bloqueado para movimientos del sistema (MONTHLY_CONTRIBUTION, CARRYOVER_DEPOSIT, DEBT_COVERAGE): esos solo se deshacen rehaciendo la decisión del mes que los originó. " +
+        "Tool destructivo: requiere `confirm: true` después de que el humano confirme.",
       inputSchema: {
         id: z.string().min(1),
+        confirm: z
+          .literal(true)
+          .describe(
+            "Must be true after explicit human confirmation; otherwise the tool refuses.",
+          ),
       },
     },
-    async ({ id }, extra) => {
+    async ({ id, confirm }, extra) => {
       const userId = getUserIdFromExtra(extra);
       if (!userId) return errContent("Unauthorized.");
+      if (confirm !== true) {
+        return errContent(
+          "deleteSavingsMovement refused: pass confirm=true after explicit human confirmation.",
+        );
+      }
       const existing = await db.savingsMovement.findFirst({
         where: { id, userId },
         select: { id: true, kind: true },
@@ -1083,14 +1107,25 @@ export function registerUserMcp(server: McpServer): void {
     {
       title: "Eliminar línea de ingreso",
       description:
-        "Borra una línea de ingreso (`MonthIncomeLine`) de un mes específico. No toca la plantilla original.",
+        "Borra una línea de ingreso (`MonthIncomeLine`) de un mes específico. No toca la plantilla original. " +
+        "Tool destructivo: requiere `confirm: true` después de que el humano confirme.",
       inputSchema: {
         lineId: z.string().min(1),
+        confirm: z
+          .literal(true)
+          .describe(
+            "Must be true after explicit human confirmation; otherwise the tool refuses.",
+          ),
       },
     },
-    async ({ lineId }, extra) => {
+    async ({ lineId, confirm }, extra) => {
       const userId = getUserIdFromExtra(extra);
       if (!userId) return errContent("Unauthorized.");
+      if (confirm !== true) {
+        return errContent(
+          "deleteIncomeLine refused: pass confirm=true after explicit human confirmation.",
+        );
+      }
       const line = await db.monthIncomeLine.findUnique({
         where: { id: lineId },
         include: { monthRecord: { select: { userId: true, month: true } } },

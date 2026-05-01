@@ -64,11 +64,22 @@ if (!url) {
   process.exit(1);
 }
 
-const COMMANDS = [
-  { command: "start", description: "Empezar / Start chat with Clara" },
-  { command: "help", description: "Ayuda / Help" },
-  { command: "menu", description: "Mostrar opciones / Show quick actions" },
-  { command: "unlink", description: "Desvincular cuenta / Unlink account" },
+// Per-locale slash-command catalogues. The Bot API's `setMyCommands` accepts
+// a `language_code`; clients fall back to the global default (no
+// `language_code`) when their language has no specific entry. Keep these in
+// sync with `src/lib/telegram/menu.ts > TELEGRAM_BOT_COMMANDS_BY_LOCALE`.
+const COMMANDS_DEFAULT = [
+  { command: "start", description: "Start chat with Clara" },
+  { command: "help", description: "Help" },
+  { command: "menu", description: "Show quick actions" },
+  { command: "unlink", description: "Unlink account" },
+];
+
+const COMMANDS_ES = [
+  { command: "start", description: "Empezar a chatear con Clara" },
+  { command: "help", description: "Ayuda" },
+  { command: "menu", description: "Mostrar opciones" },
+  { command: "unlink", description: "Desvincular cuenta" },
 ];
 
 async function callTelegram(method, body) {
@@ -94,8 +105,15 @@ await callTelegram("setWebhook", {
 });
 console.log("[telegram] setWebhook ok");
 
-await callTelegram("setMyCommands", { commands: COMMANDS });
-console.log("[telegram] setMyCommands ok");
+// Default (fallback) for clients whose language has no specific entry.
+await callTelegram("setMyCommands", { commands: COMMANDS_DEFAULT });
+console.log("[telegram] setMyCommands (default) ok");
+
+await callTelegram("setMyCommands", {
+  commands: COMMANDS_ES,
+  language_code: "es",
+});
+console.log("[telegram] setMyCommands (es) ok");
 
 const info = await callTelegram("getWebhookInfo", {});
 console.log("[telegram] getWebhookInfo →", info);

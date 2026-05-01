@@ -58,7 +58,7 @@ export async function PATCH(
 
     const occurredOn = payload.occurredOn ? parseIsoDate(payload.occurredOn) : undefined;
     if (payload.occurredOn && !occurredOn) {
-      return jsonError("occurredOn inválido (yyyy-MM-dd).", 400);
+      return jsonError("Invalid occurredOn (expected yyyy-MM-dd).", 400);
     }
 
     if (nextSigned !== null) {

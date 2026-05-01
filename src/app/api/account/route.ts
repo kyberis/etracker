@@ -73,18 +73,18 @@ export async function DELETE(request: Request) {
     if (user.passwordHash) {
       if (!payload.currentPassword) {
         return jsonError(
-          "Tenés que ingresar tu contraseña actual para borrar la cuenta.",
+          "You must enter your current password to delete the account.",
           400,
         );
       }
       const valid = await bcrypt.compare(payload.currentPassword, user.passwordHash);
       if (!valid) {
-        return jsonError("La contraseña actual no es correcta.", 401);
+        return jsonError("The current password is incorrect.", 401);
       }
     } else {
       if (!isValidConfirmPhrase(payload.confirmPhrase, user.email)) {
         return jsonError(
-          `Para confirmar el borrado, tipeá: BORRAR ${user.email}`,
+          `To confirm deletion, type: BORRAR ${user.email} or DELETE ${user.email}`,
           400,
         );
       }

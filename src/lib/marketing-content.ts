@@ -53,7 +53,7 @@ export type ContactCopy = {
   errorGeneric: string;
 };
 
-type LocalisedMarketingContent = {
+export type LocalisedMarketingContent = {
   HERO_PITCH: string;
   ELEVATOR_PITCH: string;
   FEATURES: MarketingFeature[];
@@ -174,6 +174,19 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.7.4",
+      date: "2026-05-01",
+      title: "Lanzamiento LinkedIn: MCP endurecido, Telegram + PDF, i18n técnica",
+      highlights: [
+        "MCP per-user: rate limit por usuario (Upstash) + borrados con `confirm: true` alineados al chat.",
+        "MCP público: `?lang=es|en` / Accept-Language y `serverInfo.version` tomada del changelog.",
+        "Telegram: documentos PDF (texto + páginas raster), comandos `/` registrados por idioma (en/es).",
+        "Tokens de API: prefijo `clara_pat_` (se acepta `ada_pat_` legacy). README, diagrama Mermaid y screenshots en `public/screenshots/`.",
+        "CI: Postgres de servicio para que `prisma migrate diff` falle el PR si hay drift de migraciones.",
+        "Errores de API, tools del agente y tests anti-drift de español en capa API/AI para usuarios en inglés.",
+      ],
+    },
+    {
       version: "0.7.3",
       date: "2026-05-01",
       title: "Clara limpia movimientos duplicados de la pila de ahorros",
@@ -189,7 +202,7 @@ const ES: LocalisedMarketingContent = {
       title: "Telegram te recibe con una guía paso a paso",
       highlights: [
         "Cuando vinculás Telegram por primera vez, Clara genera la bienvenida con IA: te saluda, te pregunta si arrancás por un ingreso o un gasto y te tira 3-4 ejemplos para que toques o reescribas.",
-        "Mientras la cuenta no esté seteada (sin moneda confirmada o sin movimientos del mes), cada turno te empuja amablemente al siguiente paso usando las mismas tools que ya conocés (setMonthIncome, addMonthLine, setPrimaryCurrency).",
+        "Mientras la cuenta no esté seteada (sin moneda confirmada o sin movimientos del mes), cada turno te empuja amablemente al siguiente paso usando las mismas tools que ya conocés (addIncomeLine, addMonthLine, setPrimaryCurrency).",
         "Si ya tenías la cuenta lista por la web, el saludo estático y el menú inline siguen igual — la guía solo aparece cuando hace falta.",
       ],
     },
@@ -713,6 +726,19 @@ const EN: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.7.4",
+      date: "2026-05-01",
+      title: "LinkedIn launch polish: hardened MCP, Telegram PDFs, technical i18n",
+      highlights: [
+        "Per-user MCP: Upstash rate limits + destructive tools require explicit `confirm: true`, matching the web chat rules.",
+        "Public MCP: `?lang=es|en` / `Accept-Language` negotiation and `serverInfo.version` synced from the public changelog.",
+        "Telegram: PDF documents (extracted text + rasterised pages), locale-specific slash commands (en/es).",
+        "API tokens ship with the `clara_pat_` prefix (`ada_pat_` still accepted). README gains a Mermaid architecture diagram and `public/screenshots/` assets.",
+        "CI spins up Postgres so `prisma migrate diff` fails the build on migration drift.",
+        "Neutral-English API errors, English-first Zod tool descriptions, and a Vitest guard against Spanish diacritics leaking into the API/AI layer.",
+      ],
+    },
+    {
       version: "0.7.3",
       date: "2026-05-01",
       title: "Clara cleans up duplicate savings movements",
@@ -728,7 +754,7 @@ const EN: LocalisedMarketingContent = {
       title: "Telegram greets you with a step-by-step guide",
       highlights: [
         "The first time you link Telegram, Clara generates the welcome with AI: she greets you, asks whether to start with an income or an expense, and offers 3-4 example prompts you can tap or rewrite.",
-        "Until the account is set up (no confirmed currency or no movements yet this month), every turn nudges you to the next step using the same tools you already know (setMonthIncome, addMonthLine, setPrimaryCurrency).",
+        "Until the account is set up (no confirmed currency or no movements yet this month), every turn nudges you to the next step using the same tools you already know (addIncomeLine, addMonthLine, setPrimaryCurrency).",
         "If your account was already set up via the web, the static welcome and inline menu stay the same — the guide only appears when it's actually useful.",
       ],
     },
@@ -1156,3 +1182,12 @@ export const FEATURES = ES.FEATURES;
 export const FAQ = ES.FAQ;
 export const CHANGELOG = ES.CHANGELOG;
 export const PRIVACY_SECTIONS = ES.PRIVACY_SECTIONS;
+
+/**
+ * Current user-visible product version, derived from the most recent CHANGELOG
+ * entry. Both ES and EN changelogs are kept in lockstep, so reading from `ES`
+ * is fine. Used by MCP server discovery, OpenAPI, and anywhere we need to
+ * report the public version (NOT `package.json`, which intentionally stays at
+ * `0.1.0` per the changelog rule).
+ */
+export const PRODUCT_VERSION: string = ES.CHANGELOG[0]?.version ?? "0.0.0";

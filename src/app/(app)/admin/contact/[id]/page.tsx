@@ -109,8 +109,8 @@ export default async function AdminContactDetail({ params }: PageProps) {
             <Field label="Recibido">
               {message.createdAt.toISOString()}
             </Field>
-            <Field label="Marcado leído">
-              {message.readAt?.toISOString() ?? "Ahora (auto)"}
+            <Field label="Marked read">
+              {message.readAt?.toISOString() ?? "Now (auto)"}
             </Field>
             <Field label="Respondido">
               {message.repliedAt?.toISOString() ?? "—"}
@@ -133,7 +133,7 @@ export default async function AdminContactDetail({ params }: PageProps) {
                   </span>
                 </span>
               ) : (
-                "Anónimo"
+                "Anonymous"
               )}
             </Field>
           </CardContent>

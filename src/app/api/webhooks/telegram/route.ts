@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
 import { transcribeAudioOpenAI } from "@/lib/ai/transcribe-audio";
+import { dataUrlToBuffer, extractPdf } from "@/lib/pdf-extract";
 import {
   consumeAgentQuota,
   recordAgentModelUsage,
@@ -25,6 +26,12 @@ import {
   verifyTelegramWebhookRequest,
 } from "@/lib/telegram/client";
 import { verifyLinkToken } from "@/lib/telegram/link";
+import {
+  lowQuotaHint,
+  pdfExtractedMarkdownHeading,
+  pdfScanOnlyMarkdownNote,
+  quotaLimitMessage,
+} from "@/lib/telegram/embedded-markdown";
 import {
   loadTelegramSetupHint,
   type TelegramSetupHint,
@@ -72,6 +79,14 @@ type TelegramVoice = {
   mime_type?: string;
 };
 
+type TelegramDocument = {
+  file_id: string;
+  file_unique_id: string;
+  file_name?: string;
+  mime_type?: string;
+  file_size?: number;
+};
+
 type TelegramMessageObject = {
   message_id: number;
   date: number;
@@ -82,7 +97,7 @@ type TelegramMessageObject = {
   photo?: TelegramPhotoSize[];
   voice?: TelegramVoice;
   audio?: { file_id: string; mime_type?: string };
-  document?: { file_id: string; mime_type?: string };
+  document?: TelegramDocument;
 };
 
 type TelegramCallbackQuery = {
@@ -557,10 +572,12 @@ async function respondToLinkedUser(
       await sendTelegramMessage(message.chat.id, t.imageDownloadFailed);
       return;
     }
-    await respondToLinkedUserText(userId, message.chat.id, text || t.processThisCapture, {
-      mediaType: media.mediaType,
-      buffer: media.buffer,
-    });
+    await respondToLinkedUserText(userId, message.chat.id, text || t.processThisCapture, [
+      {
+        mediaType: media.mediaType,
+        buffer: media.buffer,
+      },
+    ]);
     return;
   }
 
@@ -596,8 +613,18 @@ async function respondToLinkedUser(
   }
 
   if (message.document) {
-    log.info("telegram.respond_branch", { userId, branch: "document_unsupported" });
-    await sendTelegramMessage(message.chat.id, t.unsupportedMedia);
+    const isPdf = isPdfDocument(message.document);
+    log.info("telegram.respond_branch", {
+      userId,
+      branch: isPdf ? "pdf" : "document_unsupported",
+      mimeType: message.document.mime_type,
+      filename: message.document.file_name,
+    });
+    if (!isPdf) {
+      await sendTelegramMessage(message.chat.id, t.unsupportedMedia);
+      return;
+    }
+    await handlePdfDocument(userId, message);
     return;
   }
 
@@ -623,7 +650,7 @@ async function respondToLinkedUserText(
   userId: string,
   chatId: number,
   text: string,
-  image?: { mediaType: string; buffer: Buffer },
+  images?: { mediaType: string; buffer: Buffer }[],
   precomputedSetupHint?: TelegramSetupHint,
 ) {
   const pipelineStarted = Date.now();
@@ -691,26 +718,32 @@ async function respondToLinkedUserText(
   log.info("telegram.agent_start", {
     userId,
     historyTurns: history.length,
-    hasImage: Boolean(image),
+    imageCount: images?.length ?? 0,
     textPreview: previewText(text, 80),
     needsSetup: Boolean(setupHint?.needsSetup),
   });
 
-  const userMessage: ModelMessage = image
-    ? {
-        role: "user",
-        content: [
-          { type: "text", text: text || t.processThisCapture },
-          {
-            type: "image",
-            image: image.buffer,
-            mediaType: image.mediaType,
-          },
-        ],
-      }
-    : { role: "user", content: text };
+  const userMessage: ModelMessage =
+    images && images.length > 0
+      ? {
+          role: "user",
+          content: [
+            { type: "text", text: text || t.processThisCapture },
+            ...images.map((img) => ({
+              type: "image" as const,
+              image: img.buffer,
+              mediaType: img.mediaType,
+            })),
+          ],
+        }
+      : { role: "user", content: text };
 
-  await persistMessage(userId, "user", text || t.imagePlaceholder, chatId);
+  await persistMessage(
+    userId,
+    "user",
+    text || (images && images.length > 0 ? t.imagePlaceholder : ""),
+    chatId,
+  );
 
   let reply = "";
   let chartImageUrls: string[] = [];
@@ -761,6 +794,103 @@ async function respondToLinkedUserText(
     replyLen: reply.length,
     pipelineMs: Date.now() - pipelineStarted,
   });
+}
+
+/** Cap to keep extracted PDF text from blowing the prompt context. */
+const TELEGRAM_PDF_MAX_BYTES = 12 * 1024 * 1024;
+
+function isPdfDocument(doc: TelegramDocument): boolean {
+  if (doc.mime_type === "application/pdf" || doc.mime_type === "application/x-pdf") {
+    return true;
+  }
+  return Boolean(doc.file_name && doc.file_name.toLowerCase().endsWith(".pdf"));
+}
+
+/**
+ * Handle a PDF document attachment. Mirrors the web `/api/chat/extract-pdf`
+ * pipeline: pull text when there's a text layer, fall back to rendering the
+ * first 1-2 pages as PNG when it's a scan, then forward both to the agent
+ * with the same caption-style intro the web composer uses.
+ */
+async function handlePdfDocument(
+  userId: string,
+  message: TelegramMessageObject,
+): Promise<void> {
+  const doc = message.document!;
+  const locale = await getUserLocale(userId);
+  const t = getTelegramStrings(locale);
+  const caption = (message.text ?? message.caption ?? "").trim();
+
+  if (doc.file_size && doc.file_size > TELEGRAM_PDF_MAX_BYTES) {
+    await sendTelegramMessage(message.chat.id, t.pdfTooLarge);
+    return;
+  }
+
+  await sendChatAction(message.chat.id, "typing");
+
+  const fileUrl = await getTelegramFileUrl(doc.file_id);
+  if (!fileUrl) {
+    await sendTelegramMessage(message.chat.id, t.pdfDownloadFailed);
+    return;
+  }
+  const media = await downloadTelegramFile(fileUrl);
+  if (!media) {
+    await sendTelegramMessage(message.chat.id, t.pdfDownloadFailed);
+    return;
+  }
+
+  let extracted: { text?: string; images?: { dataUrl: string; pageNumber: number }[] };
+  try {
+    extracted = await extractPdf(media.buffer);
+  } catch (error) {
+    log.error("telegram.pdf_extract_error", {
+      error: serializeError(error),
+      userId,
+    });
+    await sendTelegramMessage(message.chat.id, t.pdfExtractFailed);
+    return;
+  }
+
+  if (!extracted.text && (!extracted.images || extracted.images.length === 0)) {
+    await sendTelegramMessage(message.chat.id, t.pdfExtractFailed);
+    return;
+  }
+
+  const filename = doc.file_name ?? "document.pdf";
+  const intro = t.pdfAttachmentIntro;
+  const textBlocks: string[] = [];
+  if (extracted.text) {
+    textBlocks.push(
+      pdfExtractedMarkdownHeading(locale, filename, extracted.text),
+    );
+  } else if (extracted.images?.length) {
+    textBlocks.push(
+      pdfScanOnlyMarkdownNote(
+        locale,
+        filename,
+        extracted.images.length,
+      ),
+    );
+  }
+
+  const composedText = [caption, intro, textBlocks.join("\n\n---\n\n")]
+    .filter((s) => s.length > 0)
+    .join("\n\n");
+
+  const images: { mediaType: string; buffer: Buffer }[] = [];
+  if (extracted.images?.length) {
+    for (const page of extracted.images) {
+      const decoded = dataUrlToBuffer(page.dataUrl);
+      if (decoded) images.push(decoded);
+    }
+  }
+
+  await respondToLinkedUserText(
+    userId,
+    message.chat.id,
+    composedText,
+    images.length > 0 ? images : undefined,
+  );
 }
 
 async function loadHistory(userId: string): Promise<ModelMessage[]> {
@@ -826,19 +956,6 @@ function isAddressedToBot(message: TelegramMessageObject): boolean {
   if (!username) return false;
   const text = message.text ?? message.caption ?? "";
   return text.includes(`@${username}`);
-}
-
-function quotaLimitMessage(locale: Locale, limit: number): string {
-  return locale === "en"
-    ? `You've reached the daily limit of ${limit} assistant messages. It resets at 00:00 UTC.`
-    : `Llegaste al límite diario de ${limit} mensajes con el asistente. Se reinicia a las 00:00 UTC.`;
-}
-
-function lowQuotaHint(locale: Locale, remaining: number): string {
-  if (locale === "en") {
-    return `_(You have ${remaining} assistant ${remaining === 1 ? "message" : "messages"} left today.)_`;
-  }
-  return `_(Te quedan ${remaining} ${remaining === 1 ? "mensaje" : "mensajes"} con el asistente hoy.)_`;
 }
 
 function serializeError(error: unknown): unknown {

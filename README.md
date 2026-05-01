@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="public/ada-avatar.png" width="120" alt="Ada — asistente financiera con IA" />
+<img src="public/clara-avatar-simple.png" width="120" alt="Clara — asistente financiera con IA" />
 
 # Clara AI Assistant
 
 ### Tu plata, finalmente clara.
 
-**Asistente financiera con IA, open source y rioplatense.** Mandale una foto del banco, un PDF, una nota de voz por Telegram — Ada extrae los movimientos, sugiere categorías y mantiene tu balance al día.
+**Asistente financiera con IA, open source y rioplatense.** Mandale una foto del banco, un PDF, una nota de voz por Telegram — Clara extrae los movimientos, sugiere categorías y mantiene tu balance al día.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](#-licencia)
 [![GitHub Repo stars](https://img.shields.io/github/stars/kyberis/etracker?style=social)](https://github.com/kyberis/etracker/stargazers)
@@ -19,25 +19,25 @@
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#-contributing)
 
-**[Live demo](https://clara.trefolio.com) · [Quick start](#-quick-start) · [Features](#-una-asistente-no-una-planilla) · [MCP](#-tu-propio-ai-puede-hablar-con-ada) · [Contributing](#-contributing)**
+**[Live demo](https://clara.trefolio.com) · [Quick start](#-quick-start) · [Features](#-una-asistente-no-una-planilla) · [MCP](#-tu-propio-ai-puede-hablar-con-clara-mcp) · [Contributing](#-contributing)**
 
 </div>
 
 > ### ⭐ Si te gusta lo que ves, dale una star.
 >
-> Ada es 100% open source y se mantiene **a pulmón**, sin VC ni planes pagos. Una star en GitHub es gratis, tarda dos segundos y nos avisa que vale la pena seguir construyendo en abierto. **[Star Ada acá](https://github.com/kyberis/etracker)** — gracias 🙏.
+> Clara es 100% open source y se mantiene **a pulmón**, sin VC ni planes pagos. Una star en GitHub es gratis, tarda dos segundos y nos avisa que vale la pena seguir construyendo en abierto. **[Star Clara acá](https://github.com/kyberis/etracker)** — gracias 🙏.
 
 ---
 
-## 💬 Esto es Ada en dos mensajes
+## 💬 Esto es Clara en dos mensajes
 
 > **Vos:** Pagué el alquiler hoy, $850
 >
-> **Ada:** Listo, marqué **Alquiler** como pagado en abril ✅. Te quedan **$1.240** para los gastos pendientes del mes.
+> **Clara:** Listo, marqué **Alquiler** como pagado en abril ✅. Te quedan **$1.240** para los gastos pendientes del mes.
 >
 > **Vos:** _\[adjuntás un PDF del banco\]_
 >
-> **Ada:** Dale, ya lo procesé. Te encontré 14 movimientos, 9 ya estaban planificados y los marqué como pagados. Quedan **5 gastos nuevos** — mirá la propuesta y confirmá los que quieras registrar.
+> **Clara:** Dale, ya lo procesé. Te encontré 14 movimientos, 9 ya estaban planificados y los marqué como pagados. Quedan **5 gastos nuevos** — mirá la propuesta y confirmá los que quieras registrar.
 
 Sin filas infinitas. Sin categorías que tildás manualmente. Sin abrir la app.
 
@@ -48,9 +48,9 @@ La mayoría son lo mismo de siempre:
 - 🪦 **Planillas con mejor diseño** — filas, categorías, reportes. Bonitas las primeras dos semanas; muertas al segundo mes.
 - 🔒 **Jardines cerrados** — tus datos viven en la base de datos de otra empresa, pagás todos los meses, y las features de IA son un upsell de $9.99.
 
-**Ada es chat-first, open source y self-hosteable.** Hablás con tu plata en lenguaje normal, le tirás un PDF y entiende, le mandás una nota de voz y registra el gasto. La IA es **el núcleo del producto**, no una etiqueta de marketing.
+**Clara es chat-first, open source y self-hosteable.** Hablás con tu plata en lenguaje normal, le tirás un PDF y entiende, le mandás una nota de voz y registra el gasto. La IA es **el núcleo del producto**, no una etiqueta de marketing.
 
-> Ada habla **español rioplatense** porque es lo que usan los maintainers y los prompts del asistente. Cambiar al inglés u otro dialecto es un PR de pocas líneas en `src/lib/ai/run-expense-agent.ts`. PRs bienvenidos. 🌎
+> Clara habla **español rioplatense** y soporta inglés neutro de fábrica (DB column `User.locale`, dictionaries `es`/`en`, system prompt bilingüe). Para sumar otro dialecto el cambio es chico: ver `src/lib/ai/run-expense-agent.ts` y `src/lib/i18n/dictionaries/`. PRs bienvenidos. 🌎
 
 ## 🎯 Una asistente, no una planilla
 
@@ -58,25 +58,25 @@ Cada feature está pensada para que entiendas tu plata sin abrir Excel — y par
 
 | | |
 |---|---|
-| 🤖 **Lee tus extractos** | Tirá una captura del banco, un PDF o un CSV. Ada extrae los movimientos, sugiere categorías y siempre pregunta antes de tocar nada. |
-| 🎙️ **Escucha notas de voz** | "Pagué el alquiler" por Telegram es suficiente. Ada transcribe, clasifica y actualiza el mes sin que abras la app. |
+| 🤖 **Lee tus extractos** | Tirá una captura del banco, un PDF o un CSV. Clara extrae los movimientos, sugiere categorías y siempre pregunta antes de tocar nada. |
+| 🎙️ **Escucha notas de voz** | "Pagué el alquiler" por Telegram es suficiente. Clara transcribe, clasifica y actualiza el mes sin que abras la app. |
 | 📅 **Organizada por mes** | Una plantilla define un gasto recurrente. Cada mes tiene su copia independiente que tildás cuando lo pagás. |
 | 🏦 **Multi-banco real** | Cada gasto sabe en qué banco vive. Útil cuando repartís el alquiler entre tres cuentas y querés saber cuánto te queda en cada una. |
-| 📊 **Visualiza solo cuando ayuda** | Ada no tira gráficos por tirar. Los renderiza inline solo cuando suman para entender lo que está pasando. |
-| 💬 **Habla en rioplatense** | Sin inglés corporativo ni tuteo. Ada habla como una amiga contadora que sabe lo que hace — sin sermones, prometido. |
+| 📊 **Visualiza solo cuando ayuda** | Clara no tira gráficos por tirar. Los renderiza inline solo cuando suman para entender lo que está pasando. |
+| 💬 **Habla rioplatense e inglés** | Sin inglés corporativo ni tuteo en español; inglés neutro cuando el usuario está en `en`. Clara habla como una amiga contadora que sabe lo que hace — sin sermones, prometido. |
 | 🔓 **Tu data es tuya** | Open source MIT. Self-hosteable en cualquier Vercel/Postgres. Sin telemetría, sin tracking, sin upsell de IA a $9.99/mes. |
-| 🤝 **MCP para tu AI** | Ada expone un servidor MCP. Conectalo a Claude Desktop, Cursor o ChatGPT y tu propio asistente puede consultar y actualizar tus finanzas con tu permiso. |
+| 🤝 **MCP para tu AI** | Clara expone un servidor MCP. Conectalo a Claude Desktop, Cursor o ChatGPT y tu propio asistente puede consultar y actualizar tus finanzas con tu permiso. |
 
-## 🤝 Tu propio AI puede hablar con Ada
+## 🤝 Tu propio AI puede hablar con Clara (MCP)
 
-Ada expone un servidor **MCP (Model Context Protocol)**. Generás un token desde **Settings → Acceso para AI** y lo pegás en Claude Desktop, Cursor o cualquier cliente compatible: tu asistente consulta tus meses, mira el balance y registra gastos con tu permiso.
+Clara expone un servidor **MCP (Model Context Protocol)**. Generás un token desde **Settings → Acceso para AI** y lo pegás en Claude Desktop, Cursor o cualquier cliente compatible: tu asistente consulta tus meses, mira el balance y registra gastos con tu permiso.
 
 ```json
 {
   "mcpServers": {
-    "ada": {
+    "clara": {
       "url": "https://clara.trefolio.com/api/mcp/user",
-      "headers": { "Authorization": "Bearer ada_pat_..." }
+      "headers": { "Authorization": "Bearer clara_pat_..." }
     }
   }
 }
@@ -84,15 +84,27 @@ Ada expone un servidor **MCP (Model Context Protocol)**. Generás un token desde
 
 Tools disponibles: `getProfile`, `listBanks`, `listExpenseTemplates`, `listMonths`, `getMonth`, `getCurrentBalance`, `getYearTimeline`, `addExpenseTemplate`, `addExpenseToMonth`, `markLinePaid`, `deleteLine`, `createBank`. Discovery: `/.well-known/mcp.json`. Tokens hasheados con sha-256, expirables y revocables desde Settings.
 
+> Tokens viejos con prefijo `ada_pat_` (de la versión previa al rebrand) siguen funcionando — el verificador acepta ambos prefijos.
+
 > Si esta combinación (MCP + finanzas + open source) te resulta interesante, **[dejá una star](https://github.com/kyberis/etracker)** así más gente la descubre.
+
+
 
 ## 🖼️ Screenshots
 
-> _Próximamente — subí tus capturas a `docs/screenshots/` y linkeálas acá._
+Assets viven en [`public/screenshots/`](./public/screenshots/) (1280×800). Los
+PNG commiteados son **placeholders con copy** para que el README y LinkedIn
+tengan paths estables; reemplazalos por capturas reales desde
+[clara.trefolio.com](https://clara.trefolio.com) cuando quieras máximo polish.
 
-```
-[ Dashboard mensual ]   [ Chat IA con tus extractos ]   [ Timeline anual ]
-```
+| | |
+|---|---|
+| ![Month dashboard](./public/screenshots/dashboard-month.png) | ![Chat + bank](./public/screenshots/chat-bank-screenshot.png) |
+| **Month dashboard** — planificado / pagado / balance | **Chat** — extracto del banco + confirmación antes de guardar |
+| ![Telegram voice](./public/screenshots/chat-voice-telegram.png) | ![MCP Claude](./public/screenshots/mcp-claude-desktop.png) |
+| **Telegram** — nota de voz | **MCP** — Claude Desktop (o Cursor) contra `/api/mcp/user` |
+| ![Savings](./public/screenshots/savings-ledger.png) | ![Architecture](./public/screenshots/architecture.png) |
+| **Savings ledger** — movimientos del sistema | **Architecture** — resumen visual (ver Mermaid abajo) |
 
 ## 🚀 Quick start
 
@@ -134,29 +146,38 @@ Abrí <http://localhost:3000> y creá tu cuenta.
 
 ## 🏗️ Architecture
 
-```
-┌──────────────────────┐    ┌────────────────────────┐    ┌──────────────────┐
-│  Next.js App Router  │ ── │  Vercel AI Gateway     │ ── │  OpenAI / etc.   │
-│  (RSC + Server fns)  │    │  (failover, cost)      │    │                  │
-└─────────┬────────────┘    └────────────────────────┘    └──────────────────┘
-          │
-          │  ┌──────────────┐    ┌──────────────────┐
-          ├──│  Postgres    │    │  Vercel Blob     │  TTS audio
-          │  │  (Prisma)    │    │                  │
-          │  └──────────────┘    └──────────────────┘
-          │
-          │  ┌──────────────────┐  ┌──────────────────┐
-          ├──│ Vercel Runtime   │  │ Upstash Redis    │  Rate limits
-          │  │ Cache (banks,    │  │                  │
-          │  │ year timeline)   │  └──────────────────┘
-          │  └──────────────────┘
-          │
-          │  ┌──────────────┐  Telegram Bot API
-          └──│  Telegram    │  Mensajes, fotos del banco, notas de voz
-             └──────────────┘
+```mermaid
+flowchart LR
+    User --> Web[Next.js App Router]
+    User --> TG[Telegram Bot]
+    Web --> Agent[Vercel AI SDK 6 + AI Gateway]
+    TG --> Agent
+    Agent --> Tools[33 typed tools · Zod]
+    Tools --> Prisma[Prisma + Postgres]
+    Tools --> FX[FX rates]
+    Tools --> Charts[QuickChart PNGs]
+    Web --> MCP[MCP public + per-user PAT]
+    MCP --> Tools
+    Agent --> Cache[Vercel Runtime Cache]
+    Agent --> Blob[Vercel Blob · TTS]
+    Agent --> Logs[Structured logs · tokens, USD, traceId]
 ```
 
 El wrapper centralizado `withApi()` en [`src/lib/http.ts`](src/lib/http.ts) maneja errores Zod, errores Prisma y códigos de negocio (`UNAUTHORIZED`, …) para que los route handlers sean pequeños y consistentes.
+
+## 🧠 What makes Clara technically interesting
+
+- **Real tool-calling agent, not string parsing** — 33 Zod-typed tools execute
+  straight against Prisma; the model plans, calls tools, and stops under a
+  fixed step budget (`stopWhen: stepCountIs(8)` in
+  [`src/lib/ai/run-expense-agent.ts`](src/lib/ai/run-expense-agent.ts)).
+- **MCP as a first-class surface** — public discovery at `/api/mcp` plus a
+  per-user server at `/api/mcp/user` with PAT auth, destructive parity
+  (`confirm: true`), and per-user rate limits so a leaked key cannot burn your
+  quota silently.
+- **Production-grade multimodal** — PDFs, bank screenshots and Telegram voice
+  notes share one extraction path; structured JSON logs carry `traceId`,
+  tokens and estimated USD per step for cost attribution via AI Gateway tags.
 
 ## 📁 Estructura del repo
 
@@ -205,7 +226,6 @@ public/                Assets estáticos (sw.js, iconos, manifests…)
 | `VERCEL_OIDC_TOKEN`    | Auto-provisionado por `vercel env pull` (preferido en Vercel).      |
 | `AI_GATEWAY_API_KEY`   | Fallback para CI runners y dev local fuera de `vercel`.             |
 | `AI_MODEL`             | Override del modelo de chat (default `openai/gpt-5.4`). Formato `provider/model`. |
-| `AI_CLASSIFIER_MODEL`  | Override del modelo clasificador (default `openai/gpt-4.1-mini`).   |
 | `OPENAI_API_KEY`       | Requerido para TTS y transcripción Whisper.                         |
 
 ```bash
@@ -245,27 +265,27 @@ vercel env pull .env.local   # trae VERCEL_OIDC_TOKEN; rotar cada ~12h
 
 ## 🔌 MCP — endpoints públicos
 
-Ada expone dos servidores MCP que cualquier cliente compatible puede consumir.
+Clara expone dos servidores MCP que cualquier cliente compatible puede consumir.
 
 ### Público — `/api/mcp`
 
-Sin auth. Expone documentación de Ada (features, FAQ, changelog, privacy) como resources, tools y prompts. Útil para que tu asistente AI pueda responder preguntas sobre el producto.
+Sin auth. Expone documentación de Clara (features, FAQ, changelog, privacy) como resources, tools y prompts. Útil para que tu asistente AI pueda responder preguntas sobre el producto. Acepta `?lang=es|en` (o `Accept-Language`) para devolver el contenido en el idioma elegido.
 
 ```json
 {
   "mcpServers": {
-    "ada": { "url": "https://clara.trefolio.com/api/mcp" }
+    "clara": { "url": "https://clara.trefolio.com/api/mcp" }
   }
 }
 ```
 
 ### Per-user — `/api/mcp/user`
 
-Autenticado con bearer token. Cada usuario genera un token desde **Settings → Acceso para AI (MCP)** y lo pega en su cliente MCP. Ver [sección anterior](#-tu-propio-ai-puede-hablar-con-ada) para el snippet de configuración y la lista de tools.
+Autenticado con bearer token. Cada usuario genera un token desde **Settings → Acceso para AI (MCP)** y lo pega en su cliente MCP. Ver [sección anterior](#-tu-propio-ai-puede-hablar-con-clara-mcp) para el snippet de configuración y la lista de tools.
 
 ## 🔍 SEO + AI SEO
 
-Ada está optimizada para search engines tradicionales **y** crawlers de IA (ChatGPT, Claude, Perplexity, Gemini):
+Clara está optimizada para search engines tradicionales **y** crawlers de IA (ChatGPT, Claude, Perplexity, Gemini):
 
 - **Sitemap** dinámico en `/sitemap.xml` con `hreflang` es-AR / es.
 - **robots.txt** con políticas explícitas para `GPTBot`, `OAI-SearchBot`, `ChatGPT-User`, `ClaudeBot`, `Claude-Web`, `anthropic-ai`, `PerplexityBot`, `Google-Extended`, `Applebot-Extended`, `Amazonbot`, `Bytespider`, `CCBot`, `Meta-ExternalAgent`, `MistralAI-User`, etc.
@@ -286,7 +306,7 @@ Ada está optimizada para search engines tradicionales **y** crawlers de IA (Cha
 
 ### Self-host
 
-Ada es una app vanilla Next.js + Postgres. Corre en **cualquier cosa** que pueda correr Node 22 + Postgres 14+:
+Clara es una app vanilla Next.js + Postgres. Corre en **cualquier cosa** que pueda correr Node 22 + Postgres 14+:
 
 - Docker / docker-compose (se incluye un [`docker-compose.yml`](./docker-compose.yml) de inicio para la base de datos)
 - Fly.io, Railway, Render, Coolify, Dokku
@@ -294,17 +314,17 @@ Ada es una app vanilla Next.js + Postgres. Corre en **cualquier cosa** que pueda
 
 Las integraciones opcionales (Vercel AI Gateway, Blob, Runtime Cache) todas degradan gracefully — sin ellas, la app igual funciona, solo sin features de IA / lookups cacheados.
 
-## 💡 Sobre Ada
+## 💡 Sobre Clara
 
-Ada es nombrada en honor a **Ada Lovelace** — matemática del siglo XIX que escribió el primer algoritmo de la historia, décadas antes de que existiera una computadora capaz de ejecutarlo. Ella entendió que las máquinas podían hacer más que calcular: podían razonar.
+El nombre es un homenaje doble: a la idea de **claridad** — el objetivo del producto es que tu plata _quede clara_ — y a **Ada Lovelace**, matemática del siglo XIX que escribió el primer algoritmo de la historia, décadas antes de que existiera una computadora capaz de ejecutarlo. Ella entendió que las máquinas podían hacer más que calcular: podían razonar.
 
-Ada (la app) nace del mismo espíritu: que la inteligencia, bien aplicada, transforma datos crudos en decisiones claras. Tus extractos bancarios son solo números — Ada los convierte en un panorama de tu vida financiera.
+Clara nace del mismo espíritu: que la inteligencia, bien aplicada, transforma datos crudos en decisiones claras. Tus extractos bancarios son solo números — Clara los convierte en un panorama de tu vida financiera.
 
 Construida por el equipo detrás de [trefolio.com](https://trefolio.com).
 
 ## 🤝 Contributing
 
-Las contribuciones son **muy bienvenidas**, especialmente:
+Las contribuciones son **muy bienvenidas** — leé [CONTRIBUTING.md](./CONTRIBUTING.md) y el [Código de conducta](./CODE_OF_CONDUCT.md). En resumen:
 
 - 🌍 **Traducciones** — los prompts del asistente y el copy de la UI están en español rioplatense; inglés / otros dialectos serían enormes.
 - 📊 **Más tipos de gráficos** en el asistente.
@@ -340,12 +360,12 @@ CI corre los mismos gates en cada PR ([`.github/workflows/ci.yml`](.github/workf
 
 ## 🗺️ Roadmap
 
-- [ ] UI en inglés / multi-locale
+- [x] UI en inglés / multi-locale (base: `User.locale`, diccionarios `es`/`en`, prompts del agente)
 - [ ] Importación CSV / OFX desde el banco
 - [ ] Presupuestos y alertas
 - [ ] Multi-moneda (display + conversión)
 - [ ] Captura de voz nativa en mobile
-- [ ] Landing pública + demo
+- [x] Landing pública + demo ([clara.trefolio.com](https://clara.trefolio.com))
 
 ¿Tenés una idea? [Abrí un issue](https://github.com/kyberis/etracker/issues/new) — incluso las a medio formar son útiles.
 
@@ -381,11 +401,11 @@ Parado sobre los hombros de gigantes:
 
 <div align="center">
 
-### ¿Te sirvió Ada?
+### ¿Te sirvió Clara?
 
 **[⭐ Dale una star en GitHub](https://github.com/kyberis/etracker)** — es la forma más barata de apoyar el proyecto.
 
-**[🐦 Contale a alguien](https://twitter.com/intent/tweet?text=Conocé%20Ada%20—%20asistente%20financiera%20open-source%20con%20IA&url=https%3A%2F%2Fgithub.com%2Fkyberis%2Fetracker)** · **[🐛 Reportar un bug](https://github.com/kyberis/etracker/issues/new)** · **[💬 Abrir una idea](https://github.com/kyberis/etracker/discussions)**
+**[🐦 Contale a alguien](https://twitter.com/intent/tweet?text=Conocé%20Clara%20—%20asistente%20financiera%20open-source%20con%20IA&url=https%3A%2F%2Fgithub.com%2Fkyberis%2Fetracker)** · **[🐛 Reportar un bug](https://github.com/kyberis/etracker/issues/new)** · **[💬 Abrir una idea](https://github.com/kyberis/etracker/discussions)**
 
 _Hecho con ☕ y una sana desconfianza de las planillas._
 

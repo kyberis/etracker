@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Try Clara
+    url: https://clara.trefolio.com
+    about: Live demo. Many "issues" are easier to confirm against the hosted version.
+  - name: Discussions
+    url: https://github.com/kyberis/etracker/discussions
+    about: Have a question, idea, or want to share how you use Clara? Start a discussion.

@@ -88,7 +88,7 @@ knowledge/             Agent knowledge base (this is the system of record)
   Prisma / business errors to HTTP shapes is centralised in
   [`src/lib/http.ts`](src/lib/http.ts). Never `try/catch + rethrow` in handlers.
 - **AI uses the Vercel AI Gateway.** Models are referenced by `provider/model`
-  strings and configurable via env (`AI_MODEL`, `AI_CLASSIFIER_MODEL`). No
+  strings and configurable via env (`AI_MODEL`). No
   direct `OPENAI_API_KEY` use for chat / classification.
 - **MCP is a first-class surface.** Anything a user can do in the UI should
   consider whether the per-user MCP server should expose it as a tool. See

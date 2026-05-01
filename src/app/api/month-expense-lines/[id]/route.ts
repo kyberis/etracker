@@ -73,7 +73,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       } catch (error) {
         if (error instanceof FxUnavailableError) {
           return jsonError(
-            `No pudimos obtener el tipo de cambio ${error.from}->${error.to}. Probá pasando un fxRate manual.`,
+            `Could not fetch exchange rate ${error.from}->${error.to}. Try passing fxRate manually.`,
             502,
           );
         }
@@ -91,7 +91,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     } catch (error) {
       if (isUniqueViolation(error)) {
         return jsonError(
-          "Ya tenés un gasto con esa fecha, descripción y monto. No puedo dejarlo idéntico a otro.",
+          "An expense with the same date, description and amount already exists. Cannot leave two identical entries.",
           409,
         );
       }

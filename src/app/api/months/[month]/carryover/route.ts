@@ -27,13 +27,13 @@ export async function POST(
       return jsonError("Month not set up. Create the month first.", 404);
     }
     if (result.type === "alreadyDecided") {
-      return jsonError("La decisión sobre el sobrante ya fue tomada.", 409);
+      return jsonError("The carryover decision has already been made.", 409);
     }
     if (result.type === "modeMismatch") {
       const message =
         result.expected === "leftover"
-          ? "El mes anterior cerró con sobrante: usá addToIncome o setAside."
-          : "El mes anterior cerró con deuda: usá coverFromSavings o carryDebt.";
+          ? "The previous month closed with leftover: use addToIncome or setAside."
+          : "The previous month closed with debt: use coverFromSavings or carryDebt.";
       return jsonError(message, 400);
     }
 

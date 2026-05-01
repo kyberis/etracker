@@ -12,7 +12,9 @@ import {
   isBillingEnabled,
   isUpsellActive,
 } from "@/lib/billing/stripe";
+import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
+import { isLocale } from "@/lib/i18n/locale";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 import { requireUserId } from "@/lib/session";
 import { billingCheckoutSchema } from "@/lib/validators";
@@ -32,19 +34,19 @@ export async function POST(request: Request) {
 
     if (!isBillingEnabled()) {
       return jsonError(
-        "El sistema de pagos no está configurado en este servidor.",
+        "The payment system is not configured on this server.",
         503,
       );
     }
     const upsellOn = await isUpsellActive(userId);
     if (!upsellOn) {
-      return jsonError("Esta función no está habilitada para tu cuenta.", 403);
+      return jsonError("This feature is not enabled for your account.", 403);
     }
 
     const stripe = getStripe();
     if (!stripe) {
       return jsonError(
-        "El sistema de pagos no está configurado en este servidor.",
+        "The payment system is not configured on this server.",
         503,
       );
     }
@@ -86,11 +88,8 @@ export async function POST(request: Request) {
           price_data: {
             currency: BILLING_CURRENCY,
             unit_amount: body.amountCents,
-            product_data: {
-              name: "Donación a Clara",
-              description:
-                "Aporte único para mantener la infraestructura de Clara.",
-            },
+            product_data:
+              donationCopy(await readUserLocale(userId)),
           },
         },
       ],
@@ -105,6 +104,32 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ url: session.url });
   });
+}
+
+/**
+ * Read the caller's persisted locale (defaults to `es`). Used for Stripe
+ * checkout product metadata so the donation page reads in the user's language.
+ */
+async function readUserLocale(userId: string) {
+  const u = await db.user.findUnique({
+    where: { id: userId },
+    select: { locale: true },
+  });
+  return isLocale(u?.locale) ? (u!.locale as "es" | "en") : "es";
+}
+
+function donationCopy(locale: "es" | "en") {
+  if (locale === "en") {
+    return {
+      name: "Donation to Clara",
+      description:
+        "One-off contribution to keep Clara's infrastructure running.",
+    };
+  }
+  return {
+    name: "Donación a Clara",
+    description: "Aporte único para mantener la infraestructura de Clara.",
+  };
 }
 
 /**
