@@ -16,7 +16,15 @@ import {
  * Anything in this list will be redirected from `/about` to
  * `/{detected-locale}/about` on first request (and the cookie is set).
  */
-const MARKETING_ROUTES = ["about", "features", "faq", "privacy", "changelog"];
+const MARKETING_ROUTES = [
+  "about",
+  "features",
+  "faq",
+  "privacy",
+  "terms",
+  "contact",
+  "changelog",
+];
 
 const APP_PUBLIC_ROUTES = ["/login", "/register"];
 

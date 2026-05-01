@@ -162,6 +162,16 @@ model User {
   featureFlagOverrides     FeatureFlagOverride[]
   passkeys                 Passkey[]
   savingsMovements         SavingsMovement[]
+  contactMessages          ContactMessage[]
+  /// GDPR Art. 7(1) — demonstrable consent. Stamped when the user actively
+  /// accepts the current Terms + Privacy version. NULL means the user has
+  /// never accepted (legacy account or signup mid-deploy); the `(app)`
+  /// layout gate redirects to /accept-terms in that case.
+  acceptedTermsAt          DateTime?
+  /// Semver-like string of the Terms+Privacy version the user accepted (e.g.
+  /// "1.0"). Compared against `CURRENT_TERMS_VERSION` in `src/lib/legal.ts`
+  /// to force re-acceptance after a material change to the legal docs.
+  acceptedTermsVersion     String?
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 }
@@ -646,3 +656,45 @@ model ApiToken {
 // MP3 to a third-party service. Migration `20260428220500_drop_tts_audio_cache`
 // drops the table; we now upload TTS to Vercel Blob (`src/lib/blob/tts.ts`)
 // and serve the signed URL directly to the web client.
+
+/// Razón por la que alguien escribe al formulario público de contacto.
+/// La elegimos al recibir el mensaje para poder priorizar la bandeja del
+/// admin: PRIVACY (GDPR / DSAR) y ABUSE tienen SLA más corto que el resto.
+enum ContactMessageKind {
+  PRIVACY
+  ABUSE
+  BUG
+  GENERAL
+}
+
+/// Mensajes que llegan desde `/contact` (formulario público) o desde el
+/// banner "necesitás ayuda" del app. La bandeja vive en `/admin/contact`.
+///
+/// Privacidad del propio formulario:
+/// - `name` y `email` los carga quien escribe; pueden no coincidir con
+///   ningún `User`.
+/// - `userId` queda set sólo si la sesión está activa al enviar.
+/// - `ip` y `userAgent` se guardan para anti-abuso y se purgan a los 90
+///   días (ver `scripts/purge-contact-metadata.ts`) o cuando el mensaje se
+///   archiva, lo que ocurra primero.
+/// - El admin puede marcar `readAt`, `repliedAt` y `archivedAt` desde la
+///   bandeja sin tocar el cuerpo del mensaje.
+model ContactMessage {
+  id          String              @id @default(cuid())
+  kind        ContactMessageKind  @default(GENERAL)
+  name        String
+  email       String
+  body        String              @db.Text
+  userId      String?
+  user        User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ip          String?
+  userAgent   String?             @db.Text
+  readAt      DateTime?
+  repliedAt   DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([createdAt])
+  @@index([kind])
+  @@index([userId])
+}

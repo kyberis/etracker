@@ -95,6 +95,8 @@ export const es = {
       faq: "FAQ",
       changelog: "Changelog",
       privacy: "Privacidad",
+      terms: "Términos",
+      contact: "Contacto",
     },
     footerForAisTitle: "Para AIs",
     footerForAisLinks: {
@@ -415,6 +417,29 @@ export const es = {
     apiTokensExpired: " (expirado)",
     apiTokensNeverUsed: "Nunca",
     apiTokensExpireDateLabel: "Expira (opcional)",
+
+    dangerSectionTitle: "Tu información y cuenta",
+    dangerSectionDescription:
+      "Descargá todos tus datos en formato JSON o borrá tu cuenta. Son derechos GDPR (Art. 15, 17 y 20).",
+
+    exportTitle: "Descargar mis datos",
+    exportDescription:
+      "Generamos un JSON con todo lo que Clara guarda sobre vos: bancos, plantillas, gastos e ingresos por mes, ahorros, mensajes del chat (web y Telegram), pagos y suscripciones. No incluye tokens ni contraseñas (no son datos tuyos, son secretos de autenticación).",
+    exportButton: "Descargar JSON",
+    exportLimit: "Máximo 3 descargas por hora.",
+
+    deleteTitle: "Borrar mi cuenta",
+    deleteDescription:
+      "Borra tu cuenta y todos los datos asociados (bancos, plantillas, mensajes, ahorros, tokens MCP, passkeys). Si tenés suscripción Supporter activa, la cancelamos en el momento. Las donaciones quedan registradas en Stripe para fines fiscales y no son reembolsables.",
+    deleteWarning: "Esto es irreversible.",
+    deletePasswordLabel: "Tu contraseña",
+    deletePasswordHint: "Te la pedimos para confirmar que sos vos.",
+    deletePhraseLabel: "Frase de confirmación",
+    deletePhraseHint: (email: string) =>
+      `Tipeá exactamente: BORRAR ${email}`,
+    deleteSubmit: "Borrar mi cuenta",
+    deleteSubmitting: "Borrando…",
+    deleteFailed: "No se pudo borrar la cuenta.",
   },
 
   app: {

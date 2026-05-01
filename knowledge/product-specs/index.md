@@ -12,6 +12,10 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`billing-and-quota-upsell`](billing-and-quota-upsell.md) — optional Stripe-backed
   Supporter plan + one-time donations gated behind the `quota_upsell` feature flag.
   Surfaces in chat 429, settings, public `/upgrade`.
+- [`gdpr-compliance`](gdpr-compliance.md) — demonstrable consent, data
+  export/delete endpoints, sub-processor registry, retention windows,
+  self-host controller resolution, public `/contact` form + `/admin/contact`
+  bandeja.
 - [`income`](income.md) — multi-source monthly income via recurring `Income`
   templates and per-month `MonthIncomeLine` lines. Mirrors the expense data
   model; deprecates the old single `MonthRecord.income` field.

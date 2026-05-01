@@ -47,6 +47,15 @@ Own the legal surfaces of Clara:
 5. **No financial advice.** UI, agent replies, marketing — none of them say
    "deberías", "te conviene", "te recomiendo". Categorising and summarising
    is fine; recommending is not.
+6. **Demonstrable consent (Art. 7(1)).** Every authenticated user must have
+   `User.acceptedTermsAt` and `User.acceptedTermsVersion` set to the current
+   `CURRENT_TERMS_VERSION` from [`src/lib/legal.ts`](../../../src/lib/legal.ts).
+   The `(app)` layout and `/onboarding` page redirect to `/accept-terms`
+   when consent is missing or stale. Bumping the version forces re-acceptance.
+7. **No personal email exposed to clients.** Public contact uses the form at
+   `/[lang]/contact` (anti-spam with Turnstile, persisted to
+   `ContactMessage`, admin bandeja at `/admin/contact`). The notification
+   address lives in the server-only env `CONTACT_NOTIFY_EMAIL`.
 
 ## Trigger conditions (when to invoke this skill)
 
@@ -87,6 +96,8 @@ includes:
 | AI logs | last N agent turns (if any) | Postgres / log stream | bounded |
 | MCP PATs | sha-256 hashed token, expiry, last-used | Postgres | until revoked |
 | Savings ledger | signed amount, kind, currency snapshot, optional note, occurredOn | Postgres | account lifetime |
+| Consent record | `acceptedTermsAt`, `acceptedTermsVersion` on User | Postgres | account lifetime |
+| Contact form messages | kind, name, email, body, ip, user-agent | Postgres `ContactMessage` | 24 months body / 90 days metadata |
 
 If you add a new row to this table, the Privacy section in
 `marketing-content.ts` must be updated to match.
@@ -120,14 +131,17 @@ When editing `marketing-content.ts`:
 ```
 Legal compliance checklist
 - [ ] Privacy section in marketing-content.ts reflects new data fields.
-- [ ] No new third-party processor without entry in privacy section.
+- [ ] Terms section (`TERMS_SECTIONS`) updated if user-facing rights or duties changed; bump CURRENT_TERMS_VERSION when material.
+- [ ] Each new data field has a stated legal basis (Art. 6) and retention period.
+- [ ] No new third-party processor without entry in privacy section AND data inventory table here.
 - [ ] AI prompts use minimum necessary data.
 - [ ] AI-generated content is clearly Clara-spoken (no human impersonation).
 - [ ] No financial advice language anywhere.
-- [ ] Self-host story still works (graceful degradation).
+- [ ] Self-host story still works (graceful degradation, including `LEGAL_CONTROLLER_NAME` / `LEGAL_JURISDICTION` overrides).
 - [ ] MCP tokens hashed, expirable, revocable; new tools rate-limited.
 - [ ] Cookies remain essential-only; no consent banner needed.
-- [ ] Account deletion cascades cover the new data.
+- [ ] Account deletion cascades cover the new data; export endpoint dumps it.
+- [ ] No personal email is rendered to the client; public contact stays through `/contact`.
 - [ ] Marketing claims are accurate and substantiated.
 ```
 

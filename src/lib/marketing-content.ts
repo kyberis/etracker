@@ -24,6 +24,34 @@ export type ChangelogEntry = {
 };
 
 export type PrivacySection = { heading: string; body: string[] };
+export type TermsSection = { heading: string; body: string[] };
+
+/**
+ * Strings for the public contact form at `/contact`. The page itself is a
+ * client island for Turnstile; copy lives here so it stays alongside the
+ * legal docs.
+ */
+export type ContactCopy = {
+  metaTitle: string;
+  metaDescription: string;
+  chip: string;
+  title1: string;
+  titleHighlight: string;
+  titleSuffix: string;
+  intro: string;
+  privacyHint: string;
+  kindLabel: string;
+  kindOptions: { value: "PRIVACY" | "ABUSE" | "BUG" | "GENERAL"; label: string; description: string }[];
+  nameLabel: string;
+  emailLabel: string;
+  bodyLabel: string;
+  bodyPlaceholder: string;
+  submit: string;
+  submitting: string;
+  successTitle: string;
+  successBody: string;
+  errorGeneric: string;
+};
 
 type LocalisedMarketingContent = {
   HERO_PITCH: string;
@@ -32,6 +60,8 @@ type LocalisedMarketingContent = {
   FAQ: MarketingFaq[];
   CHANGELOG: ChangelogEntry[];
   PRIVACY_SECTIONS: PrivacySection[];
+  TERMS_SECTIONS: TermsSection[];
+  CONTACT_COPY: ContactCopy;
 };
 
 const ES: LocalisedMarketingContent = {
@@ -143,6 +173,18 @@ const ES: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.7.0",
+      date: "2026-05-01",
+      title: "Cumplimiento GDPR: consentimiento, exportación, borrado y contacto",
+      highlights: [
+        "Política de privacidad y términos reescritos al detalle (Art. 13 GDPR): bases legales por dato, sub-procesadores con país, transferencias internacionales con SCC, retenciones numéricas y tus derechos uno por uno.",
+        "Aceptación demostrable: ahora guardamos `acceptedTermsAt` y la versión exacta que firmaste. Si cambian materialmente los términos te pedimos re-aceptar antes de seguir, sin trampas.",
+        "Settings → Tu información: descargá un dump JSON con todo lo que tenemos de vos (Art. 15) y borrá tu cuenta cuando quieras (Art. 17), con re-autenticación y cancelación automática de Stripe.",
+        "Canal público de contacto: nuevo formulario en /contact con captcha de Cloudflare, sin exponer ningún email personal del responsable.",
+        "Bandeja /admin/contact para que el equipo gestione consultas de privacidad, abuso, bugs y soporte con marcado de leído / respondido / archivado.",
+      ],
+    },
     {
       version: "0.6.0",
       date: "2026-05-01",
@@ -288,50 +330,247 @@ const ES: LocalisedMarketingContent = {
   ],
   PRIVACY_SECTIONS: [
     {
-      heading: "Qué datos recolecta Clara",
+      heading: "1. Quién es Clara y quién es responsable de tus datos",
       body: [
-        "Clara solo guarda lo necesario para funcionar como tracker de gastos: tu email, los bancos que registres, las plantillas y líneas de gasto que crees, los mensajes del chat (web y Telegram), tu pila de ahorro y los movimientos asociados, y, si vinculás Telegram, tu user id de Telegram para enrutar mensajes.",
-        "Si usás la versión hosteada por Trefolio, los datos viven en una base Postgres administrada en Europa. Si self-hosteás, viven donde vos los pongas.",
+        "Clara es una asistente financiera con IA, open source bajo licencia MIT y self-hosteable. Esta política aplica a la versión hosteada en clara.trefolio.com.",
+        "El responsable del tratamiento (data controller) es Marcos Suarez, mantenedor de Clara como proyecto personal open source. Si self-hosteás Clara en tu propia infraestructura, el responsable sos vos (o tu organización), no nosotros.",
+        "Para ejercer cualquier derecho o consulta de privacidad, usá el formulario público en /contact eligiendo el motivo \"Privacidad / GDPR\". No publicamos un email personal — el formulario va a la bandeja del responsable y respondemos por la dirección que dejes ahí.",
       ],
     },
     {
-      heading: "Qué NO hace Clara",
+      heading: "2. Qué datos recolectamos",
       body: [
-        "No tiene telemetría: no medimos clicks, sesiones ni eventos de uso para analytics.",
-        "No vende datos a terceros y no monetiza tu información.",
-        "No entrena modelos con tu información: usamos Vercel AI Gateway con zero data retention para todas las llamadas LLM.",
-        "Nunca tiene acceso a tu dinero: Clara solo procesa archivos o mensajes que vos le pasés explícitamente.",
+        "Cuenta y autenticación: email, contraseña hasheada (bcrypt), nombre y avatar opcionales sincronizados desde Google si entrás con Google, marca de email verificado, passkeys (WebAuthn) que registres, idioma preferido, país declarado en el onboarding.",
+        "Datos financieros: bancos que registres, plantillas de gastos e ingresos, líneas mensuales (monto, descripción, categoría, fecha, moneda, tipo de cambio congelado), pila global de ahorro y su ledger de movimientos, instrucciones para el agente.",
+        "Conversaciones: mensajes del chat web (texto + adjuntos como JSON estructurado), mensajes de Telegram si vinculás el bot, contadores de uso del agente y modelos consumidos por día.",
+        "Pagos (sólo si te suscribís o donás): identificador de cliente de Stripe, estado de la suscripción y fecha de fin de periodo, registro de cada donación (id de Stripe, monto, fecha).",
+        "Tokens de acceso para AI (MCP): nombre, prefijo de 12 caracteres, fecha de creación, último uso, expiración y revocación. El token completo se hashea con SHA-256 antes de guardarlo; el plaintext sólo se muestra una vez.",
+        "Metadatos técnicos mínimos: IP truncada y user-agent en logs de error y rate-limit (sin perfilado), última fecha de actividad, día de actividad para DAU/WAU.",
+        "Si self-hosteás, los datos viven en la base que vos configures.",
       ],
     },
     {
-      heading: "Procesamiento por IA",
+      heading: "3. Para qué los usamos y con qué base legal (Art. 6 GDPR)",
       body: [
-        "Para entender tus mensajes, transcribir voz y procesar PDFs, Clara manda contenido a modelos de lenguaje a través de Vercel AI Gateway. Esos providers operan bajo políticas zero data retention: el contenido se procesa y se descarta, no se usa para entrenamiento.",
-        "Los archivos que subís (PDFs, capturas) se almacenan en Vercel Blob el tiempo necesario para procesarlos y se borran después.",
+        "Ejecución del contrato (Art. 6(1)(b)): operar la cuenta, persistir tus gastos, ingresos y mensajes, procesar PDFs/audios/screenshots que vos nos mandás, ejecutar el agente con tus tools, cobrar la suscripción Supporter o donaciones que elijas hacer.",
+        "Obligación legal (Art. 6(1)(c)): conservar registros de pagos y donaciones por el plazo que exija la normativa fiscal aplicable, verificar el email antes de habilitar contraseña.",
+        "Interés legítimo (Art. 6(1)(f)): proteger Clara y sus usuarios contra abuso (Cloudflare Turnstile, rate-limits con IP), monitorear errores (Sentry si está configurado), auditar accesos administrativos.",
+        "Consentimiento (Art. 6(1)(a)): aceptación explícita de estos Términos y esta Política al registrarte (queda guardada en `User.acceptedTermsAt` con la versión).",
+        "Nunca vendemos datos. Nunca corremos analytics de comportamiento. Nunca usamos tus datos financieros para entrenar modelos.",
       ],
     },
     {
-      heading: "Pagos (Supporter y donaciones)",
+      heading: "4. Sub-encargados de tratamiento",
       body: [
-        "Si elegís suscribirte al plan Supporter o hacer una donación, el pago se procesa en Stripe (Stripe, Inc. / Stripe Payments Europe Ltd.). Stripe recibe lo necesario para cobrar: tu email, datos de la tarjeta y país. Clara nunca ve ni almacena el número de tu tarjeta.",
-        "Guardamos un identificador de cliente de Stripe asociado a tu cuenta y, en el caso de donaciones, el monto y la fecha del aporte para emitir recibos. Las donaciones son no reembolsables. La suscripción se renueva mensualmente y la cancelás cuando quieras desde Configuración → Suscripción.",
+        "Vercel Inc. (US) — hosting de la aplicación, base Postgres administrada (vía Marketplace), Vercel Blob para audios TTS, Vercel Runtime Cache, AI Gateway que enruta llamadas a modelos. Recibe todos los datos persistidos como infraestructura.",
+        "OpenAI (US) — Whisper para transcripción de notas de voz, OpenAI TTS para audio de respuesta, GPT-* a través del AI Gateway. Bajo política de zero data retention.",
+        "Anthropic (US) y Google (US) — proveedores adicionales de modelos enrutados por AI Gateway cuando aplique, también con ZDR.",
+        "Cloudflare Inc. (US) — Turnstile (captcha) en signup y login. Recibe IP y metadatos del navegador para evaluar el desafío; no recibe email, contraseña ni datos financieros.",
+        "Resend Inc. (US) — emails transaccionales (verificación de email, alertas). Recibe sólo tu email y el contenido del mensaje, no datos del balance.",
+        "Stripe Inc. / Stripe Payments Europe Ltd (US/IE) — procesamiento de pagos si elegís suscribirte o donar. Recibe email, país, datos de la tarjeta. Clara nunca ve el número de tarjeta.",
+        "Upstash Inc. (US) — Redis para rate-limits. Recibe IP y contadores; no contenido de los mensajes.",
+        "Telegram FZ-LLC (AE) — Bot API, sólo si linkeás Telegram. Recibe los mensajes que vos enviás al bot.",
+        "Google LLC (US) — OAuth 2.0, sólo si elegís entrar con Google. Recibe el flujo de autenticación estándar.",
+        "Sentry GmbH (DE) — agregación de errores, sólo si el operador configuró `SENTRY_DSN`. Recibe stack traces y contexto técnico, sin payloads de mensajes.",
+        "Cuando self-hosteás, vos elegís qué sub-encargados usar (todos son opcionales y degradan con gracia).",
       ],
     },
     {
-      heading: "Captcha y verificación de email",
+      heading: "5. Transferencias internacionales",
       body: [
-        "El registro y el inicio de sesión con email/contraseña pasan por Cloudflare Turnstile (Cloudflare, Inc.) para frenar bots. Cloudflare recibe la IP y metadatos del navegador necesarios para evaluar el desafío; nunca le mandamos tu email ni tu contraseña. Si te self-hosteás Clara y no configurás Turnstile, esa capa se desactiva sola.",
-        "Cuando te registrás, mandamos un correo con un enlace firmado (vence en 24 hs) usando Resend (Resend, Inc.). El enlace solo prueba que el email es tuyo; no compartimos tu contraseña ni datos del balance con Resend. Tenés que confirmar el email antes de poder iniciar sesión con contraseña. Iniciar sesión con Google sigue igual: si Google ya marca tu email como verificado, no pedimos un paso extra.",
+        "Varios sub-encargados están en Estados Unidos o en jurisdicciones fuera del EEE. Cuando aplica, las transferencias se cubren con Cláusulas Contractuales Tipo (SCCs, Decisión EU 2021/914) y, donde el procesador esté certificado, con el EU-US Data Privacy Framework. Telegram FZ-LLC opera desde Emiratos Árabes Unidos; los datos sólo se le envían si vos linkeás el bot.",
       ],
     },
     {
-      heading: "Tus derechos",
+      heading: "6. Plazos de retención",
       body: [
-        "Podés exportar todos tus datos vía la API o pedirnos un dump completo. Podés borrar tu cuenta desde Configuración; cuando lo hacés, eliminamos toda tu información en cascada (gastos, meses, mensajes de Telegram, tokens MCP).",
-        "Si tenés dudas sobre privacidad o querés ejercer un derecho específico (acceso, rectificación, portabilidad), escribinos abriendo un issue en GitHub.",
+        "Cuenta y datos financieros: hasta que borres la cuenta. El borrado es inmediato y en cascada.",
+        "Audios TTS en Vercel Blob: hasta 7 días.",
+        "Logs de aplicación (Vercel/Sentry): 30 días.",
+        "Idempotencia de webhooks de Stripe: 18 meses.",
+        "Recibos de donaciones y suscripciones: 7 años (obligación fiscal en la UE).",
+        "Tokens MCP: hasta que los revoques; revocados se purgan a los 30 días.",
+        "Mensajes del chat (web y Telegram): hasta que borres la cuenta o le pidas al agente que los purgue.",
+        "Mensajes del formulario /contact: 24 meses; los metadatos técnicos (IP / user-agent del envío) máx 90 días o hasta que se archive el mensaje, lo que ocurra primero.",
+      ],
+    },
+    {
+      heading: "7. Tus derechos",
+      body: [
+        "Acceso (Art. 15): descargate todos tus datos en JSON desde Configuración → Tu información y cuenta.",
+        "Portabilidad (Art. 20): el JSON anterior es estructurado y machine-readable.",
+        "Supresión / derecho al olvido (Art. 17): borrá tu cuenta desde Configuración. Es irreversible y borra todo en cascada en el momento. Las donaciones quedan en Stripe por obligaciones fiscales.",
+        "Rectificación (Art. 16), restricción (Art. 18), oposición (Art. 21) y retiro de consentimiento (Art. 7(3)): mandanos un mensaje desde /contact eligiendo \"Privacidad / GDPR\". Respondemos en un máximo de 30 días.",
+      ],
+    },
+    {
+      heading: "8. Derecho a presentar una queja",
+      body: [
+        "Tenés derecho a reclamar ante la autoridad de control de tu país de residencia: AEPD en España, CNIL en Francia, Garante per la Privacy en Italia, BfDI en Alemania, AAIP en Argentina, etc. La lista de autoridades europeas vive en https://edpb.europa.eu/.",
+      ],
+    },
+    {
+      heading: "9. Cookies estrictamente necesarias",
+      body: [
+        "Sólo usamos dos cookies, ambas necesarias para el funcionamiento de Clara y exentas de consentimiento previo según la directiva ePrivacy:",
+        "`next-auth.session-token` (JWT firmado, 30 días, HttpOnly Secure SameSite=Lax) — mantiene tu sesión iniciada.",
+        "`NEXT_LOCALE` (1 año, SameSite=Lax) — recuerda tu idioma preferido para que el server-render arranque en el idioma correcto sin parpadeo.",
+        "No cargamos analytics, no usamos pixels publicitarios, no hacemos fingerprinting.",
+      ],
+    },
+    {
+      heading: "10. Edad mínima",
+      body: [
+        "Clara está pensada para personas de 16 años o más. En la Unión Europea Art. 8 GDPR fija ese umbral por defecto; en jurisdicciones donde el umbral aplicable sea menor, hace falta consentimiento parental verificable. Si descubrimos que abrimos una cuenta de un menor de edad sin ese consentimiento, la borramos.",
+      ],
+    },
+    {
+      heading: "11. Notificación de brechas de seguridad",
+      body: [
+        "Si una brecha afecta a tus datos personales con riesgo razonable, te avisamos por email lo antes posible y siempre dentro de las 72 horas que exige el Art. 33-34 GDPR, y reportamos a la autoridad de control cuando aplica.",
+      ],
+    },
+    {
+      heading: "12. Cambios a esta política",
+      body: [
+        "Cuando cambiamos esta política de forma material, bumpeamos `CURRENT_PRIVACY_VERSION` y te pedimos que aceptes la nueva versión la próxima vez que entres. Cambios menores (correcciones de redacción, links rotos) no fuerzan re-aceptación.",
+      ],
+    },
+    {
+      heading: "13. Contacto",
+      body: [
+        "Para cualquier consulta o ejercicio de derechos: usá el formulario en /contact, motivo \"Privacidad / GDPR\". El controlador es persona física, no hay DPO formal.",
       ],
     },
   ],
+  TERMS_SECTIONS: [
+    {
+      heading: "1. Quién provee Clara",
+      body: [
+        "Clara es una asistente financiera con IA mantenida por Marcos Suarez como proyecto personal, distribuida bajo licencia MIT y self-hosteable. Estos Términos rigen el uso de la versión hosteada en clara.trefolio.com. Si self-hosteás Clara, las condiciones aplican entre vos y los usuarios que vos hospedes; nosotros no somos parte.",
+        "Estos Términos forman un acuerdo legal con vos. Si no estás de acuerdo, no uses Clara.",
+      ],
+    },
+    {
+      heading: "2. Cuenta y elegibilidad",
+      body: [
+        "Necesitás 16 años o más (o el mínimo de tu jurisdicción si es mayor). Sos responsable de la información que cargues y de mantener tus credenciales seguras.",
+        "Una cuenta = una persona. Cuentas duplicadas para evadir cuotas son motivo de suspensión.",
+        "Podés borrar tu cuenta cuando quieras desde Configuración → Tu información y cuenta.",
+      ],
+    },
+    {
+      heading: "3. Uso aceptable",
+      body: [
+        "No usar Clara para actividades ilegales, fraude, lavado de dinero, evasión fiscal o suplantación.",
+        "No automatizar la app más allá de las herramientas que ofrecemos (MCP per-user con tu PAT, API documentada). En particular, prohibido el scraping del bot de Telegram, el reverse engineering de los endpoints internos y el bypass de los rate-limits.",
+        "No usar Clara para almacenar datos sensibles de terceros sin su consentimiento (datos de salud ajenos, etc.).",
+      ],
+    },
+    {
+      heading: "4. Suscripción Supporter y donaciones",
+      body: [
+        "Clara es gratis para uso personal con un cupo diario de mensajes al agente. La suscripción Supporter (€2,99 / €7,99 según tier) levanta ese cupo y te identifica como sponsor del proyecto. Las donaciones son aportes únicos opcionales.",
+        "Pagos procesados por Stripe (Stripe Inc. / Stripe Payments Europe Ltd). Renovación mensual automática salvo que canceles desde Configuración → Suscripción.",
+        "Las donaciones son no reembolsables. Las suscripciones cobradas se reembolsan a discreción si el cobro fue por error claro nuestro.",
+        "Si cambiamos los precios, te avisamos con al menos 30 días de antelación; podés cancelar antes de que aplique.",
+      ],
+    },
+    {
+      heading: "5. Tu contenido",
+      body: [
+        "Tus extractos, mensajes, fotos del banco y datos financieros son tuyos. Vos retenés todos los derechos.",
+        "Nos das una licencia limitada para procesar ese contenido sólo en la medida necesaria para entregarte el servicio (mostrarlo en la UI, mandarlo a los modelos vía AI Gateway con ZDR, mostrártelo en otros dispositivos donde estés logueado).",
+        "Nunca usamos tu contenido para entrenar modelos. Nunca lo vendemos.",
+      ],
+    },
+    {
+      heading: "6. Garantías y limitación de responsabilidad",
+      body: [
+        "Clara NO es una asesora financiera, ni una entidad regulada, ni una contadora. La información que muestra es para tu organización personal; las decisiones de inversión, fiscales o crediticias son tuyas y, si son importantes, consultá a un profesional.",
+        "El servicio se presta \"AS-IS\" y \"AS AVAILABLE\". No garantizamos disponibilidad ininterrumpida, ausencia de errores, ni que la IA acierte siempre — el agente confirma antes de mutar tu base de datos justamente por eso.",
+        "Hasta donde lo permita la ley aplicable: nuestra responsabilidad agregada por cualquier reclamo se limita al mayor entre (a) los importes que nos pagaste en los últimos 12 meses y (b) cero. No respondemos por daños indirectos, lucro cesante, ni pérdida de datos cuando el self-host está bajo tu control.",
+      ],
+    },
+    {
+      heading: "7. Indemnización",
+      body: [
+        "Vos nos indemnizás contra reclamos de terceros que surjan de tu uso indebido de Clara, contenido tuyo que viole derechos de terceros, o violación de estos Términos. La indemnización está limitada a daños directos razonables y no aplica a violaciones causadas por nosotros.",
+      ],
+    },
+    {
+      heading: "8. Suspensión y terminación",
+      body: [
+        "Vos podés borrar tu cuenta cuando quieras (Configuración → Tu información y cuenta).",
+        "Podemos suspender o terminar cuentas que violen estos Términos, atenten contra otros usuarios, abusen del servicio, o representen un riesgo legal para el proyecto. Cuando sea posible te avisamos antes; cuando no (abuso flagrante, requerimiento legal), después.",
+      ],
+    },
+    {
+      heading: "9. Cambios al servicio y a estos Términos",
+      body: [
+        "Clara evoluciona. Podemos cambiar features, precios y estos Términos. Los cambios materiales a los Términos disparan re-aceptación: la próxima vez que entres te pedimos que confirmes la nueva versión antes de seguir usando el servicio. Cambios menores (typos, links) no.",
+      ],
+    },
+    {
+      heading: "10. Ley aplicable y jurisdicción",
+      body: [
+        "Estos Términos se rigen por la ley española y, donde corresponda como consumidor en la UE, por la ley de tu país de residencia. Cualquier disputa se resuelve ante los tribunales del domicilio del consumidor cuando la normativa de consumidor lo exija; en otro caso, los tribunales de Madrid, España.",
+      ],
+    },
+    {
+      heading: "11. Contacto",
+      body: [
+        "Para reportes de bugs, abusos o cualquier consulta: formulario público en /contact. Para issues técnicos open source también podés abrir un issue en https://github.com/kyberis/etracker (ojo: lo que abras ahí es público).",
+      ],
+    },
+  ],
+  CONTACT_COPY: {
+    metaTitle: "Contacto",
+    metaDescription:
+      "Escribinos sobre Clara: privacidad y derechos GDPR, abuso o seguridad, bugs o cualquier otra consulta. Sin email expuesto, formulario con anti-spam.",
+    chip: "Contacto",
+    title1: "Mandanos un ",
+    titleHighlight: "mensaje",
+    titleSuffix: ".",
+    intro:
+      "Usamos un formulario en lugar de exponer un email. Lo recibe Marcos (mantenedor de Clara) y te respondemos al correo que dejes acá. Si entrás logueado, autocompletamos nombre y email; podés cambiarlos si querés.",
+    privacyHint:
+      "Sólo guardamos lo que escribas y, por seguridad, tu IP y user-agent durante 90 días para frenar spam.",
+    kindLabel: "¿Sobre qué nos escribís?",
+    kindOptions: [
+      {
+        value: "PRIVACY",
+        label: "Privacidad / GDPR",
+        description:
+          "Acceso, rectificación, supresión, portabilidad, oposición o cualquier otro derecho.",
+      },
+      {
+        value: "ABUSE",
+        label: "Abuso o seguridad",
+        description: "Cuenta sospechosa, brecha de seguridad, suplantación, phishing.",
+      },
+      {
+        value: "BUG",
+        label: "Bug o pedido",
+        description: "Algo no anda, falta una feature o querés sugerir algo.",
+      },
+      {
+        value: "GENERAL",
+        label: "Otra cosa",
+        description: "Cualquier otro tema.",
+      },
+    ],
+    nameLabel: "Tu nombre",
+    emailLabel: "Tu email",
+    bodyLabel: "Tu mensaje",
+    bodyPlaceholder: "Contanos qué necesitás. Cuanto más detalle, más rápido respondemos.",
+    submit: "Enviar mensaje",
+    submitting: "Enviando…",
+    successTitle: "Mensaje recibido",
+    successBody:
+      "Lo recibimos. Si dejaste un email correcto, te respondemos a la brevedad — máximo 30 días para los temas de privacidad.",
+    errorGeneric: "No pudimos enviar el mensaje. Probá de nuevo en un rato.",
+  },
 };
 
 const EN: LocalisedMarketingContent = {
@@ -443,6 +682,18 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.7.0",
+      date: "2026-05-01",
+      title: "GDPR compliance: consent, export, deletion and contact",
+      highlights: [
+        "Privacy policy and Terms rewritten in full (GDPR Art. 13): legal basis per field, sub-processors with country, international transfers under SCCs, numeric retention windows and your rights spelled out one by one.",
+        "Demonstrable consent: we now record `acceptedTermsAt` and the exact version you accepted. When terms change materially you are asked to accept again before continuing, no quiet edits.",
+        "Settings → Your information: download a JSON dump of everything we hold on you (Art. 15) and delete your account on demand (Art. 17), with re-authentication and automatic Stripe cancellation.",
+        "Public contact channel: new /contact form with Cloudflare captcha — no personal email of the controller is published anywhere.",
+        "An /admin/contact inbox lets the team triage privacy, abuse, bug and support requests with read / replied / archived states.",
+      ],
+    },
     {
       version: "0.6.0",
       date: "2026-05-01",
@@ -588,50 +839,247 @@ const EN: LocalisedMarketingContent = {
   ],
   PRIVACY_SECTIONS: [
     {
-      heading: "What Clara collects",
+      heading: "1. Who Clara is and who is responsible for your data",
       body: [
-        "Clara only stores what's necessary to work as an expense tracker: your email, the banks you register, the templates and lines you create, the chat messages (web and Telegram), your savings pile and its movements, and, if you link Telegram, your Telegram user id to route messages.",
-        "If you use the version hosted by Trefolio, the data lives in a managed Postgres database in Europe. If you self-host, it lives wherever you put it.",
+        "Clara is an AI financial assistant, open source under the MIT license and self-hostable. This policy applies to the version hosted at clara.trefolio.com.",
+        "The data controller is Marcos Suarez, maintainer of Clara as a personal open-source project. If you self-host Clara on your own infrastructure, you (or your organization) are the controller, not us.",
+        "To exercise any privacy right or ask a question, use the public form at /contact and pick the reason \"Privacy / GDPR\". We do not publish a personal email — the form lands in the controller's inbox and we reply from the address you provide there.",
       ],
     },
     {
-      heading: "What Clara does NOT do",
+      heading: "2. What we collect",
       body: [
-        "No telemetry: we don't measure clicks, sessions or usage events for analytics.",
-        "No data sales to third parties and no monetization of your information.",
-        "No model training with your data: we use Vercel AI Gateway with zero data retention for every LLM call.",
-        "Never has access to your money: Clara only processes files or messages you explicitly share with her.",
+        "Account and authentication: email, hashed password (bcrypt), optional name and avatar synced from Google if you sign in with Google, email-verified flag, passkeys (WebAuthn) you register, preferred language, country declared during onboarding.",
+        "Financial data: banks you register, expense and income templates, monthly lines (amount, description, category, date, currency, frozen FX rate), the global savings pile and its movement ledger, agent instructions.",
+        "Conversations: web chat messages (text + structured attachments as JSON), Telegram messages if you link the bot, agent usage counters and per-day model usage.",
+        "Payments (only if you subscribe or donate): a Stripe customer id, subscription status and current period end, a record of each donation (Stripe id, amount, date).",
+        "AI access tokens (MCP): name, 12-character prefix, creation date, last use, expiration and revocation. The full token is hashed with SHA-256 before storage; the plaintext is shown only once.",
+        "Minimal technical metadata: truncated IP and user-agent in error and rate-limit logs (no profiling), last-seen date, daily activity row for DAU/WAU.",
+        "If you self-host, the data lives in whatever database you configure.",
       ],
     },
     {
-      heading: "AI processing",
+      heading: "3. What we use it for and the legal basis (Art. 6 GDPR)",
       body: [
-        "To understand your messages, transcribe voice and process PDFs, Clara sends content to language models through Vercel AI Gateway. Those providers operate under zero data retention: content is processed and discarded, not used for training.",
-        "Files you upload (PDFs, screenshots) are stored on Vercel Blob only for the time needed to process them and are deleted afterwards.",
+        "Performance of the contract (Art. 6(1)(b)): operating your account, persisting your expenses, incomes and messages, processing PDFs/audio/screenshots you send us, running the agent with your tools, charging the Supporter subscription or donations you choose to make.",
+        "Legal obligation (Art. 6(1)(c)): keeping payment and donation records for the period required by applicable tax law, verifying your email before enabling password sign-in.",
+        "Legitimate interest (Art. 6(1)(f)): protecting Clara and its users from abuse (Cloudflare Turnstile, IP rate-limits), monitoring errors (Sentry if configured), auditing administrative access.",
+        "Consent (Art. 6(1)(a)): explicit acceptance of these Terms and this Policy at signup (stored in `User.acceptedTermsAt` with the version).",
+        "We never sell data. We do not run behavioural analytics. We do not use your financial data to train models.",
       ],
     },
     {
-      heading: "Payments (Supporter and donations)",
+      heading: "4. Sub-processors",
       body: [
-        "If you choose to subscribe to the Supporter plan or send a donation, payment is processed by Stripe (Stripe, Inc. / Stripe Payments Europe Ltd.). Stripe receives only what's needed to charge you: your email, card details and country. Clara never sees or stores your card number.",
-        "We keep a Stripe customer id linked to your account and, for donations, the amount and date of the contribution to issue receipts. Donations are non-refundable. The subscription renews monthly and you can cancel anytime from Settings → Subscription.",
+        "Vercel Inc. (US) — application hosting, managed Postgres database (via Marketplace), Vercel Blob for TTS audio, Vercel Runtime Cache, AI Gateway routing model calls. Receives all persisted data as infrastructure.",
+        "OpenAI (US) — Whisper for voice transcription, OpenAI TTS for audio replies, GPT-* through AI Gateway. Under zero data retention.",
+        "Anthropic (US) and Google (US) — additional model providers routed by AI Gateway when applicable, also under ZDR.",
+        "Cloudflare Inc. (US) — Turnstile (captcha) on signup and login. Receives IP and browser metadata to evaluate the challenge; never receives email, password or financial data.",
+        "Resend Inc. (US) — transactional emails (email verification, alerts). Receives only your email and the message content, no balance data.",
+        "Stripe Inc. / Stripe Payments Europe Ltd (US/IE) — payment processing if you subscribe or donate. Receives email, country, card details. Clara never sees the card number.",
+        "Upstash Inc. (US) — Redis for rate-limits. Receives IP and counters; no message content.",
+        "Telegram FZ-LLC (AE) — Bot API, only if you link Telegram. Receives the messages you send to the bot.",
+        "Google LLC (US) — OAuth 2.0, only if you sign in with Google. Standard authentication flow.",
+        "Sentry GmbH (DE) — error aggregation, only if the operator configured `SENTRY_DSN`. Receives stack traces and technical context, no message payloads.",
+        "When you self-host, you choose which sub-processors to use (all are optional and degrade gracefully).",
       ],
     },
     {
-      heading: "Captcha and email verification",
+      heading: "5. International transfers",
       body: [
-        "Sign-up and email/password sign-in run through Cloudflare Turnstile (Cloudflare, Inc.) to keep bots out. Cloudflare receives the IP and browser metadata needed to evaluate the challenge; we never send your email or password to Cloudflare. If you self-host Clara without Turnstile keys configured, that layer disables itself.",
-        "When you sign up, we send a signed verification link (expires in 24h) through Resend (Resend, Inc.). The link only proves the email is yours; we never share your password or balance data with Resend. You have to confirm the email before you can sign in with a password. Google sign-in is unchanged: if Google already marks your email as verified, no extra step.",
+        "Several sub-processors are based in the United States or in jurisdictions outside the EEA. Where applicable, transfers are covered by Standard Contractual Clauses (SCCs, EU 2021/914 decision) and, where the processor is certified, by the EU-US Data Privacy Framework. Telegram FZ-LLC operates from the United Arab Emirates; data is sent to it only if you link the bot.",
       ],
     },
     {
-      heading: "Your rights",
+      heading: "6. Retention periods",
       body: [
-        "You can export all your data via the API or ask us for a full dump. You can delete your account from Settings; when you do, we cascade-delete all your information (expenses, months, Telegram messages, MCP tokens).",
-        "If you have privacy questions or want to exercise a specific right (access, rectification, portability), reach out by opening an issue on GitHub.",
+        "Account and financial data: until you delete the account. Deletion is immediate and cascades.",
+        "TTS audio on Vercel Blob: up to 7 days.",
+        "Application logs (Vercel/Sentry): 30 days.",
+        "Stripe webhook idempotency: 18 months.",
+        "Donation and subscription receipts: 7 years (EU tax obligation).",
+        "MCP tokens: until you revoke them; revoked tokens are purged after 30 days.",
+        "Chat messages (web and Telegram): until you delete the account or ask the agent to purge them.",
+        "Contact form messages: 24 months; technical metadata (IP / user-agent of the submission) max 90 days or until the message is archived, whichever comes first.",
+      ],
+    },
+    {
+      heading: "7. Your rights",
+      body: [
+        "Access (Art. 15): download all your data in JSON from Settings → Your data and account.",
+        "Portability (Art. 20): the JSON above is structured and machine-readable.",
+        "Erasure / right to be forgotten (Art. 17): delete your account from Settings. It's irreversible and cascades immediately. Donations remain on Stripe for tax obligations.",
+        "Rectification (Art. 16), restriction (Art. 18), objection (Art. 21) and withdrawal of consent (Art. 7(3)): send us a message via /contact picking \"Privacy / GDPR\". We respond within 30 days.",
+      ],
+    },
+    {
+      heading: "8. Right to lodge a complaint",
+      body: [
+        "You have the right to complain to the supervisory authority of your country of residence: AEPD in Spain, CNIL in France, Garante per la Privacy in Italy, BfDI in Germany, etc. The list of European authorities lives at https://edpb.europa.eu/.",
+      ],
+    },
+    {
+      heading: "9. Strictly necessary cookies",
+      body: [
+        "We only use two cookies, both necessary for Clara to work and exempt from prior consent under the ePrivacy directive:",
+        "`next-auth.session-token` (signed JWT, 30 days, HttpOnly Secure SameSite=Lax) — keeps you signed in.",
+        "`NEXT_LOCALE` (1 year, SameSite=Lax) — remembers your preferred language so the server-render starts in the right language without flicker.",
+        "We don't load analytics, ad pixels or fingerprinting.",
+      ],
+    },
+    {
+      heading: "10. Minimum age",
+      body: [
+        "Clara is intended for people aged 16 or older. In the European Union Art. 8 GDPR sets that threshold by default; in jurisdictions where the applicable threshold is lower, verifiable parental consent is required. If we discover an account from a minor without that consent, we delete it.",
+      ],
+    },
+    {
+      heading: "11. Data breach notifications",
+      body: [
+        "If a breach affects your personal data with reasonable risk, we notify you by email as soon as possible and always within the 72 hours required by Art. 33-34 GDPR, and report to the supervisory authority where applicable.",
+      ],
+    },
+    {
+      heading: "12. Changes to this policy",
+      body: [
+        "When we change this policy in a material way, we bump `CURRENT_PRIVACY_VERSION` and ask you to accept the new version on your next visit. Minor changes (typos, broken links) do not force re-acceptance.",
+      ],
+    },
+    {
+      heading: "13. Contact",
+      body: [
+        "For any question or right exercise: use the form at /contact, reason \"Privacy / GDPR\". The controller is a natural person; there is no formal DPO.",
       ],
     },
   ],
+  TERMS_SECTIONS: [
+    {
+      heading: "1. Who provides Clara",
+      body: [
+        "Clara is an AI financial assistant maintained by Marcos Suarez as a personal project, distributed under the MIT license and self-hostable. These Terms govern the use of the version hosted at clara.trefolio.com. If you self-host Clara, the conditions apply between you and the users you host; we are not a party.",
+        "These Terms form a legal agreement with you. If you do not agree, do not use Clara.",
+      ],
+    },
+    {
+      heading: "2. Account and eligibility",
+      body: [
+        "You must be 16 or older (or the minimum in your jurisdiction if higher). You are responsible for the information you upload and for keeping your credentials safe.",
+        "One account = one person. Duplicate accounts to evade quotas are grounds for suspension.",
+        "You can delete your account at any time from Settings → Your data and account.",
+      ],
+    },
+    {
+      heading: "3. Acceptable use",
+      body: [
+        "Do not use Clara for illegal activities, fraud, money laundering, tax evasion or impersonation.",
+        "Do not automate the app beyond the tools we offer (per-user MCP with your PAT, documented API). In particular, scraping the Telegram bot, reverse engineering internal endpoints and bypassing rate-limits are forbidden.",
+        "Do not use Clara to store sensitive third-party data without their consent (someone else's health data, etc.).",
+      ],
+    },
+    {
+      heading: "4. Supporter subscription and donations",
+      body: [
+        "Clara is free for personal use with a daily agent message cap. The Supporter subscription (€2.99 / €7.99 depending on tier) lifts that cap and identifies you as a sponsor. Donations are optional one-off contributions.",
+        "Payments are processed by Stripe (Stripe Inc. / Stripe Payments Europe Ltd). Monthly auto-renewal unless you cancel from Settings → Subscription.",
+        "Donations are non-refundable. Charged subscriptions are refunded at our discretion if the charge was a clear mistake on our side.",
+        "If we change prices, we notify you at least 30 days in advance; you can cancel before the new price applies.",
+      ],
+    },
+    {
+      heading: "5. Your content",
+      body: [
+        "Your statements, messages, bank photos and financial data are yours. You retain all rights.",
+        "You grant us a limited license to process that content only as needed to deliver the service (display it in the UI, send it to models via AI Gateway with ZDR, show it on other devices where you're signed in).",
+        "We never use your content to train models. We never sell it.",
+      ],
+    },
+    {
+      heading: "6. Warranty disclaimer and limitation of liability",
+      body: [
+        "Clara is NOT a financial advisor, regulated entity or accountant. The information shown is for personal organisation; investment, tax or credit decisions are yours and, if material, should be discussed with a professional.",
+        "The service is provided \"AS-IS\" and \"AS AVAILABLE\". We do not warrant uninterrupted availability, absence of errors, or that the AI is always correct — the agent confirms before mutating your database precisely for that reason.",
+        "To the maximum extent permitted by applicable law: our aggregate liability for any claim is limited to the greater of (a) the amounts you paid us in the previous 12 months and (b) zero. We are not liable for indirect damages, lost profits, or data loss when self-hosting is under your control.",
+      ],
+    },
+    {
+      heading: "7. Indemnification",
+      body: [
+        "You indemnify us against third-party claims arising from your misuse of Clara, content of yours that infringes third-party rights, or breach of these Terms. The indemnity is limited to direct, reasonable damages and does not apply to breaches caused by us.",
+      ],
+    },
+    {
+      heading: "8. Suspension and termination",
+      body: [
+        "You can delete your account at any time (Settings → Your data and account).",
+        "We can suspend or terminate accounts that violate these Terms, harm other users, abuse the service, or pose a legal risk to the project. Where possible we notify you in advance; where not (flagrant abuse, legal demand), afterwards.",
+      ],
+    },
+    {
+      heading: "9. Changes to the service and to these Terms",
+      body: [
+        "Clara evolves. We can change features, prices and these Terms. Material changes to the Terms trigger re-acceptance: on your next visit we'll ask you to confirm the new version before continuing. Minor changes (typos, links) do not.",
+      ],
+    },
+    {
+      heading: "10. Governing law and jurisdiction",
+      body: [
+        "These Terms are governed by Spanish law and, where applicable as an EU consumer, by the law of your country of residence. Disputes are resolved before the courts of the consumer's domicile when consumer rules require it; otherwise the courts of Madrid, Spain.",
+      ],
+    },
+    {
+      heading: "11. Contact",
+      body: [
+        "For bug reports, abuse complaints or any inquiry: public form at /contact. For open-source technical issues you can also open an issue at https://github.com/kyberis/etracker (be aware: anything you open there is public).",
+      ],
+    },
+  ],
+  CONTACT_COPY: {
+    metaTitle: "Contact",
+    metaDescription:
+      "Get in touch about Clara: privacy and GDPR rights, abuse or security, bugs or any other inquiry. No exposed email, anti-spam form.",
+    chip: "Contact",
+    title1: "Send us a ",
+    titleHighlight: "message",
+    titleSuffix: ".",
+    intro:
+      "We use a form instead of exposing an email. Marcos (Clara's maintainer) receives it and we reply to the address you leave here. If you're signed in we prefill name and email; you can change them.",
+    privacyHint:
+      "We only store what you write and, for security, your IP and user-agent for 90 days to fight spam.",
+    kindLabel: "What's this about?",
+    kindOptions: [
+      {
+        value: "PRIVACY",
+        label: "Privacy / GDPR",
+        description:
+          "Access, rectification, erasure, portability, objection or any other right.",
+      },
+      {
+        value: "ABUSE",
+        label: "Abuse or security",
+        description: "Suspicious account, security breach, impersonation, phishing.",
+      },
+      {
+        value: "BUG",
+        label: "Bug or request",
+        description: "Something is broken, a feature is missing, or you have an idea.",
+      },
+      {
+        value: "GENERAL",
+        label: "Something else",
+        description: "Any other topic.",
+      },
+    ],
+    nameLabel: "Your name",
+    emailLabel: "Your email",
+    bodyLabel: "Your message",
+    bodyPlaceholder: "Tell us what you need. The more detail, the faster we can reply.",
+    submit: "Send message",
+    submitting: "Sending…",
+    successTitle: "Message received",
+    successBody:
+      "Got it. If you left a valid email address, we'll reply soon — within 30 days at most for privacy matters.",
+    errorGeneric: "We couldn't send the message. Try again in a bit.",
+  },
 };
 
 const CONTENT: Record<Locale, LocalisedMarketingContent> = { es: ES, en: EN };

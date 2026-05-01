@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
+import { hasCurrentConsent } from "@/lib/legal";
 import { requireUserId } from "@/lib/session";
 
 import { OnboardingWizard, type OnboardingInitial } from "./wizard";
@@ -22,11 +23,23 @@ export default async function OnboardingPage() {
       primaryCurrency: true,
       primaryCurrencyConfirmedAt: true,
       onboardingCompletedAt: true,
+      acceptedTermsAt: true,
+      acceptedTermsVersion: true,
     },
   });
 
   if (!user) {
     redirect("/login");
+  }
+
+  // Defense-in-depth: block the wizard until consent is on file. Google
+  // first-time sign-ups land here without ever ticking a consent checkbox,
+  // and the onboarding wizard collects personal data (name, country,
+  // currency, recurring income templates) — so we cannot run it without
+  // a lawful basis. Email/password signups already have consent from the
+  // register form, so this is a no-op for them.
+  if (!hasCurrentConsent(user.acceptedTermsAt, user.acceptedTermsVersion)) {
+    redirect("/accept-terms?next=/onboarding");
   }
 
   if (user.onboardingCompletedAt) {

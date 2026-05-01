@@ -153,6 +153,18 @@ export type PrivacyCopy = {
   cta2: string;
 };
 
+export type TermsCopy = {
+  metaTitle: string;
+  metaDescription: string;
+  chip: string;
+  title1: string;
+  titleHighlight: string;
+  titleSuffix: string;
+  intro: string;
+  cta1: string;
+  cta2: string;
+};
+
 const LANDING_ES: LandingCopy = {
   metaTitle: "Clara — tu asistente financiera con IA",
   metaDescription:
@@ -584,6 +596,34 @@ const PRIVACY_EN: PrivacyCopy = {
   cta2: "See the code",
 };
 
+const TERMS_ES: TermsCopy = {
+  metaTitle: "Términos",
+  metaDescription:
+    "Términos del servicio de Clara: quién provee la app, uso aceptable, suscripción Supporter, contenido del usuario, garantías y ley aplicable.",
+  chip: "Términos",
+  title1: "Las ",
+  titleHighlight: "reglas del juego",
+  titleSuffix: ".",
+  intro:
+    "Lo más corto y claro posible: qué te ofrecemos, qué te pedimos a cambio, qué no garantizamos y qué pasa si algo sale mal.",
+  cta1: "Empezar gratis",
+  cta2: "Ver privacidad",
+};
+
+const TERMS_EN: TermsCopy = {
+  metaTitle: "Terms",
+  metaDescription:
+    "Clara's terms of service: who provides the app, acceptable use, Supporter subscription, user content, warranties and governing law.",
+  chip: "Terms",
+  title1: "The ",
+  titleHighlight: "ground rules",
+  titleSuffix: ".",
+  intro:
+    "As short and clear as we can make it: what we offer you, what we ask in return, what we don't warrant, and what happens if something goes wrong.",
+  cta1: "Start free",
+  cta2: "See privacy",
+};
+
 export function landingCopy(locale: Locale): LandingCopy {
   return locale === "en" ? LANDING_EN : LANDING_ES;
 }
@@ -606,4 +646,8 @@ export function changelogCopy(locale: Locale): ChangelogCopy {
 
 export function privacyCopy(locale: Locale): PrivacyCopy {
   return locale === "en" ? PRIVACY_EN : PRIVACY_ES;
+}
+
+export function termsCopy(locale: Locale): TermsCopy {
+  return locale === "en" ? TERMS_EN : TERMS_ES;
 }

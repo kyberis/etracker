@@ -5,6 +5,7 @@ import { touchActivity } from "@/lib/activity";
 import { getAuthSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/server";
+import { hasCurrentConsent } from "@/lib/legal";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getAuthSession();
@@ -17,17 +18,31 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // even for users who only browse the dashboard without hitting any API.
   void touchActivity(session.user.id);
 
+  const [user, locale] = await Promise.all([
+    db.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        onboardingCompletedAt: true,
+        acceptedTermsAt: true,
+        acceptedTermsVersion: true,
+      },
+    }),
+    getLocale(),
+  ]);
+
+  // GDPR Art. 7(1) — block the app until the user has accepted the live
+  // Terms version. Covers Google sign-ins (no consent stamped at signup),
+  // legacy accounts, and forced re-acceptance after a Terms bump. Runs
+  // before the onboarding redirect so the consent gate fires once, not
+  // twice.
+  if (user && !hasCurrentConsent(user.acceptedTermsAt, user.acceptedTermsVersion)) {
+    redirect("/accept-terms?next=/app");
+  }
+
   // Onboarding gate: usuarios que nunca completaron el wizard (incluye Google
   // sign-ups que aterrizan acá directo y usuarios viejos sin nada cargado)
   // van al wizard. Una vez completado o salteado, `onboardingCompletedAt`
   // queda sellado y este redirect deja de dispararse.
-  const [user, locale] = await Promise.all([
-    db.user.findUnique({
-      where: { id: session.user.id },
-      select: { onboardingCompletedAt: true },
-    }),
-    getLocale(),
-  ]);
   if (user && user.onboardingCompletedAt === null) {
     redirect("/onboarding");
   }

@@ -69,6 +69,15 @@ export const registerSchema = z.object({
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
   /** Cloudflare Turnstile token; optional so self-hosters without keys still work. */
   turnstileToken: z.string().optional(),
+  /**
+   * GDPR Art. 7(1) — demonstrable consent. The signup form mounts a checkbox
+   * that, when ticked, submits this field set to the current
+   * `CURRENT_TERMS_VERSION`. Required so the server can reject signups that
+   * never showed (or successfully bypassed) the checkbox.
+   */
+  acceptedTermsVersion: z
+    .string()
+    .min(1, "Tenés que aceptar los Términos y la Política de Privacidad."),
 });
 
 export const loginExtraSchema = z.object({
@@ -394,6 +403,14 @@ export const onboardingSchema = z
     usageReasons: z.array(usageReasonSchema).max(usageReasonValues.length).optional(),
     country: onboardingCountrySchema.optional(),
     primaryCurrency: currencySchema.optional(),
+    /**
+     * GDPR Art. 7(1) — version string the user just consented to. The
+     * onboarding endpoint stamps `acceptedTermsAt = now()` when this is set
+     * and matches `CURRENT_TERMS_VERSION`. Used by the dedicated
+     * `/accept-terms` flow (Google sign-in first time, legacy users without
+     * consent, post-version-bump re-acceptance).
+     */
+    acceptedTermsVersion: z.string().min(1).optional(),
     complete: z.boolean().optional(),
   })
   .refine(
@@ -402,6 +419,7 @@ export const onboardingSchema = z
       data.usageReasons !== undefined ||
       data.country !== undefined ||
       data.primaryCurrency !== undefined ||
+      data.acceptedTermsVersion !== undefined ||
       data.complete !== undefined,
     { message: "Nada para actualizar." },
   );
@@ -425,6 +443,30 @@ export const adminFeatureFlagPatchSchema = z.object({
 export const adminFeatureFlagOverrideSchema = z.object({
   /** `null` removes the override (user falls back to global value). */
   enabled: z.union([z.boolean(), z.null()]),
+});
+
+/** Public contact form payload — see `POST /api/contact`. */
+export const contactMessageKindSchema = z.enum([
+  "PRIVACY",
+  "ABUSE",
+  "BUG",
+  "GENERAL",
+]);
+
+export const contactMessageSchema = z.object({
+  kind: contactMessageKindSchema,
+  name: z.string().trim().min(1, "Tu nombre es obligatorio.").max(80),
+  email: z
+    .string()
+    .email("El email no es válido.")
+    .transform((value) => value.toLowerCase().trim()),
+  body: z
+    .string()
+    .trim()
+    .min(10, "Contanos un poquito más, mínimo 10 caracteres.")
+    .max(5000, "Demasiado largo. Máximo 5000 caracteres."),
+  /** Optional Turnstile token; verified server-side. */
+  turnstileToken: z.string().optional(),
 });
 
 export const adminUpdateUserSchema = z

@@ -92,6 +92,8 @@ export const en: Dict = {
       faq: "FAQ",
       changelog: "Changelog",
       privacy: "Privacy",
+      terms: "Terms",
+      contact: "Contact",
     },
     footerForAisTitle: "For AIs",
     footerForAisLinks: {
@@ -411,6 +413,29 @@ export const en: Dict = {
     apiTokensExpired: " (expired)",
     apiTokensNeverUsed: "Never",
     apiTokensExpireDateLabel: "Expires (optional)",
+
+    dangerSectionTitle: "Your data and account",
+    dangerSectionDescription:
+      "Download every byte we keep about you, or delete your account. These are GDPR rights (Art. 15, 17 and 20).",
+
+    exportTitle: "Download my data",
+    exportDescription:
+      "We generate a JSON with everything Clara stores about you: banks, templates, monthly expenses and incomes, savings, chat messages (web and Telegram), payments and subscriptions. It does not include tokens or passwords (those are authentication secrets, not your data).",
+    exportButton: "Download JSON",
+    exportLimit: "Up to 3 downloads per hour.",
+
+    deleteTitle: "Delete my account",
+    deleteDescription:
+      "Deletes your account and every related row (banks, templates, messages, savings, MCP tokens, passkeys). If you have an active Supporter subscription we cancel it immediately. Donations stay on file at Stripe for tax reasons and are not refundable.",
+    deleteWarning: "This is irreversible.",
+    deletePasswordLabel: "Your password",
+    deletePasswordHint: "We ask for it to confirm it's you.",
+    deletePhraseLabel: "Confirmation phrase",
+    deletePhraseHint: (email: string) =>
+      `Type exactly: DELETE ${email}`,
+    deleteSubmit: "Delete my account",
+    deleteSubmitting: "Deleting…",
+    deleteFailed: "Could not delete the account.",
   },
 
   app: {

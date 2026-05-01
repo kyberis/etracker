@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { LineChart } from "lucide-react";
+import { Inbox, LineChart } from "lucide-react";
 
 import {
   AdminFeatureFlagsTable,
@@ -79,22 +79,43 @@ export default async function AdminPage() {
         <p className="text-muted-foreground text-sm">{t.admin.pageDescription}</p>
       </div>
 
-      <Link
-        href="/admin/analytics"
-        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-xl"
-      >
-        <Card className="hover:bg-muted/40 transition-colors">
-          <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-            <div className="bg-foreground/5 flex size-10 items-center justify-center rounded-lg">
-              <LineChart className="size-5" aria-hidden />
-            </div>
-            <div className="flex-1">
-              <CardTitle>{t.admin.analyticsLink}</CardTitle>
-              <CardDescription>{t.admin.analyticsLinkDesc}</CardDescription>
-            </div>
-          </CardHeader>
-        </Card>
-      </Link>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Link
+          href="/admin/analytics"
+          className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-xl"
+        >
+          <Card className="hover:bg-muted/40 transition-colors">
+            <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+              <div className="bg-foreground/5 flex size-10 items-center justify-center rounded-lg">
+                <LineChart className="size-5" aria-hidden />
+              </div>
+              <div className="flex-1">
+                <CardTitle>{t.admin.analyticsLink}</CardTitle>
+                <CardDescription>{t.admin.analyticsLinkDesc}</CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
+
+        <Link
+          href="/admin/contact"
+          className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-xl"
+        >
+          <Card className="hover:bg-muted/40 transition-colors">
+            <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+              <div className="bg-foreground/5 flex size-10 items-center justify-center rounded-lg">
+                <Inbox className="size-5" aria-hidden />
+              </div>
+              <div className="flex-1">
+                <CardTitle>Bandeja de contacto</CardTitle>
+                <CardDescription>
+                  Mensajes recibidos en el formulario público de /contact (privacidad, abuso, bugs).
+                </CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
+      </div>
 
       <Card>
         <CardHeader>

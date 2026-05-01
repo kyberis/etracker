@@ -13,10 +13,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { useT } from "@/lib/i18n/client";
+import { useLocale, useT, useTx } from "@/lib/i18n/client";
+import { CURRENT_TERMS_VERSION } from "@/lib/legal";
 
 type RegisterFormProps = {
   googleEnabled: boolean;
@@ -24,9 +26,12 @@ type RegisterFormProps = {
 
 export function RegisterForm({ googleEnabled }: RegisterFormProps) {
   const t = useT();
+  const tx = useTx();
+  const locale = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -56,6 +61,16 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
       return;
     }
 
+    if (!accepted) {
+      setError(
+        tx({
+          es: "Tenés que aceptar los Términos y la Política de Privacidad para continuar.",
+          en: "You need to accept the Terms and the Privacy Policy to continue.",
+        }),
+      );
+      return;
+    }
+
     setLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
     const response = await fetch("/api/auth/register", {
@@ -65,6 +80,7 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
         email: normalizedEmail,
         password,
         turnstileToken: turnstileToken ?? undefined,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       }),
     });
 
@@ -178,9 +194,41 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
             onError={onTurnstileError}
           />
 
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              id="register-accept-terms"
+              checked={accepted}
+              onCheckedChange={(value) => setAccepted(value === true)}
+              required
+              aria-required="true"
+              className="mt-0.5"
+            />
+            <span className="text-muted-foreground leading-relaxed">
+              {tx({ es: "Acepto los", en: "I accept the" })}{" "}
+              <Link
+                href={`/${locale}/terms`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                {tx({ es: "Términos", en: "Terms" })}
+              </Link>{" "}
+              {tx({ es: "y la", en: "and the" })}{" "}
+              <Link
+                href={`/${locale}/privacy`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                {tx({ es: "Política de Privacidad", en: "Privacy Policy" })}
+              </Link>{" "}
+              ({tx({ es: "versión", en: "version" })} {CURRENT_TERMS_VERSION}).
+            </span>
+          </label>
+
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full" disabled={loading || !accepted}>
             {loading ? t.auth.submittingRegister : t.auth.submitRegister}
           </Button>
 

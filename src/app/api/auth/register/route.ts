@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
 import { pickFromAcceptLanguage } from "@/lib/i18n/locale";
+import { CURRENT_TERMS_VERSION } from "@/lib/legal";
 import { limitByIp } from "@/lib/rate-limit";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 import {
@@ -33,6 +34,16 @@ export async function POST(request: Request) {
     const body = await request.json();
     const payload = registerSchema.parse(body);
 
+    // Defensive: if the form submitted a stale terms version, refuse the
+    // registration. The UI always sends the live `CURRENT_TERMS_VERSION`,
+    // but a hand-crafted POST shouldn't be able to consent to nothing.
+    if (payload.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+      return jsonError(
+        "Tenés que aceptar la versión vigente de los Términos y la Política de Privacidad.",
+        400,
+      );
+    }
+
     const ip = getClientIp(request.headers);
     const captchaOk = await verifyTurnstileToken(
       payload.turnstileToken,
@@ -60,6 +71,8 @@ export async function POST(request: Request) {
       data: {
         email: payload.email,
         passwordHash,
+        acceptedTermsAt: new Date(),
+        acceptedTermsVersion: payload.acceptedTermsVersion,
       },
       select: { id: true, email: true },
     });

@@ -144,6 +144,16 @@ export default async function MarketingLayout({
                       {t.marketingNav.footerProductLinks.privacy}
                     </Link>
                   </li>
+                  <li>
+                    <Link href={`${home}/terms`} className="hover:text-foreground">
+                      {t.marketingNav.footerProductLinks.terms}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href={`${home}/contact`} className="hover:text-foreground">
+                      {t.marketingNav.footerProductLinks.contact}
+                    </Link>
+                  </li>
                 </ul>
               </div>
               <div className="space-y-2 text-sm">

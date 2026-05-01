@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import { withApi } from "@/lib/http";
+import { jsonError, withApi } from "@/lib/http";
+import { CURRENT_TERMS_VERSION } from "@/lib/legal";
 import { requireUserId } from "@/lib/session";
 import { onboardingSchema } from "@/lib/validators";
 
@@ -33,6 +34,18 @@ export async function PATCH(request: Request) {
     if (payload.primaryCurrency !== undefined) {
       data.primaryCurrency = payload.primaryCurrency;
       data.primaryCurrencyConfirmedAt = new Date();
+    }
+    if (payload.acceptedTermsVersion !== undefined) {
+      // The client always sends the live constant; reject anything else so a
+      // hand-crafted PATCH can't downgrade consent to a stale version.
+      if (payload.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+        return jsonError(
+          "Tenés que aceptar la versión vigente de los Términos.",
+          400,
+        );
+      }
+      data.acceptedTermsAt = new Date();
+      data.acceptedTermsVersion = payload.acceptedTermsVersion;
     }
     if (payload.complete) {
       data.onboardingCompletedAt = new Date();

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Info, Send, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Info, Send, Trash2, XCircle } from "lucide-react";
 import { FormEvent, useState } from "react";
 
 import { ApiTokensCard } from "@/components/api-tokens-card";
@@ -10,6 +10,8 @@ import { PasskeysCard } from "@/components/passkeys-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CurrencyPicker } from "@/components/ui/currency-picker";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
@@ -454,7 +456,200 @@ export function SettingsManager({
         </div>
         <ApiTokensCard initialTokens={initialApiTokens} />
       </section>
+
+      {/* SECTION 4 — Tu información y cuenta (GDPR Art. 15, 17, 20) */}
+      <section className="space-y-4">
+        <SectionHeader
+          title={t.settings.dangerSectionTitle}
+          description={t.settings.dangerSectionDescription}
+        />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+          <DataExportCard />
+          <DeleteAccountCard
+            hasPassword={hasPassword}
+            email={settings?.email ?? initialUser.email}
+          />
+        </div>
+      </section>
     </div>
+  );
+}
+
+/**
+ * Right-of-access (Art. 15) and right-to-portability (Art. 20) surface.
+ * The endpoint streams a JSON file; we just point the browser at it.
+ */
+function DataExportCard() {
+  const t = useT();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <span className="flex items-center gap-2">
+            <Download className="size-4" aria-hidden />
+            {t.settings.exportTitle}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-muted-foreground text-sm">
+          {t.settings.exportDescription}
+        </p>
+        <div className="flex items-center gap-3">
+          <Button asChild>
+            <a href="/api/account/export" download>
+              {t.settings.exportButton}
+            </a>
+          </Button>
+          <p className="text-muted-foreground text-xs">
+            {t.settings.exportLimit}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Right-to-erasure (Art. 17). Two paths to confirm intent:
+ *  - users with a password re-enter it (matches the existing settings form);
+ *  - OAuth-only users type `BORRAR <email>` / `DELETE <email>` so a stale
+ *    session can't trigger the destructive call from a single click.
+ */
+function DeleteAccountCard({
+  hasPassword,
+  email,
+}: {
+  hasPassword: boolean;
+  email: string;
+}) {
+  const t = useT();
+  const tx = useTx();
+  const locale = useLocale();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [phrase, setPhrase] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const body: Record<string, string> = {};
+      if (hasPassword) {
+        body.currentPassword = password;
+      } else {
+        body.confirmPhrase = phrase;
+      }
+      const res = await fetch("/api/account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(data.error ?? t.settings.deleteFailed);
+        return;
+      }
+      // Account is gone; bounce to login. `router.refresh()` would 401 and
+      // loop, `assign` is the simplest correct exit.
+      window.location.assign(locale === "en" ? "/en?deleted=1" : "/es?deleted=1");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card className="border-destructive/40">
+      <CardHeader>
+        <CardTitle>
+          <span className="flex items-center gap-2 text-destructive">
+            <Trash2 className="size-4" aria-hidden />
+            {t.settings.deleteTitle}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-muted-foreground text-sm">
+          {t.settings.deleteDescription}
+        </p>
+        <p className="text-destructive flex items-center gap-1.5 text-sm font-medium">
+          <AlertTriangle className="size-4 shrink-0" aria-hidden />
+          {t.settings.deleteWarning}
+        </p>
+
+        {!open ? (
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => setOpen(true)}
+          >
+            {t.settings.deleteTitle}
+          </Button>
+        ) : (
+          <form className="space-y-3" onSubmit={onSubmit}>
+            {hasPassword ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="delete-account-password">
+                  {t.settings.deletePasswordLabel}
+                </Label>
+                <PasswordInput
+                  id="delete-account-password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  toggleLabel={t.auth.showPassword}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {t.settings.deletePasswordHint}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="delete-account-phrase">
+                  {t.settings.deletePhraseLabel}
+                </Label>
+                <Input
+                  id="delete-account-phrase"
+                  required
+                  value={phrase}
+                  onChange={(event) => setPhrase(event.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {t.settings.deletePhraseHint(email)}
+                </p>
+              </div>
+            )}
+
+            {error ? <FormStatus tone="error">{error}</FormStatus> : null}
+
+            <div className="flex items-center gap-2">
+              <Button type="submit" variant="destructive" disabled={submitting}>
+                {submitting ? t.settings.deleteSubmitting : t.settings.deleteSubmit}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={submitting}
+                onClick={() => {
+                  setOpen(false);
+                  setPassword("");
+                  setPhrase("");
+                  setError(null);
+                }}
+              >
+                {tx({ es: "Cancelar", en: "Cancel" })}
+              </Button>
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

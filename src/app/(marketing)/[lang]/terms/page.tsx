@@ -3,12 +3,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { marketingContent } from "@/lib/marketing-content";
-import { privacyCopy } from "@/lib/marketing-pages";
+import { termsCopy } from "@/lib/marketing-pages";
 import { pick } from "@/lib/i18n";
 import { isLocale, type Locale } from "@/lib/i18n/locale";
 import {
-  CURRENT_PRIVACY_VERSION,
-  PRIVACY_LAST_UPDATED,
+  CURRENT_TERMS_VERSION,
+  TERMS_LAST_UPDATED,
   legalController,
 } from "@/lib/legal";
 import { breadcrumbJsonLd, buildMetadata, jsonLdScript } from "@/lib/seo";
@@ -20,13 +20,13 @@ type PageProps = {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { lang } = await params;
   if (!isLocale(lang)) return {};
-  const copy = privacyCopy(lang);
+  const copy = termsCopy(lang);
   return buildMetadata({
     title: copy.metaTitle,
     description: copy.metaDescription,
-    path: `/${lang}/privacy`,
+    path: `/${lang}/terms`,
     locale: lang,
-    pathByLocale: { es: "/es/privacy", en: "/en/privacy" },
+    pathByLocale: { es: "/es/terms", en: "/en/terms" },
   });
 }
 
@@ -34,12 +34,12 @@ export function generateStaticParams() {
   return [{ lang: "es" }, { lang: "en" }];
 }
 
-export default async function PrivacyPage({ params }: PageProps) {
+export default async function TermsPage({ params }: PageProps) {
   const { lang } = await params;
   if (!isLocale(lang)) notFound();
   const locale: Locale = lang;
-  const copy = privacyCopy(locale);
-  const { PRIVACY_SECTIONS } = marketingContent(locale);
+  const copy = termsCopy(locale);
+  const { TERMS_SECTIONS } = marketingContent(locale);
   const controller = legalController();
 
   const lastUpdatedLabel = pick(locale, {
@@ -47,8 +47,16 @@ export default async function PrivacyPage({ params }: PageProps) {
     en: "Last updated:",
   });
   const versionLabel = pick(locale, {
-    es: `Versión ${CURRENT_PRIVACY_VERSION}`,
-    en: `Version ${CURRENT_PRIVACY_VERSION}`,
+    es: `Versión ${CURRENT_TERMS_VERSION}`,
+    en: `Version ${CURRENT_TERMS_VERSION}`,
+  });
+  const controllerLabel = pick(locale, {
+    es: "Responsable / Operador:",
+    en: "Operator:",
+  });
+  const jurisdictionLabel = pick(locale, {
+    es: "Jurisdicción:",
+    en: "Jurisdiction:",
   });
   const contactCtaLabel = pick(locale, {
     es: "Ir al formulario de contacto",
@@ -56,9 +64,9 @@ export default async function PrivacyPage({ params }: PageProps) {
   });
   const selfHostBanner = pick(locale, {
     es:
-      "Esta instancia de Clara está self-hosteada y todavía no configuró su responsable. Pedile al operador que setee LEGAL_CONTROLLER_NAME y LEGAL_JURISDICTION antes de aceptar datos reales.",
+      "Esta instancia de Clara está self-hosteada y todavía no configuró su responsable. Pedile al operador que setee LEGAL_CONTROLLER_NAME y LEGAL_JURISDICTION antes de aceptar usuarios reales.",
     en:
-      "This Clara instance is self-hosted and has not configured its data controller yet. Ask the operator to set LEGAL_CONTROLLER_NAME and LEGAL_JURISDICTION before accepting real data.",
+      "This Clara instance is self-hosted and has not configured its operator yet. Ask the operator to set LEGAL_CONTROLLER_NAME and LEGAL_JURISDICTION before accepting real users.",
   });
 
   return (
@@ -67,7 +75,7 @@ export default async function PrivacyPage({ params }: PageProps) {
         {...jsonLdScript([
           breadcrumbJsonLd([
             { name: pick(locale, { es: "Inicio", en: "Home" }), path: `/${locale}` },
-            { name: copy.metaTitle, path: `/${locale}/privacy` },
+            { name: copy.metaTitle, path: `/${locale}/terms` },
           ]),
         ])}
       />
@@ -81,9 +89,16 @@ export default async function PrivacyPage({ params }: PageProps) {
         </h1>
         <p className="text-muted-foreground">
           {lastUpdatedLabel}{" "}
-          <time dateTime={PRIVACY_LAST_UPDATED}>{PRIVACY_LAST_UPDATED}</time> ·{" "}
+          <time dateTime={TERMS_LAST_UPDATED}>{TERMS_LAST_UPDATED}</time> ·{" "}
           {versionLabel}
         </p>
+        <p className="text-muted-foreground text-sm">
+          <strong className="text-foreground">{controllerLabel}</strong>{" "}
+          {controller.name} ·{" "}
+          <strong className="text-foreground">{jurisdictionLabel}</strong>{" "}
+          {controller.jurisdiction}
+        </p>
+        <p className="text-muted-foreground">{copy.intro}</p>
       </header>
 
       {controller.selfHosted ? (
@@ -93,7 +108,7 @@ export default async function PrivacyPage({ params }: PageProps) {
       ) : null}
 
       <div className="space-y-10">
-        {PRIVACY_SECTIONS.map(({ heading, body }) => (
+        {TERMS_SECTIONS.map(({ heading, body }) => (
           <section key={heading} className="space-y-3">
             <h2 className="font-display text-2xl font-bold">{heading}</h2>
             {body.map((p, idx) => (
