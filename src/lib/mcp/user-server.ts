@@ -20,6 +20,7 @@ import {
   toMonthStart,
 } from "@/lib/months";
 import {
+  deleteSavingsMovement as deleteSavingsMovementService,
   getSavingsState,
   recordSavingsMovement,
   setMonthlySavingsContribution as setMonthlySavingsContributionService,
@@ -814,6 +815,38 @@ export function registerUserMcp(server: McpServer): void {
           occurredOn: result.movement.occurredOn.toISOString().slice(0, 10),
         },
       });
+    },
+  );
+
+  server.registerTool(
+    "deleteSavingsMovement",
+    {
+      title: "Borrar movimiento manual de ahorro",
+      description:
+        "Borra un movimiento MANUAL_DEPOSIT o MANUAL_WITHDRAWAL del ledger y revierte su efecto sobre la pila. Bloqueado para movimientos del sistema (MONTHLY_CONTRIBUTION, CARRYOVER_DEPOSIT, DEBT_COVERAGE): esos solo se deshacen rehaciendo la decisión del mes que los originó.",
+      inputSchema: {
+        id: z.string().min(1),
+      },
+    },
+    async ({ id }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const existing = await db.savingsMovement.findFirst({
+        where: { id, userId },
+        select: { id: true, kind: true },
+      });
+      if (!existing) return errContent("Movimiento no encontrado.");
+      if (
+        existing.kind !== SavingsMovementKind.MANUAL_DEPOSIT &&
+        existing.kind !== SavingsMovementKind.MANUAL_WITHDRAWAL
+      ) {
+        return errContent(
+          `Movimiento del sistema (${existing.kind}); no se puede borrar a mano.`,
+        );
+      }
+      const result = await deleteSavingsMovementService(id, userId);
+      if (!result.ok) return errContent("Movimiento no encontrado.");
+      return jsonContent({ ok: true, balance: result.balance });
     },
   );
 
