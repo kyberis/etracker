@@ -2,6 +2,7 @@
 
 import { format, parse } from "date-fns";
 import { Plus, RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -519,18 +520,18 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
                   es: (
                     <>
                       Elegí un banco local para importar en{" "}
-                      <a href="/settings" className="underline">
+                      <Link href="/settings" className="underline">
                         Ajustes → Revolut
-                      </a>
+                      </Link>
                       .
                     </>
                   ),
                   en: (
                     <>
                       Choose a local bank for imports under{" "}
-                      <a href="/settings" className="underline">
+                      <Link href="/settings" className="underline">
                         Settings → Revolut
-                      </a>
+                      </Link>
                       .
                     </>
                   ),

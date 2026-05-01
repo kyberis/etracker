@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { pick } from "@/lib/i18n";
 import { LOCALE_COOKIE, normalizeLocale, pickFromAcceptLanguage, type Locale } from "@/lib/i18n/locale";
@@ -10,20 +10,34 @@ import { LOCALE_COOKIE, normalizeLocale, pickFromAcceptLanguage, type Locale } f
  * helpers here (the page is static, served by the SW for any URL), so we
  * read the locale cookie + navigator.language directly. Defaults to `es`
  * pre-hydration so the SSR'd HTML matches the most common case.
+ *
+ * `useSyncExternalStore` keeps this hydration-safe (server snapshot is
+ * always `"es"`; client snapshot reads cookie/`navigator`) and avoids the
+ * React 19 `react-hooks/set-state-in-effect` lint rule that fires on
+ * `setState` inside `useEffect`.
  */
-export function OfflineMessage() {
-  const [locale, setLocale] = useState<Locale>("es");
 
-  useEffect(() => {
-    const cookieMatch = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith(`${LOCALE_COOKIE}=`));
-    if (cookieMatch) {
-      setLocale(normalizeLocale(decodeURIComponent(cookieMatch.split("=")[1] ?? "")));
-      return;
-    }
-    setLocale(pickFromAcceptLanguage(navigator.language ?? null));
-  }, []);
+const noopSubscribe = () => () => undefined;
+
+function readLocaleFromBrowser(): Locale {
+  if (typeof document === "undefined") return "es";
+  const cookieMatch = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${LOCALE_COOKIE}=`));
+  if (cookieMatch) {
+    return normalizeLocale(decodeURIComponent(cookieMatch.split("=")[1] ?? ""));
+  }
+  return pickFromAcceptLanguage(
+    typeof navigator !== "undefined" ? navigator.language ?? null : null,
+  );
+}
+
+export function OfflineMessage() {
+  const locale = useSyncExternalStore<Locale>(
+    noopSubscribe,
+    readLocaleFromBrowser,
+    () => "es",
+  );
 
   const heading = pick(locale, { es: "Estás sin conexión", en: "You're offline" });
   const body = pick(locale, {
@@ -40,12 +54,18 @@ export function OfflineMessage() {
         </h1>
         <p className="text-muted-foreground text-sm">{body}</p>
       </div>
-      <a
-        href="/app"
+      <button
+        type="button"
+        onClick={() => {
+          // Hard reload so the service worker re-fetches /app from the
+          // network now that the user is hopefully back online — a SPA
+          // <Link> would replay the cached offline document.
+          if (typeof window !== "undefined") window.location.assign("/app");
+        }}
         className="bg-primary text-primary-foreground inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-medium shadow-sm transition-colors hover:opacity-90"
       >
         {retry}
-      </a>
+      </button>
     </>
   );
 }

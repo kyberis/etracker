@@ -645,20 +645,31 @@ export function ChatExperience({
     }
   }, [messages]);
 
-  const resolveCreatedAt = useCallback((m: UIMessage): Date => {
-    const fromMeta = metadataCreatedAt(m);
-    if (fromMeta) {
-      const d = new Date(fromMeta);
-      if (!Number.isNaN(d.getTime())) return d;
-    }
-    const seen = firstSeenAtRef.current.get(m.id);
-    return new Date(seen ?? Date.now());
-  }, []);
-
-  const dayGroups = useMemo(
-    () => groupMessagesByDay(messages, resolveCreatedAt),
-    [messages, resolveCreatedAt],
-  );
+  const dayGroups = useMemo(() => {
+    // Snapshot the firstSeenAt map and `now` once per render. The grouping
+    // function then runs over deterministic inputs.
+    //
+    // The React 19 lint rules `react-hooks/refs` and `purity` flag the ref
+    // read + `Date.now()` here as "impure during render". The pattern is
+    // intentional: `firstSeenAtRef` is a write-only-from-effects cache used
+    // to give brand-new local messages a stable client-side timestamp so
+    // the day-grouping doesn't reshuffle on every keystroke. Replacing it
+    // with state would cause a cascading re-render every time a new
+    // message arrives. Keep the ref + suppress the rule for this block.
+    /* eslint-disable react-hooks/refs, react-hooks/purity */
+    const seenSnapshot = firstSeenAtRef.current;
+    const fallbackNow = Date.now();
+    const resolve = (m: UIMessage): Date => {
+      const fromMeta = metadataCreatedAt(m);
+      if (fromMeta) {
+        const d = new Date(fromMeta);
+        if (!Number.isNaN(d.getTime())) return d;
+      }
+      return new Date(seenSnapshot.get(m.id) ?? fallbackNow);
+    };
+    return groupMessagesByDay(messages, resolve);
+    /* eslint-enable react-hooks/refs, react-hooks/purity */
+  }, [messages]);
 
   const intlBcp47 = intlLocale(locale);
   const daySeparatorLabels = useMemo(
