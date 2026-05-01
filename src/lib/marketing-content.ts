@@ -53,6 +53,12 @@ const ES: LocalisedMarketingContent = {
         "“Pagué el alquiler” por WhatsApp es suficiente. Clara transcribe, clasifica y actualiza el mes sin que abras la app.",
     },
     {
+      emoji: "✈️",
+      title: "Clara también en Telegram",
+      description:
+        "Vinculá Telegram desde Configuración → Integraciones y chateá con Clara desde el celular o el escritorio. Mismo cerebro, mismo cupo y mismas herramientas que en la web: mandale una foto del banco, una nota de voz o texto, y te responde en castellano rioplatense.",
+    },
+    {
       emoji: "🔄",
       title: "Se sincroniza con tu banco",
       description:
@@ -148,6 +154,17 @@ const ES: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.4.0",
+      date: "2026-05-01",
+      title: "Telegram en primera fila + login con captcha y email verificado",
+      highlights: [
+        "Telegram pasa a ser una feature destacada en la home: Clara entiende foto, voz y texto en Telegram con el mismo cerebro y cupo que la web.",
+        "El registro y el login con email/contraseña ahora pasan por Cloudflare Turnstile (captcha invisible) para frenar bots.",
+        "Al registrarte te mandamos un correo con un enlace firmado (JWT, vence en 24 hs) vía Resend; tenés que verificar el email antes de poder iniciar sesión con contraseña.",
+        "El login con Google sigue igual: si Google ya marca el email como verificado, no pedimos un paso extra.",
+      ],
+    },
     {
       version: "0.3.3",
       date: "2026-05-01",
@@ -269,6 +286,13 @@ const ES: LocalisedMarketingContent = {
       ],
     },
     {
+      heading: "Captcha y verificación de email",
+      body: [
+        "El registro y el inicio de sesión con email/contraseña pasan por Cloudflare Turnstile (Cloudflare, Inc.) para frenar bots. Cloudflare recibe la IP y metadatos del navegador necesarios para evaluar el desafío; nunca le mandamos tu email ni tu contraseña. Si te self-hosteás Clara y no configurás Turnstile, esa capa se desactiva sola.",
+        "Cuando te registrás, mandamos un correo con un enlace firmado (vence en 24 hs) usando Resend (Resend, Inc.). El enlace solo prueba que el email es tuyo; no compartimos tu contraseña ni datos del balance con Resend. Tenés que confirmar el email antes de poder iniciar sesión con contraseña. Iniciar sesión con Google sigue igual: si Google ya marca tu email como verificado, no pedimos un paso extra.",
+      ],
+    },
+    {
       heading: "Tus derechos",
       body: [
         "Podés exportar todos tus datos vía la API o pedirnos un dump completo. Podés borrar tu cuenta desde Configuración; cuando lo hacés, eliminamos toda tu información en cascada (gastos, meses, conexiones bancarias, mensajes de WhatsApp, tokens MCP).",
@@ -295,6 +319,12 @@ const EN: LocalisedMarketingContent = {
       title: "Listens to voice notes",
       description:
         '"Paid rent" over WhatsApp is enough. Clara transcribes, classifies and updates the month without you opening the app.',
+    },
+    {
+      emoji: "✈️",
+      title: "Clara on Telegram too",
+      description:
+        "Link Telegram from Settings → Integrations and chat with Clara from your phone or desktop. Same brain, same quota and same tools as the web: send a bank screenshot, a voice note or plain text, and Clara replies in your language.",
     },
     {
       emoji: "🔄",
@@ -392,6 +422,17 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.4.0",
+      date: "2026-05-01",
+      title: "Telegram front and centre + captcha and verified email on login",
+      highlights: [
+        "Telegram is now a top-tier feature on the home page: Clara understands photos, voice notes and text on Telegram with the same brain and quota as the web app.",
+        "Email/password sign-up and login now go through Cloudflare Turnstile (invisible captcha) to keep bots out.",
+        "On sign-up we send a signed link (JWT, expires in 24h) via Resend; you have to verify your email before you can sign in with a password.",
+        "Google sign-in is unchanged: if Google already marks the email as verified, no extra step.",
+      ],
+    },
     {
       version: "0.3.3",
       date: "2026-05-01",
@@ -510,6 +551,13 @@ const EN: LocalisedMarketingContent = {
       body: [
         "If you choose to subscribe to the Supporter plan or send a donation, payment is processed by Stripe (Stripe, Inc. / Stripe Payments Europe Ltd.). Stripe receives only what's needed to charge you: your email, card details and country. Clara never sees or stores your card number.",
         "We keep a Stripe customer id linked to your account and, for donations, the amount and date of the contribution to issue receipts. Donations are non-refundable. The subscription renews monthly and you can cancel anytime from Settings → Subscription.",
+      ],
+    },
+    {
+      heading: "Captcha and email verification",
+      body: [
+        "Sign-up and email/password sign-in run through Cloudflare Turnstile (Cloudflare, Inc.) to keep bots out. Cloudflare receives the IP and browser metadata needed to evaluate the challenge; we never send your email or password to Cloudflare. If you self-host Clara without Turnstile keys configured, that layer disables itself.",
+        "When you sign up, we send a signed verification link (expires in 24h) through Resend (Resend, Inc.). The link only proves the email is yours; we never share your password or balance data with Resend. You have to confirm the email before you can sign in with a password. Google sign-in is unchanged: if Google already marks your email as verified, no extra step.",
       ],
     },
     {

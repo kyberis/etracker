@@ -52,6 +52,13 @@ export const registerSchema = z.object({
     .email()
     .transform((value) => value.toLowerCase().trim()),
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
+  /** Cloudflare Turnstile token; optional so self-hosters without keys still work. */
+  turnstileToken: z.string().optional(),
+});
+
+export const loginExtraSchema = z.object({
+  /** Forwarded by the login form alongside email + password to NextAuth. */
+  turnstileToken: z.string().optional(),
 });
 
 export const bankSchema = z.object({

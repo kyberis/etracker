@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,7 +28,23 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // After a successful POST we leave the form behind and show a "check your
+  // email" panel instead of auto-signing-in: credentials sign-in now requires
+  // a verified email.
+  const [submitted, setSubmitted] = useState<{
+    email: string;
+    emailDelivered: boolean;
+  } | null>(null);
+
+  const onTurnstileToken = useCallback(
+    (token: string) => setTurnstileToken(token),
+    [],
+  );
+  const onTurnstileError = useCallback(
+    () => setTurnstileToken(null),
+    [],
+  );
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -41,12 +56,14 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
     }
 
     setLoading(true);
+    const normalizedEmail = email.trim().toLowerCase();
     const response = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
+        turnstileToken: turnstileToken ?? undefined,
       }),
     });
 
@@ -57,21 +74,42 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
       return;
     }
 
-    const signInResult = await signIn("credentials", {
-      email: email.trim().toLowerCase(),
-      password,
-      redirect: false,
-    });
-
+    const data = (await response.json()) as {
+      ok: boolean;
+      needsVerification?: boolean;
+      emailDelivered?: boolean;
+    };
     setLoading(false);
+    setSubmitted({
+      email: normalizedEmail,
+      emailDelivered: data.emailDelivered ?? false,
+    });
+  }
 
-    if (signInResult?.error) {
-      setError(t.auth.errorLoginFailed);
-      return;
-    }
-
-    router.push("/onboarding");
-    router.refresh();
+  if (submitted) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.auth.verifyEmailTitle}</CardTitle>
+          <CardDescription>
+            {t.auth.verifyEmailBody(submitted.email)}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!submitted.emailDelivered ? (
+            <p className="text-muted-foreground rounded-md border border-dashed p-3 text-sm">
+              {t.auth.verifyEmailMissingResend}
+            </p>
+          ) : null}
+          <Link
+            href="/login"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 w-full items-center justify-center rounded-lg px-3 text-sm font-medium transition-colors"
+          >
+            {t.auth.goToLogin}
+          </Link>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -133,6 +171,11 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
               minLength={8}
             />
           </div>
+
+          <TurnstileWidget
+            onToken={onTurnstileToken}
+            onError={onTurnstileError}
+          />
 
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 

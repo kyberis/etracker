@@ -6,6 +6,7 @@ import GoogleProvider from "next-auth/providers/google";
 
 import { touchActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
+import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 
 import { isGoogleAuthConfigured } from "./auth-providers";
 
@@ -30,12 +31,29 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        turnstileToken: { label: "Turnstile token", type: "text" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password;
 
         if (!email || !password) {
+          return null;
+        }
+
+        // Cloudflare Turnstile is verified BEFORE bcrypt to avoid spending CPU
+        // on automated brute-force attempts. The verifier is permissive on
+        // localhost / when keys are missing — see `src/lib/turnstile.ts`.
+        const headers = new Headers(
+          (req?.headers ?? {}) as Record<string, string>,
+        );
+        const ip = getClientIp(headers);
+        const captchaOk = await verifyTurnstileToken(
+          credentials?.turnstileToken,
+          ip,
+          headers.get("host"),
+        );
+        if (!captchaOk) {
           return null;
         }
 
@@ -45,6 +63,13 @@ export const authOptions: NextAuthOptions = {
         }
         if (!user.isActive) {
           // Default-deny: disabled accounts can't get a session.
+          return null;
+        }
+        if (!user.emailVerified) {
+          // We surface this through `?error=EmailNotVerified` from the form
+          // when `signIn` returns `error: "CredentialsSignin"` and we know
+          // the user exists but isn't verified yet — but not from here, to
+          // avoid leaking whether an email is registered.
           return null;
         }
 

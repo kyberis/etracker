@@ -293,6 +293,13 @@ export const es = {
     errorPasswordMismatch: "Las contraseñas no coinciden.",
     errorRegisterFailed: "No pudimos crear la cuenta. Probá de nuevo.",
     errorLoginFailed: "No se pudo iniciar sesión.",
+    verifyEmailTitle: "Confirmá tu email",
+    verifyEmailBody: (email: string) =>
+      `Te mandamos un enlace a ${email}. Tocalo para activar tu cuenta y después podés iniciar sesión.`,
+    verifyEmailMissingResend:
+      "El servidor todavía no tiene Resend configurado, así que el enlace quedó en los logs del servidor. Pedile al admin que lo abra por vos o configurá RESEND_API_KEY.",
+    verifyEmailSuccess:
+      "Email confirmado. Ya podés iniciar sesión con tu contraseña.",
   },
 
   errors: {

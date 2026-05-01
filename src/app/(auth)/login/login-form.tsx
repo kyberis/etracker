@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useCallback, useState } from "react";
 
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,9 +31,20 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryError = loginErrorMessage(searchParams.get("error"), locale);
+  const verifiedSuccess = searchParams.get("verified") === "1";
+
+  const onTurnstileToken = useCallback(
+    (token: string) => setTurnstileToken(token),
+    [],
+  );
+  const onTurnstileError = useCallback(
+    () => setTurnstileToken(null),
+    [],
+  );
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -42,6 +54,7 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
     const result = await signIn("credentials", {
       email: email.trim().toLowerCase(),
       password,
+      turnstileToken: turnstileToken ?? "",
       redirect: false,
     });
 
@@ -114,6 +127,16 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
             />
           </div>
 
+          <TurnstileWidget
+            onToken={onTurnstileToken}
+            onError={onTurnstileError}
+          />
+
+          {verifiedSuccess ? (
+            <p className="text-sm text-emerald-600 dark:text-emerald-400">
+              {t.auth.verifyEmailSuccess}
+            </p>
+          ) : null}
           {queryError ? <p className="text-destructive text-sm">{queryError}</p> : null}
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 

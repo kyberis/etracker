@@ -289,6 +289,13 @@ export const en: Dict = {
     errorPasswordMismatch: "Passwords do not match.",
     errorRegisterFailed: "We couldn't create the account. Try again.",
     errorLoginFailed: "Could not sign in.",
+    verifyEmailTitle: "Confirm your email",
+    verifyEmailBody: (email: string) =>
+      `We sent a link to ${email}. Tap it to activate your account; after that you can sign in.`,
+    verifyEmailMissingResend:
+      "The server has not configured Resend yet, so the link is sitting in the server logs. Ask the admin to open it for you or set RESEND_API_KEY.",
+    verifyEmailSuccess:
+      "Email confirmed. You can now sign in with your password.",
   },
 
   errors: {

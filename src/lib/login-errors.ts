@@ -30,6 +30,10 @@ export function loginErrorMessage(
         return "Access denied. Google must verify your email.";
       case "AccountDisabled":
         return "Your account is disabled. Contact the administrator to reactivate it.";
+      case "EmailNotVerified":
+        return "Confirm your email first. We sent you a link when you signed up — check your inbox (and spam).";
+      case "VerificationFailed":
+        return "The verification link is invalid or has expired. Sign up again to get a new one.";
       default:
         return "Something went wrong signing in. Try again.";
     }
@@ -54,6 +58,10 @@ export function loginErrorMessage(
       return "No se permitió el acceso. Google tiene que verificar tu correo.";
     case "AccountDisabled":
       return "Tu cuenta está desactivada. Contactá al administrador para reactivarla.";
+    case "EmailNotVerified":
+      return "Confirmá tu email primero. Te mandamos un enlace al registrarte — revisá tu casilla (y la carpeta de spam).";
+    case "VerificationFailed":
+      return "El enlace de verificación es inválido o venció. Registrate de nuevo para recibir uno nuevo.";
     default:
       return "Algo salió mal al iniciar sesión. Probá de nuevo.";
   }

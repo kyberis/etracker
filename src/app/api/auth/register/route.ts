@@ -2,7 +2,13 @@ import bcrypt from "bcrypt";
 
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
+import { pickFromAcceptLanguage } from "@/lib/i18n/locale";
 import { limitByIp } from "@/lib/rate-limit";
+import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
+import {
+  createVerificationToken,
+  sendVerificationEmail,
+} from "@/lib/verification-email";
 import { registerSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
@@ -27,6 +33,19 @@ export async function POST(request: Request) {
     const body = await request.json();
     const payload = registerSchema.parse(body);
 
+    const ip = getClientIp(request.headers);
+    const captchaOk = await verifyTurnstileToken(
+      payload.turnstileToken,
+      ip,
+      request.headers.get("host"),
+    );
+    if (!captchaOk) {
+      return jsonError(
+        "No pudimos validar el captcha. Recargá la página y probá de nuevo.",
+        403,
+      );
+    }
+
     const existing = await db.user.findUnique({ where: { email: payload.email } });
     if (existing) {
       return jsonError(
@@ -37,16 +56,34 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(payload.password, 12);
 
-    await db.user.create({
+    const user = await db.user.create({
       data: {
         email: payload.email,
         passwordHash,
       },
+      select: { id: true, email: true },
     });
 
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 201,
-      headers: { "Content-Type": "application/json" },
-    });
+    const locale = pickFromAcceptLanguage(request.headers.get("accept-language"));
+    const verificationToken = await createVerificationToken(user.id, user.email);
+    const sendResult = await sendVerificationEmail(
+      user.email,
+      verificationToken,
+      locale,
+    );
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        needsVerification: true,
+        // Surface this so the UI can hint "no llegó el mail, mirá la consola"
+        // when the operator hasn't configured Resend yet.
+        emailDelivered: sendResult.ok,
+      }),
+      {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   });
 }
