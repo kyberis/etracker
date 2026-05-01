@@ -174,6 +174,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.7.3",
+      date: "2026-05-01",
+      title: "Clara limpia movimientos duplicados de la pila de ahorros",
+      highlights: [
+        "Decile 'borrá los movimientos duplicados de mis ahorros' y Clara primero te muestra los grupos detectados (mismo tipo, monto, moneda, fecha y nota) para que confirmes antes de tocar nada.",
+        "Cuando confirmás, borra todos los extras de cada grupo en una sola transacción, conserva el más antiguo y reajusta la pila — sin riesgo de quedar descuadrada.",
+        "Solo afecta movimientos manuales (`MANUAL_DEPOSIT`/`MANUAL_WITHDRAWAL`). Los del sistema (aporte mensual, cobertura de deuda, derivación de sobrante) ya tienen unicidad por mes y se ignoran.",
+      ],
+    },
+    {
       version: "0.7.2",
       date: "2026-05-01",
       title: "Telegram te recibe con una guía paso a paso",
@@ -702,6 +712,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.7.3",
+      date: "2026-05-01",
+      title: "Clara cleans up duplicate savings movements",
+      highlights: [
+        "Tell Clara 'delete the duplicates from my savings' and she first shows you the groups she found (same kind, amount, currency, date and note) so you can confirm before anything is removed.",
+        "When you confirm, she deletes every extra in each group inside a single transaction, keeps the oldest one and rebalances the pile — no risk of drift.",
+        "Only manual movements (`MANUAL_DEPOSIT`/`MANUAL_WITHDRAWAL`) are touched. System entries (monthly contribution, debt coverage, leftover deposits) already have per-month uniqueness and are skipped.",
+      ],
+    },
     {
       version: "0.7.2",
       date: "2026-05-01",

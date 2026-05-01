@@ -30,6 +30,9 @@ import {
   toMonthStart,
 } from "@/lib/months";
 import {
+  deleteManualDuplicateMovements,
+  deleteSavingsMovement,
+  findManualDuplicateMovements,
   getSavingsState,
   recordSavingsMovement,
   removeMonthlySavingsContribution,
@@ -1452,9 +1455,12 @@ export function buildExpenseTools(userId: string) {
 
     addSavingsMovement: tool({
       description:
-        "Registra un movimiento manual en la pila de ahorros. `kind=MANUAL_DEPOSIT` para meter plata " +
-        "(suma a la pila), `kind=MANUAL_WITHDRAWAL` para sacar (resta). `amount` siempre positivo; el signo " +
-        "lo aplicamos según `kind`. Para retiros, validamos que la pila alcance — si no, devolvemos `error`. " +
+        "Registra un movimiento manual en la pila de ahorros. " +
+        "`kind=MANUAL_DEPOSIT` para meter plata (SUMA a la pila). " +
+        "`kind=MANUAL_WITHDRAWAL` para sacar plata (RESTA de la pila — usalo cuando el usuario diga " +
+        "'saqué/retiré X de los ahorros', 'restale X', 'gasté X de la pila'). " +
+        "`amount` siempre positivo; el signo lo aplicamos según `kind`. Para retiros, validamos que la " +
+        "pila alcance — si no, devolvemos `error`. " +
         "NO uses este tool para el aporte mensual del usuario (usá `setMonthlySavingsContribution`) ni para " +
         "cubrir deuda del mes anterior (usá `applyPrevMonthLeftover` con `mode=coverFromSavings`).",
       inputSchema: z.object({
@@ -1504,6 +1510,133 @@ export function buildExpenseTools(userId: string) {
             note: result.movement.note,
             occurredOn: result.movement.occurredOn.toISOString().slice(0, 10),
           },
+        };
+      },
+    }),
+
+    deleteSavingsMovement: tool({
+      description:
+        "Borra un movimiento manual del ledger de ahorros (`MANUAL_DEPOSIT` o `MANUAL_WITHDRAWAL`) y " +
+        "revierte su efecto sobre la pila. Usalo cuando el usuario diga 'borrá ese movimiento de ahorros', " +
+        "'sacá el depósito que cargué mal', 'borrá el retiro de X', etc. " +
+        "Bloqueado para movimientos del sistema (`MONTHLY_CONTRIBUTION`, `CARRYOVER_DEPOSIT`, " +
+        "`DEBT_COVERAGE`): para deshacer un aporte mensual usá `removeMonthlySavingsContribution`; " +
+        "para deshacer una decisión de carryover (sobrante derivado o cobertura de deuda) " +
+        "no hay tool de revert directo, avisale al usuario que tiene que rehacer la decisión del mes. " +
+        "Si dudás del id, primero llamá `getSavingsState` para listar los movimientos. " +
+        "Pedí confirmación verbal corta antes de llamar este tool.",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      execute: async ({ id }) => {
+        const existing = await db.savingsMovement.findFirst({
+          where: { id, userId },
+          select: { id: true, kind: true, amount: true, currency: true },
+        });
+        if (!existing) return { error: "El movimiento indicado no existe." };
+        if (
+          existing.kind !== SavingsMovementKind.MANUAL_DEPOSIT &&
+          existing.kind !== SavingsMovementKind.MANUAL_WITHDRAWAL
+        ) {
+          return {
+            error:
+              `Ese movimiento es del sistema (${existing.kind}) y no se puede borrar a mano. ` +
+              "Para el aporte mensual usá removeMonthlySavingsContribution; para los movimientos de " +
+              "carryover (CARRYOVER_DEPOSIT/DEBT_COVERAGE) hay que rehacer la decisión del mes que los originó.",
+            kind: existing.kind,
+          };
+        }
+        const result = await deleteSavingsMovement(id, userId);
+        if (!result.ok) return { error: "El movimiento indicado no existe." };
+        return {
+          ok: true as const,
+          balance: result.balance,
+          deleted: {
+            id: existing.id,
+            kind: existing.kind,
+            amount: Number(existing.amount),
+            currency: existing.currency,
+          },
+        };
+      },
+    }),
+
+    dedupeSavingsMovements: tool({
+      description:
+        "Detecta y borra movimientos MANUAL_* duplicados del ledger de ahorros. " +
+        "Dos movimientos cuentan como duplicados si comparten `kind`, monto firmado, moneda, " +
+        "fecha (`occurredOn`) y nota (nota nula y vacía cuentan iguales). Solo afecta " +
+        "`MANUAL_DEPOSIT` y `MANUAL_WITHDRAWAL`: los kinds del sistema " +
+        "(MONTHLY_CONTRIBUTION, CARRYOVER_DEPOSIT, DEBT_COVERAGE) ya tienen unicidad por mes y se ignoran. " +
+        "Por defecto corre en `dryRun=true` y devuelve los grupos detectados sin borrar nada — usalo " +
+        "para mostrarle al usuario qué se duplicó y pedir confirmación. Recién después llamalo con " +
+        "`dryRun=false` para aplicar el borrado: en cada grupo conserva el movimiento más antiguo " +
+        "(por `createdAt`) y borra el resto, ajustando la pila en una sola transacción. " +
+        "Pedí confirmación verbal corta antes de pasar `dryRun=false`.",
+      inputSchema: z.object({
+        dryRun: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Si es true (default), solo lista los duplicados detectados. Pasá false para borrarlos.",
+          ),
+      }),
+      execute: async ({ dryRun }) => {
+        // Tolerate callers that bypass schema parsing (tests, MCP shims).
+        const isDryRun = dryRun !== false;
+        const groups = await findManualDuplicateMovements(userId);
+        const totalDuplicates = groups.reduce(
+          (acc, g) => acc + g.duplicateIds.length,
+          0,
+        );
+        if (groups.length === 0) {
+          return {
+            ok: true as const,
+            dryRun: isDryRun,
+            groups: [],
+            totalDuplicates: 0,
+            note: "No encontré movimientos manuales duplicados en la pila.",
+          };
+        }
+        if (isDryRun) {
+          return {
+            ok: true as const,
+            dryRun: true as const,
+            applied: false as const,
+            totalDuplicates,
+            groups: groups.map((g) => ({
+              kind: g.kind,
+              amount: g.amount,
+              currency: g.currency,
+              occurredOn: g.occurredOn,
+              note: g.note,
+              keeperId: g.keeperId,
+              duplicateIds: g.duplicateIds,
+              extraCount: g.duplicateIds.length,
+            })),
+            note:
+              `Detecté ${groups.length} grupo(s) con ${totalDuplicates} movimiento(s) extra. ` +
+              "Pedile confirmación al usuario y volvé a llamar con dryRun=false para borrarlos.",
+          };
+        }
+        const idsToDelete = groups.flatMap((g) => g.duplicateIds);
+        const result = await deleteManualDuplicateMovements(userId, idsToDelete);
+        return {
+          ok: true as const,
+          dryRun: false as const,
+          applied: true as const,
+          totalDuplicates,
+          deletedCount: result.deletedCount,
+          balance: result.balance,
+          groups: groups.map((g) => ({
+            kind: g.kind,
+            amount: g.amount,
+            currency: g.currency,
+            occurredOn: g.occurredOn,
+            note: g.note,
+            keeperId: g.keeperId,
+            duplicateIds: g.duplicateIds,
+            extraCount: g.duplicateIds.length,
+          })),
         };
       },
     }),

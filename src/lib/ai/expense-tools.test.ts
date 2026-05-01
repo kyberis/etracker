@@ -45,6 +45,7 @@ vi.mock("@/lib/db", () => ({
     },
     user: { findUnique: vi.fn() },
     monthRecord: { findFirst: vi.fn() },
+    savingsMovement: { findFirst: vi.fn() },
   },
 }));
 
@@ -53,6 +54,9 @@ vi.mock("@/lib/savings", () => ({
   recordSavingsMovement: vi.fn(),
   setMonthlySavingsContribution: vi.fn(),
   removeMonthlySavingsContribution: vi.fn(),
+  deleteSavingsMovement: vi.fn(),
+  findManualDuplicateMovements: vi.fn(),
+  deleteManualDuplicateMovements: vi.fn(),
 }));
 
 vi.mock("@/lib/month-bucket", async () => {
@@ -91,11 +95,15 @@ import { invalidateBanksCache } from "@/lib/cache/banks";
 import { FxUnavailableError, fetchFxRate } from "@/lib/fx/rates";
 import { expireYearTimeline } from "@/lib/year-timeline-data";
 import {
+  deleteManualDuplicateMovements,
+  deleteSavingsMovement,
+  findManualDuplicateMovements,
   getSavingsState,
   recordSavingsMovement,
   removeMonthlySavingsContribution,
   setMonthlySavingsContribution,
 } from "@/lib/savings";
+import { SavingsMovementKind } from "@prisma/client";
 import { applyPrevMonthLeftoverDecision } from "@/lib/month-bucket";
 
 const USER_ID = "user_1";
@@ -713,6 +721,121 @@ describe("addSavingsMovement (agent tool)", () => {
   });
 });
 
+describe("deleteSavingsMovement (agent tool)", () => {
+  it("returns error when the movement does not exist", async () => {
+    vi.mocked(db.savingsMovement.findFirst).mockResolvedValue(null);
+    const result = await tools().deleteSavingsMovement.execute!(
+      { id: "mv_404" },
+      execOpts,
+    );
+    expect(result).toMatchObject({ error: expect.stringContaining("no existe") });
+    expect(deleteSavingsMovement).not.toHaveBeenCalled();
+  });
+
+  it("blocks system kinds (e.g. MONTHLY_CONTRIBUTION) and points to the right tool", async () => {
+    vi.mocked(db.savingsMovement.findFirst).mockResolvedValue({
+      id: "mv_sys",
+      kind: "MONTHLY_CONTRIBUTION",
+      amount: new Prisma.Decimal("100"),
+      currency: "EUR",
+    } as never);
+
+    const result = await tools().deleteSavingsMovement.execute!(
+      { id: "mv_sys" },
+      execOpts,
+    );
+
+    expect(result).toMatchObject({
+      error: expect.stringContaining("removeMonthlySavingsContribution"),
+      kind: "MONTHLY_CONTRIBUTION",
+    });
+    expect(deleteSavingsMovement).not.toHaveBeenCalled();
+  });
+
+  it("blocks DEBT_COVERAGE and CARRYOVER_DEPOSIT with a clear message", async () => {
+    vi.mocked(db.savingsMovement.findFirst).mockResolvedValue({
+      id: "mv_dc",
+      kind: "DEBT_COVERAGE",
+      amount: new Prisma.Decimal("-50"),
+      currency: "EUR",
+    } as never);
+
+    const result = await tools().deleteSavingsMovement.execute!(
+      { id: "mv_dc" },
+      execOpts,
+    );
+
+    expect(result).toMatchObject({
+      error: expect.stringContaining("carryover"),
+      kind: "DEBT_COVERAGE",
+    });
+    expect(deleteSavingsMovement).not.toHaveBeenCalled();
+  });
+
+  it("delegates to the service for MANUAL_DEPOSIT and reports the new balance", async () => {
+    vi.mocked(db.savingsMovement.findFirst).mockResolvedValue({
+      id: "mv_dep",
+      kind: "MANUAL_DEPOSIT",
+      amount: new Prisma.Decimal("75"),
+      currency: "EUR",
+    } as never);
+    vi.mocked(deleteSavingsMovement).mockResolvedValue({
+      ok: true,
+      balance: 25,
+    });
+
+    const result = await tools().deleteSavingsMovement.execute!(
+      { id: "mv_dep" },
+      execOpts,
+    );
+
+    expect(deleteSavingsMovement).toHaveBeenCalledWith("mv_dep", USER_ID);
+    expect(result).toMatchObject({
+      ok: true,
+      balance: 25,
+      deleted: { id: "mv_dep", kind: "MANUAL_DEPOSIT", amount: 75, currency: "EUR" },
+    });
+  });
+
+  it("delegates for MANUAL_WITHDRAWAL too (signed amount preserved in the echo)", async () => {
+    vi.mocked(db.savingsMovement.findFirst).mockResolvedValue({
+      id: "mv_w",
+      kind: "MANUAL_WITHDRAWAL",
+      amount: new Prisma.Decimal("-30"),
+      currency: "EUR",
+    } as never);
+    vi.mocked(deleteSavingsMovement).mockResolvedValue({
+      ok: true,
+      balance: 130,
+    });
+
+    const result = await tools().deleteSavingsMovement.execute!(
+      { id: "mv_w" },
+      execOpts,
+    );
+
+    expect(deleteSavingsMovement).toHaveBeenCalledWith("mv_w", USER_ID);
+    expect(result).toMatchObject({
+      ok: true,
+      balance: 130,
+      deleted: { id: "mv_w", kind: "MANUAL_WITHDRAWAL", amount: -30 },
+    });
+  });
+
+  it("only ever scopes the lookup to the bound user id", async () => {
+    vi.mocked(db.savingsMovement.findFirst).mockResolvedValue(null);
+    await tools().deleteSavingsMovement.execute!({ id: "mv_x" }, execOpts);
+    expect(db.savingsMovement.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "mv_x", userId: USER_ID }),
+      }),
+    );
+    // The tool builder is bound to USER_ID; OTHER_USER must never appear.
+    const args = vi.mocked(db.savingsMovement.findFirst).mock.calls[0][0];
+    expect(JSON.stringify(args)).not.toContain(OTHER_USER);
+  });
+});
+
 describe("setMonthlySavingsContribution (agent tool)", () => {
   it("rejects when the month is not configured", async () => {
     vi.mocked(db.user.findUnique).mockResolvedValue({
@@ -792,6 +915,110 @@ describe("removeMonthlySavingsContribution (agent tool)", () => {
       removed: true,
       balance: 0,
       month: "2026-05",
+    });
+  });
+});
+
+describe("dedupeSavingsMovements (agent tool)", () => {
+  it("returns ok with empty groups when no duplicates exist", async () => {
+    vi.mocked(findManualDuplicateMovements).mockResolvedValue([]);
+    const result = await tools().dedupeSavingsMovements.execute!(
+      { dryRun: true },
+      execOpts,
+    );
+    expect(findManualDuplicateMovements).toHaveBeenCalledWith(USER_ID);
+    expect(deleteManualDuplicateMovements).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      dryRun: true,
+      groups: [],
+      totalDuplicates: 0,
+    });
+  });
+
+  it("on dryRun=true (default) returns the detected groups WITHOUT deleting", async () => {
+    vi.mocked(findManualDuplicateMovements).mockResolvedValue([
+      {
+        signature: "MANUAL_DEPOSIT|50.00|EUR|2026-05-10|",
+        kind: SavingsMovementKind.MANUAL_DEPOSIT,
+        amount: 50,
+        currency: "EUR",
+        occurredOn: "2026-05-10",
+        note: null,
+        keeperId: "mv_1",
+        duplicateIds: ["mv_2", "mv_3"],
+      },
+    ]);
+    const result = await tools().dedupeSavingsMovements.execute!(
+      // Test the default-safety: a missing dryRun must behave as a dry run.
+      {} as { dryRun: boolean },
+      execOpts,
+    );
+    expect(deleteManualDuplicateMovements).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      dryRun: true,
+      applied: false,
+      totalDuplicates: 2,
+      groups: [
+        {
+          kind: SavingsMovementKind.MANUAL_DEPOSIT,
+          amount: 50,
+          keeperId: "mv_1",
+          duplicateIds: ["mv_2", "mv_3"],
+          extraCount: 2,
+        },
+      ],
+    });
+  });
+
+  it("on dryRun=false flattens the duplicate ids and reports the new balance", async () => {
+    vi.mocked(findManualDuplicateMovements).mockResolvedValue([
+      {
+        signature: "sig_a",
+        kind: SavingsMovementKind.MANUAL_DEPOSIT,
+        amount: 80,
+        currency: "EUR",
+        occurredOn: "2026-05-10",
+        note: null,
+        keeperId: "mv_1",
+        duplicateIds: ["mv_2"],
+      },
+      {
+        signature: "sig_b",
+        kind: SavingsMovementKind.MANUAL_WITHDRAWAL,
+        amount: -25,
+        currency: "EUR",
+        occurredOn: "2026-05-12",
+        note: "café",
+        keeperId: "mv_4",
+        duplicateIds: ["mv_5", "mv_6"],
+      },
+    ]);
+    vi.mocked(deleteManualDuplicateMovements).mockResolvedValue({
+      deletedCount: 3,
+      skippedSystemKinds: 0,
+      skippedNotFound: 0,
+      balance: 105,
+    });
+
+    const result = await tools().dedupeSavingsMovements.execute!(
+      { dryRun: false },
+      execOpts,
+    );
+
+    expect(deleteManualDuplicateMovements).toHaveBeenCalledWith(USER_ID, [
+      "mv_2",
+      "mv_5",
+      "mv_6",
+    ]);
+    expect(result).toMatchObject({
+      ok: true,
+      dryRun: false,
+      applied: true,
+      totalDuplicates: 3,
+      deletedCount: 3,
+      balance: 105,
     });
   });
 });

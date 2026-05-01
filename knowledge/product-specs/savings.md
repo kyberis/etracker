@@ -37,8 +37,8 @@
 | Carryover orchestration | `src/lib/month-bucket.ts` (`getPrevMonthBalance`, `applyPrevMonthLeftoverDecision`) |
 | Page payload | `src/lib/month-page-data.ts`, `src/lib/month-page-types.ts` |
 | API routes | `src/app/api/savings/route.ts`, `src/app/api/savings/[id]/route.ts`, `src/app/api/months/[month]/savings-contribution/route.ts`, `src/app/api/months/[month]/carryover/route.ts` |
-| Agent tools | `src/lib/ai/expense-tools.ts` (`getSavingsState`, `addSavingsMovement`, `setMonthlySavingsContribution`, `removeMonthlySavingsContribution`, `applyPrevMonthLeftover`) |
-| MCP tools | `src/lib/mcp/user-server.ts` (`getSavings`, `addSavingsMovement`, `setMonthlySavingsContribution`) |
+| Agent tools | `src/lib/ai/expense-tools.ts` (`getSavingsState`, `addSavingsMovement`, `deleteSavingsMovement`, `dedupeSavingsMovements`, `setMonthlySavingsContribution`, `removeMonthlySavingsContribution`, `applyPrevMonthLeftover`) |
+| MCP tools | `src/lib/mcp/user-server.ts` (`getSavings`, `addSavingsMovement`, `deleteSavingsMovement`, `setMonthlySavingsContribution`) |
 | UI | `src/app/(app)/savings/page.tsx`, `src/components/savings-manager.tsx`, `src/components/month-dashboard.tsx` (carryover dialog + savings sub-card) |
 | Backfill | `scripts/backfill-savings-ledger.ts` |
 
@@ -90,7 +90,9 @@ Migración aditiva: `prisma/migrations/20260501100000_savings_ledger/migration.s
 ### Agent tools
 
 - `getSavingsState({ limit? })` — read.
-- `addSavingsMovement({ kind, amount, note?, occurredOn? })` — manual.
+- `addSavingsMovement({ kind, amount, note?, occurredOn? })` — manual deposit/withdrawal.
+- `deleteSavingsMovement({ id })` — solo MANUAL_*. Bloqueado para kinds del sistema (devuelve `error` indicando qué tool usar).
+- `dedupeSavingsMovements({ dryRun? })` — detecta y borra movimientos MANUAL_* duplicados (mismo `kind`, monto firmado, moneda, `occurredOn` y nota). `dryRun=true` (default) lista los grupos sin borrar; `dryRun=false` borra todos los extras de cada grupo en una sola transacción y conserva el más antiguo. Ignora kinds del sistema.
 - `setMonthlySavingsContribution({ month, amount, note? })` — upsert.
 - `removeMonthlySavingsContribution({ month })`.
 - `applyPrevMonthLeftover({ month?, mode })` — soporta los 4 modes (`addToIncome`, `setAside`, `coverFromSavings`, `carryDebt`).
@@ -99,6 +101,7 @@ Migración aditiva: `prisma/migrations/20260501100000_savings_ledger/migration.s
 
 - `getSavings({ limit? })`.
 - `addSavingsMovement({ kind: "MANUAL_DEPOSIT" | "MANUAL_WITHDRAWAL", amount, note?, occurredOn? })`.
+- `deleteSavingsMovement({ id })` — solo MANUAL_*.
 - `setMonthlySavingsContribution({ month, amount, note? })`.
 
 ## Invariants

@@ -366,6 +366,177 @@ export async function getSavingsState(
   };
 }
 
+export type ManualDuplicateGroup = {
+  /** Hash legible del grupo (kind|amount|currency|occurredOn|note). */
+  signature: string;
+  kind: SavingsMovementKind;
+  /** Monto firmado (positivo entra, negativo sale). */
+  amount: number;
+  currency: string;
+  occurredOn: string;
+  note: string | null;
+  /** Movimiento que se preserva (el más antiguo por createdAt + id). */
+  keeperId: string;
+  /** Ids a borrar (todos menos el keeper). */
+  duplicateIds: string[];
+};
+
+/** Clave canónica para agrupar duplicados. Trata note nulo y vacío como uno. */
+function manualDuplicateSignature(m: {
+  kind: SavingsMovementKind;
+  amount: Prisma.Decimal;
+  currency: string;
+  occurredOn: Date;
+  note: string | null;
+}): string {
+  const noteKey = m.note?.trim() ? m.note.trim() : "";
+  return [
+    m.kind,
+    m.amount.toFixed(2),
+    m.currency.toUpperCase(),
+    m.occurredOn.toISOString().slice(0, 10),
+    noteKey,
+  ].join("|");
+}
+
+/**
+ * Encuentra grupos de movimientos MANUAL_* duplicados para un usuario.
+ *
+ * Dos movimientos son "duplicados" si comparten `kind`, `amount` (firmado),
+ * `currency`, `occurredOn` (yyyy-MM-dd) y `note` (tratando `null`/vacío
+ * como equivalentes). Solo `MANUAL_DEPOSIT` y `MANUAL_WITHDRAWAL` entran
+ * en la búsqueda — los kinds del sistema (MONTHLY_CONTRIBUTION,
+ * CARRYOVER_DEPOSIT, DEBT_COVERAGE) ya tienen unicidad por
+ * (userId, monthRecordId, kind) y no pueden duplicarse.
+ *
+ * El "keeper" de cada grupo es el movimiento más antiguo por
+ * `createdAt` (desempate por id ascendente para que sea determinístico).
+ */
+export async function findManualDuplicateMovements(
+  userId: string,
+): Promise<ManualDuplicateGroup[]> {
+  const movements = await db.savingsMovement.findMany({
+    where: {
+      userId,
+      kind: {
+        in: [
+          SavingsMovementKind.MANUAL_DEPOSIT,
+          SavingsMovementKind.MANUAL_WITHDRAWAL,
+        ],
+      },
+    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      kind: true,
+      amount: true,
+      currency: true,
+      occurredOn: true,
+      note: true,
+    },
+  });
+
+  const groups = new Map<string, typeof movements>();
+  for (const m of movements) {
+    const sig = manualDuplicateSignature(m);
+    const bucket = groups.get(sig);
+    if (bucket) {
+      bucket.push(m);
+    } else {
+      groups.set(sig, [m]);
+    }
+  }
+
+  const result: ManualDuplicateGroup[] = [];
+  for (const [signature, bucket] of groups) {
+    if (bucket.length < 2) continue;
+    const [keeper, ...rest] = bucket;
+    result.push({
+      signature,
+      kind: keeper.kind,
+      amount: Number(keeper.amount),
+      currency: keeper.currency,
+      occurredOn: keeper.occurredOn.toISOString().slice(0, 10),
+      note: keeper.note,
+      keeperId: keeper.id,
+      duplicateIds: rest.map((m) => m.id),
+    });
+  }
+  return result;
+}
+
+/**
+ * Borra una lista de ids del ledger del usuario en una sola transacción y
+ * ajusta `User.savings` por el delta total. Solo borra movimientos
+ * MANUAL_* que pertenezcan al usuario; ignora cualquier id ajeno o de
+ * tipo del sistema (devuelve los conteos por separado).
+ */
+export async function deleteManualDuplicateMovements(
+  userId: string,
+  movementIds: string[],
+): Promise<{
+  deletedCount: number;
+  skippedSystemKinds: number;
+  skippedNotFound: number;
+  balance: number;
+}> {
+  if (movementIds.length === 0) {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { savings: true },
+    });
+    return {
+      deletedCount: 0,
+      skippedSystemKinds: 0,
+      skippedNotFound: 0,
+      balance: Number(user?.savings ?? 0),
+    };
+  }
+  return db.$transaction(async (tx) => {
+    const found = await tx.savingsMovement.findMany({
+      where: { id: { in: movementIds }, userId },
+      select: { id: true, kind: true, amount: true },
+    });
+    const skippedNotFound = movementIds.length - found.length;
+    const deletable = found.filter(
+      (m) =>
+        m.kind === SavingsMovementKind.MANUAL_DEPOSIT ||
+        m.kind === SavingsMovementKind.MANUAL_WITHDRAWAL,
+    );
+    const skippedSystemKinds = found.length - deletable.length;
+    if (deletable.length === 0) {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { savings: true },
+      });
+      return {
+        deletedCount: 0,
+        skippedSystemKinds,
+        skippedNotFound,
+        balance: Number(user?.savings ?? 0),
+      };
+    }
+    const delta = deletable.reduce(
+      (acc, m) => acc.plus(m.amount),
+      new Prisma.Decimal(0),
+    );
+    await tx.savingsMovement.deleteMany({
+      where: { id: { in: deletable.map((m) => m.id) }, userId },
+    });
+    const updated = await tx.user.update({
+      where: { id: userId },
+      data: { savings: { decrement: delta } },
+      select: { savings: true },
+    });
+    return {
+      deletedCount: deletable.length,
+      skippedSystemKinds,
+      skippedNotFound,
+      balance: Number(updated.savings),
+    };
+  });
+}
+
 /**
  * Vuelve a calcular `User.savings` como `SUM(SavingsMovement.amount)` para
  * el usuario indicado. Útil para backfill y para resincronizar si alguna
