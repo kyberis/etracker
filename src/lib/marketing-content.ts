@@ -149,6 +149,14 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.3.3",
+      date: "2026-05-01",
+      title: "Build: versión de API de Stripe alineada al SDK",
+      highlights: [
+        "El cliente de Stripe vuelve a usar la versión de API que tipa el paquete instalado, así el deploy en Vercel compila de nuevo.",
+      ],
+    },
+    {
       version: "0.3.2",
       date: "2026-05-01",
       title: "Telegram: mensajes largos y gráficos sin cortar el envío",
@@ -384,6 +392,14 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.3.3",
+      date: "2026-05-01",
+      title: "Build: Stripe API version matches the installed SDK",
+      highlights: [
+        "The Stripe client again pins the API version typed by the installed npm package so Vercel production builds pass typecheck.",
+      ],
+    },
     {
       version: "0.3.2",
       date: "2026-05-01",
