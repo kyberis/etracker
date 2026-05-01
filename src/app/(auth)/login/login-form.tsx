@@ -1,9 +1,16 @@
 "use client";
 
+import { Fingerprint } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { FormEvent, Suspense, useCallback, useState } from "react";
+import {
+  FormEvent,
+  Suspense,
+  useCallback,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { TurnstileWidget } from "@/components/turnstile-widget";
@@ -17,12 +24,22 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useLocale, useT } from "@/lib/i18n/client";
 import { loginErrorMessage } from "@/lib/login-errors";
 
 type LoginFormProps = {
   googleEnabled: boolean;
 };
+
+const noopSubscribe = () => () => undefined;
+
+function isWebAuthnSupported(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.PublicKeyCredential !== "undefined"
+  );
+}
 
 function LoginFormInner({ googleEnabled }: LoginFormProps) {
   const t = useT();
@@ -31,11 +48,56 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryError = loginErrorMessage(searchParams.get("error"), locale);
   const verifiedSuccess = searchParams.get("verified") === "1";
+
+  // Hydration-safe probe — same pattern as TurnstileWidget. Older Safari
+  // / in-app webviews don't expose `PublicKeyCredential` and we hide the
+  // button entirely there.
+  const passkeySupported = useSyncExternalStore(
+    noopSubscribe,
+    isWebAuthnSupported,
+    () => false,
+  );
+
+  async function onPasskeyLogin() {
+    setPasskeyLoading(true);
+    setError(null);
+    try {
+      const optsRes = await fetch("/api/auth/passkey/login-options", {
+        method: "POST",
+      });
+      if (!optsRes.ok) throw new Error("options");
+      const options = await optsRes.json();
+
+      // Lazy-import the browser helper so the bundle stays small for users
+      // who never click the passkey button.
+      const { startAuthentication } = await import("@simplewebauthn/browser");
+      const credential = await startAuthentication(options);
+
+      const result = await signIn("passkey", {
+        credential: JSON.stringify(credential),
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError(t.auth.passkeySignInError);
+        return;
+      }
+      if (result?.ok) {
+        router.push("/app");
+        router.refresh();
+      }
+    } catch {
+      setError(t.auth.passkeySignInError);
+    } finally {
+      setPasskeyLoading(false);
+    }
+  }
 
   const onTurnstileToken = useCallback(
     (token: string) => setTurnstileToken(token),
@@ -78,9 +140,23 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
         <CardDescription>{t.auth.loginSubtitle}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {googleEnabled ? (
+        {googleEnabled || passkeySupported ? (
           <div className="space-y-3">
-            <GoogleSignInButton callbackUrl="/app" />
+            {passkeySupported ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={onPasskeyLogin}
+                disabled={passkeyLoading}
+              >
+                <Fingerprint className="size-4" aria-hidden />
+                {passkeyLoading
+                  ? t.auth.passkeyVerifying
+                  : t.auth.passkeySignIn}
+              </Button>
+            ) : null}
+            {googleEnabled ? <GoogleSignInButton callbackUrl="/app" /> : null}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="border-border w-full border-t" />
@@ -117,13 +193,13 @@ function LoginFormInner({ googleEnabled }: LoginFormProps) {
                 {t.auth.noAccount}
               </Link>
             </div>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
+              toggleLabel={t.auth.showPassword}
             />
           </div>
 

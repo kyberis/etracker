@@ -296,6 +296,26 @@ export const en: Dict = {
       "The server has not configured Resend yet, so the link is sitting in the server logs. Ask the admin to open it for you or set RESEND_API_KEY.",
     verifyEmailSuccess:
       "Email confirmed. You can now sign in with your password.",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    passkeyTitle: "Passkeys",
+    passkeyDescription:
+      "Sign in with your fingerprint, Face ID or security key. More secure than a password and you don't have to type anything.",
+    passkeyAdd: "Add passkey",
+    passkeyAdding: "Creating…",
+    passkeySignIn: "Sign in with a passkey",
+    passkeyVerifying: "Verifying…",
+    passkeyEmpty: "No passkeys yet.",
+    passkeyAddedAt: (date: string) => `Added ${date}`,
+    passkeyLastUsed: (date: string) => `Last used: ${date}`,
+    passkeyNeverUsed: "Never used yet",
+    passkeyDelete: "Delete",
+    passkeyRename: "Rename",
+    passkeyRenamePlaceholder: "Passkey name",
+    passkeyAddError: "Couldn't create the passkey. Try again.",
+    passkeySignInError: "Couldn't sign in with the passkey.",
+    passkeyUnsupported:
+      "Your browser doesn't support passkeys. Sign in with email and password.",
   },
 
   errors: {

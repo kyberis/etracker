@@ -3,10 +3,16 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { type NextAuthOptions, getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
+import { verifyAuthenticationResponse } from "@simplewebauthn/server";
+import { isoBase64URL } from "@simplewebauthn/server/helpers";
 
 import { touchActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
+import {
+  getChallengeFromCookieHeader,
+  getWebAuthnConfig,
+} from "@/lib/webauthn";
 
 import { isGoogleAuthConfigured } from "./auth-providers";
 
@@ -79,6 +85,87 @@ export const authOptions: NextAuthOptions = {
         }
 
         return { id: user.id, email: user.email };
+      },
+    }),
+    /**
+     * Passkey provider — verifies a WebAuthn assertion against a
+     * previously enrolled credential and returns the matching user.
+     * The challenge is read from the `clara_webauthn_challenge` cookie
+     * minted by `/api/auth/passkey/login-options`.
+     */
+    CredentialsProvider({
+      id: "passkey",
+      name: "Passkey",
+      credentials: {
+        credential: { label: "Credential", type: "text" },
+      },
+      async authorize(credentials, req) {
+        if (!credentials?.credential) return null;
+
+        const headers = new Headers(
+          (req?.headers ?? {}) as Record<string, string>,
+        );
+        const expectedChallenge = getChallengeFromCookieHeader(
+          headers.get("cookie"),
+        );
+        if (!expectedChallenge) return null;
+
+        let cred: {
+          id?: string;
+        } & Record<string, unknown>;
+        try {
+          cred = JSON.parse(credentials.credential);
+        } catch {
+          return null;
+        }
+        if (!cred?.id) return null;
+
+        const passkey = await db.passkey.findUnique({
+          where: { id: cred.id },
+          include: { user: { select: { id: true, email: true, isActive: true } } },
+        });
+        if (!passkey || !passkey.user) return null;
+        if (!passkey.user.isActive) return null;
+
+        const { rpID, origin } = getWebAuthnConfig({
+          host: headers.get("host"),
+          protocol: headers.get("x-forwarded-proto"),
+        });
+
+        let verification;
+        try {
+          verification = await verifyAuthenticationResponse({
+            response: cred as unknown as Parameters<typeof verifyAuthenticationResponse>[0]["response"],
+            expectedChallenge,
+            expectedOrigin: origin,
+            expectedRPID: rpID,
+            authenticator: {
+              credentialID: isoBase64URL.toBuffer(passkey.id),
+              credentialPublicKey: isoBase64URL.toBuffer(
+                passkey.credentialPublicKey,
+              ),
+              counter: passkey.counter,
+              transports: passkey.transports as AuthenticatorTransport[],
+            },
+          });
+        } catch (e) {
+          console.error("Passkey login verification failed", e);
+          return null;
+        }
+        if (!verification.verified) return null;
+
+        // Bump counter + lastUsedAt. Counter regression is already a hard
+        // failure inside `verifyAuthenticationResponse`, so a successful
+        // verify means the new counter is monotonically greater.
+        await db.passkey.update({
+          where: { id: passkey.id },
+          data: {
+            counter: verification.authenticationInfo.newCounter,
+            lastUsedAt: new Date(),
+          },
+        });
+
+        return { id: passkey.user.id, email: passkey.user.email };
       },
     }),
     ...(isGoogleAuthConfigured()

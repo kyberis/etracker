@@ -12,7 +12,7 @@ import { requireUserId } from "@/lib/session";
 async function loadSettingsData() {
   const userId = await requireUserId();
   const now = new Date();
-  const [user, banks, revolutConnection, apiTokens, donationCount, upsellOn] =
+  const [user, banks, revolutConnection, apiTokens, donationCount, upsellOn, passkeys] =
     await Promise.all([
     db.user.findUnique({
       where: { id: userId },
@@ -69,6 +69,18 @@ async function loadSettingsData() {
     }),
     db.donation.count({ where: { userId } }),
     isUpsellActive(userId),
+    db.passkey.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        lastUsedAt: true,
+        deviceType: true,
+        backedUp: true,
+      },
+    }),
   ]);
 
   if (!user) {
@@ -143,6 +155,14 @@ async function loadSettingsData() {
       revokedAt: t.revokedAt?.toISOString() ?? null,
       createdAt: t.createdAt.toISOString(),
     })),
+    initialPasskeys: passkeys.map((p) => ({
+      id: p.id,
+      name: p.name,
+      createdAt: p.createdAt.toISOString(),
+      lastUsedAt: p.lastUsedAt?.toISOString() ?? null,
+      deviceType: p.deviceType,
+      backedUp: p.backedUp,
+    })),
     subscription: {
       status: user.subscriptionStatus,
       currentPeriodEnd:
@@ -191,6 +211,7 @@ export default async function SettingsPage() {
         initialBanks={data.initialBanks}
         initialRevolut={data.initialRevolut}
         initialApiTokens={data.initialApiTokens}
+        initialPasskeys={data.initialPasskeys}
         googleAuthConfigured={isGoogleAuthConfigured()}
       />
     </PageContainer>

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useT } from "@/lib/i18n/client";
 
 type RegisterFormProps = {
@@ -148,27 +149,27 @@ export function RegisterForm({ googleEnabled }: RegisterFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="password">{t.auth.password}</Label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
               minLength={8}
+              toggleLabel={t.auth.showPassword}
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">{t.auth.confirmPassword}</Label>
-            <Input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               required
               minLength={8}
+              toggleLabel={t.auth.showPassword}
             />
           </div>
 

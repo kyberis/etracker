@@ -6,11 +6,13 @@ import { FormEvent, useState } from "react";
 import { ApiTokensCard } from "@/components/api-tokens-card";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { PasskeysCard } from "@/components/passkeys-card";
 import { RevolutConnectionCard } from "@/components/revolut-connection-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CurrencyPicker } from "@/components/ui/currency-picker";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import { intlLocale } from "@/lib/i18n/format";
@@ -67,6 +69,15 @@ type TelegramStatus = {
   pendingExpiresAt: string | null;
 };
 
+type PasskeyItem = {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  deviceType: string;
+  backedUp: boolean;
+};
+
 type SettingsManagerProps = {
   initialUser: UserSettings;
   initialWhatsapp: WhatsappStatus;
@@ -74,6 +85,7 @@ type SettingsManagerProps = {
   initialBanks: BankOption[];
   initialRevolut: RevolutInitial;
   initialApiTokens: ApiTokenItem[];
+  initialPasskeys: PasskeyItem[];
   googleAuthConfigured: boolean;
 };
 
@@ -129,6 +141,7 @@ export function SettingsManager({
   initialBanks,
   initialRevolut,
   initialApiTokens,
+  initialPasskeys,
   googleAuthConfigured,
 }: SettingsManagerProps) {
   const t = useT();
@@ -296,12 +309,12 @@ export function SettingsManager({
                           : t.settings.currentPasswordHintOptional}
                       </span>
                     </label>
-                    <Input
+                    <PasswordInput
                       id="currentPassword"
-                      type="password"
                       autoComplete="current-password"
                       value={currentPassword}
                       onChange={(event) => setCurrentPassword(event.target.value)}
+                      toggleLabel={t.auth.showPassword}
                     />
                   </div>
                 ) : null}
@@ -310,13 +323,13 @@ export function SettingsManager({
                   <label className="text-sm font-medium" htmlFor="newPassword">
                     {hasPassword ? t.settings.newPassword : t.settings.setPassword}
                   </label>
-                  <Input
+                  <PasswordInput
                     id="newPassword"
-                    type="password"
                     autoComplete="new-password"
                     value={newPassword}
                     onChange={(event) => setNewPassword(event.target.value)}
                     minLength={8}
+                    toggleLabel={t.auth.showPassword}
                   />
                   {!hasPassword ? (
                     <p className="text-muted-foreground text-xs">
@@ -353,6 +366,8 @@ export function SettingsManager({
               </CardContent>
             </Card>
           ) : null}
+
+          <PasskeysCard initialPasskeys={initialPasskeys} />
         </div>
       </section>
 

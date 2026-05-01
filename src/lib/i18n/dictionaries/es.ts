@@ -300,6 +300,26 @@ export const es = {
       "El servidor todavía no tiene Resend configurado, así que el enlace quedó en los logs del servidor. Pedile al admin que lo abra por vos o configurá RESEND_API_KEY.",
     verifyEmailSuccess:
       "Email confirmado. Ya podés iniciar sesión con tu contraseña.",
+    showPassword: "Mostrar contraseña",
+    hidePassword: "Ocultar contraseña",
+    passkeyTitle: "Llaves de acceso",
+    passkeyDescription:
+      "Iniciá sesión con tu huella, Face ID o llave de seguridad. Más seguro que una contraseña y sin tener que tipear nada.",
+    passkeyAdd: "Agregar passkey",
+    passkeyAdding: "Creando…",
+    passkeySignIn: "Iniciar sesión con passkey",
+    passkeyVerifying: "Verificando…",
+    passkeyEmpty: "Todavía no tenés passkeys.",
+    passkeyAddedAt: (date: string) => `Agregada el ${date}`,
+    passkeyLastUsed: (date: string) => `Última vez: ${date}`,
+    passkeyNeverUsed: "Sin uso aún",
+    passkeyDelete: "Borrar",
+    passkeyRename: "Renombrar",
+    passkeyRenamePlaceholder: "Nombre de la passkey",
+    passkeyAddError: "No pudimos crear la passkey. Probá de nuevo.",
+    passkeySignInError: "No pudimos iniciar sesión con la passkey.",
+    passkeyUnsupported:
+      "Tu navegador no soporta passkeys. Iniciá sesión con email y contraseña.",
   },
 
   errors: {

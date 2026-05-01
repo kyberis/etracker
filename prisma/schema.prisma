@@ -117,6 +117,7 @@ model User {
   subscriptionCurrentPeriodEnd DateTime?
   donations                Donation[]
   featureFlagOverrides     FeatureFlagOverride[]
+  passkeys                 Passkey[]
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 }
@@ -422,6 +423,39 @@ model FeatureFlagOverride {
 
   @@unique([userId, key])
   @@index([key])
+}
+
+/// WebAuthn / FIDO2 credential ("passkey") registered by a user. Sign-in
+/// happens through the `Passkey` CredentialsProvider in `src/lib/auth.ts`,
+/// which calls `verifyAuthenticationResponse` from `@simplewebauthn/server`
+/// using the public key persisted here. We store the credential id in
+/// base64url, exactly the way the WebAuthn API surfaces it on the client,
+/// so the lookup is a direct primary-key hit.
+model Passkey {
+  /// Base64URL-encoded credential id (WebAuthn `rawId`). Unique per browser
+  /// + authenticator combo, so it doubles as the primary key.
+  id                  String   @id
+  userId              String
+  /// Base64URL-encoded COSE public key returned by `verifyRegistrationResponse`.
+  credentialPublicKey String
+  /// Authenticator signature counter; bumped on every successful auth and
+  /// monotonically increasing. A regression here flags a cloned authenticator.
+  counter             Int      @default(0)
+  /// "singleDevice" (platform-bound) or "multiDevice" (synced via iCloud /
+  /// Google Password Manager / Bitwarden / 1Password).
+  deviceType          String
+  /// `true` when the credential is backed up to a passkey provider, so we can
+  /// warn the user if they're about to delete their only platform passkey.
+  backedUp            Boolean  @default(false)
+  /// Subset of {"usb","nfc","ble","internal","hybrid","cable","smart-card"}.
+  transports          String[] @default([])
+  /// User-visible label ("MacBook Touch ID", "iPhone", "YubiKey 5C").
+  name                String
+  lastUsedAt          DateTime?
+  createdAt           DateTime @default(now())
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /// Idempotency log for Stripe webhook events. Inserted by the webhook

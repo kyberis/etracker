@@ -155,6 +155,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.4.1",
+      date: "2026-05-01",
+      title: "Passkeys + ojito para mostrar la contraseña",
+      highlights: [
+        "Login con passkey: huella, Face ID o llave USB. Más rápido y más seguro que la contraseña — y no hay nada que tipear.",
+        "Podés crear, renombrar y borrar tus passkeys desde Configuración. Cada usuario puede tener varias (laptop, celular, llave física).",
+        "Los inputs de contraseña ahora tienen un ojito para mostrar/ocultar lo que escribís en login, registro y configuración.",
+      ],
+    },
+    {
       version: "0.4.0",
       date: "2026-05-01",
       title: "Telegram en primera fila + login con captcha y email verificado",
@@ -422,6 +432,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.4.1",
+      date: "2026-05-01",
+      title: "Passkeys + show-password toggle",
+      highlights: [
+        "Sign in with a passkey: fingerprint, Face ID or USB key. Faster and safer than a password — nothing to type.",
+        "Create, rename and delete passkeys from Settings. Each user can have several (laptop, phone, hardware key).",
+        "Password inputs on login, sign-up and settings now have an eye toggle to show/hide what you typed.",
+      ],
+    },
     {
       version: "0.4.0",
       date: "2026-05-01",
