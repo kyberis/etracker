@@ -30,6 +30,10 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`telegram`](telegram.md) — second conversational channel for Clara: HMAC-signed
   deep-link vinculation, private-chat-only handler, reuses the same agent loop,
   tools, history window and daily quota as the web chat.
+- [`telegram-daily-nudge`](telegram-daily-nudge.md) — proactive daily Telegram
+  reminder sent at 20:00 local time when the user has not logged anything that
+  day. Hourly Vercel cron, country→IANA timezone inference, tool-less AI path
+  that does not consume the user's chat quota, opt-out toggle in Settings.
 
 ## Suggested first specs (high signal, write when touching)
 

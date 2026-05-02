@@ -131,6 +131,17 @@ model User {
   /// for `start`, so we cannot use long signed tokens in deep links.
   telegramLinkCode             String?                @unique
   telegramLinkCodeExpires      DateTime?
+  /// Proactive daily nudge: when `true` and the user has Telegram linked, the
+  /// hourly `/api/cron/daily-nudge` job sends a short AI-composed message at
+  /// 20:00 local time (inferred from `country`) if they haven't logged any
+  /// expense, income or manual savings movement that day. Default ON because
+  /// linking Telegram is itself an explicit opt-in to Clara's outbound
+  /// channel; the user can flip this off any time from Settings.
+  telegramNudgeEnabled         Boolean                @default(true)
+  /// Timestamp of the last daily nudge we sent. Used as a same-local-day
+  /// idempotency guard so a cron retry (or a regional edge replay) does not
+  /// deliver two nudges. Null when we have never sent one.
+  telegramNudgeLastSentAt      DateTime?
   /// Reglas del usuario para el asistente e importaciones (CSV / fotos): qué no importar, categorías, etc.
   expenseImportInstructions    String?
   /// Marca cuándo se mostró por primera vez el mensaje de bienvenida del asistente. Null = todavía no se saludó.

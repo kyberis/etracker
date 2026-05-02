@@ -13,6 +13,7 @@ import { CurrencyPicker } from "@/components/ui/currency-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import { intlLocale } from "@/lib/i18n/format";
@@ -47,6 +48,8 @@ type TelegramStatus = {
   /** Short link code is active until this instant (user opened t.me but has not finished Start). */
   pendingCode: string | null;
   pendingExpiresAt: string | null;
+  /** Whether the daily 20:00-local nudge is enabled for this user. */
+  nudgeEnabled: boolean;
 };
 
 type PasskeyItem = {
@@ -757,6 +760,44 @@ function TelegramLinkCard({ initial }: { initial: TelegramStatus }) {
     }
   }
 
+  async function toggleNudge(next: boolean) {
+    setError(null);
+    setFeedback(null);
+    setBusy(true);
+    // Optimistic flip so the switch feels instant; we roll back on failure.
+    setStatus((prev) => ({ ...prev, nudgeEnabled: next }));
+    try {
+      const res = await fetch("/api/settings/telegram", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nudgeEnabled: next }),
+      });
+      if (!res.ok) {
+        setStatus((prev) => ({ ...prev, nudgeEnabled: !next }));
+        setError(
+          tx({
+            es: "No pudimos guardar la preferencia. Probá de nuevo.",
+            en: "Could not save the preference. Try again.",
+          }),
+        );
+        return;
+      }
+      setFeedback(
+        next
+          ? tx({
+              es: "Te vamos a mandar un recordatorio si no cargás nada en el día.",
+              en: "We'll ping you if you don't log anything during the day.",
+            })
+          : tx({
+              es: "Listo, no te vamos a mandar recordatorios.",
+              en: "Done, we won't send you reminders.",
+            }),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const linked = status.linked;
 
   return (
@@ -778,16 +819,44 @@ function TelegramLinkCard({ initial }: { initial: TelegramStatus }) {
         </p>
 
         {linked ? (
-          <div className="space-y-2">
-            <p className="text-sm">
-              {tx({ es: "Vinculado", en: "Linked" })}
-              {status.username ? (
-                <span className="text-muted-foreground"> · @{status.username}</span>
-              ) : null}
-            </p>
-            <Button variant="destructive" onClick={unlink} disabled={busy}>
-              {tx({ es: "Desvincular", en: "Unlink" })}
-            </Button>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm">
+                {tx({ es: "Vinculado", en: "Linked" })}
+                {status.username ? (
+                  <span className="text-muted-foreground"> · @{status.username}</span>
+                ) : null}
+              </p>
+              <Button variant="destructive" onClick={unlink} disabled={busy}>
+                {tx({ es: "Desvincular", en: "Unlink" })}
+              </Button>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Switch
+                checked={status.nudgeEnabled}
+                onCheckedChange={(next: boolean) => void toggleNudge(next)}
+                disabled={busy}
+                aria-label={tx({
+                  es: "Activar recordatorios diarios por Telegram",
+                  en: "Enable daily Telegram reminders",
+                })}
+              />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  {tx({
+                    es: "Recordatorios diarios",
+                    en: "Daily reminders",
+                  })}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {tx({
+                    es: "Si durante el día no cargaste nada, Clara te escribe a las 20:00 de tu zona horaria para preguntarte si tenés algo para registrar. Siempre podés apagarlo desde acá.",
+                    en: "If you don't log anything during the day, Clara sends you a message at 20:00 in your timezone asking whether you have anything to log. You can turn it off from here any time.",
+                  })}
+                </p>
+              </div>
+            </div>
           </div>
         ) : (
           <Button onClick={startLink} disabled={busy}>

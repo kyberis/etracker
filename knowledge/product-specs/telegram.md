@@ -142,3 +142,6 @@ New table `TelegramMessage`:
 
 - Design doc: [`knowledge/design-docs/telegram-deep-link-tokens.md`](../design-docs/telegram-deep-link-tokens.md)
 - Operating manual: [`AGENTS.md`](../../AGENTS.md) (`lib/telegram/` entry).
+- Proactive outbound: [`telegram-daily-nudge`](./telegram-daily-nudge.md) —
+  hourly cron that sends a short reminder at 20:00 local time when the user
+  has not logged anything, without consuming the shared daily quota.

@@ -174,6 +174,17 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.9.0",
+      date: "2026-05-02",
+      title: "Recordatorios diarios por Telegram",
+      highlights: [
+        "Si durante el día no cargaste nada, Clara te escribe por Telegram a las 20:00 de tu zona horaria para preguntarte si tenés algún ingreso o gasto para registrar.",
+        "Se activa solo para usuarios con Telegram vinculado y se apaga con un switch en Configuración → Integraciones → Telegram.",
+        "Los mensajes los redacta Clara con IA pero no gastan tu cupo diario de consultas: son mensajes iniciados por el sistema, no por vos.",
+        "Respeta tu país: la zona horaria se infiere del que elegiste en el onboarding; si no hay match, el recordatorio sale a las 20:00 UTC.",
+      ],
+    },
+    {
       version: "0.8.1",
       date: "2026-05-02",
       title: "Telegram volvió a responder",
@@ -406,6 +417,7 @@ const ES: LocalisedMarketingContent = {
         "Cuenta y autenticación: email, contraseña hasheada (bcrypt), nombre y avatar opcionales sincronizados desde Google si entrás con Google, marca de email verificado, passkeys (WebAuthn) que registres, idioma preferido, país declarado en el onboarding.",
         "Datos financieros: bancos que registres, plantillas de gastos e ingresos, líneas mensuales (monto, descripción, categoría, fecha, moneda, tipo de cambio congelado), pila global de ahorro y su ledger de movimientos, instrucciones para el agente.",
         "Conversaciones: mensajes del chat web (texto + adjuntos como JSON estructurado), mensajes de Telegram si vinculás el bot, contadores de uso del agente y modelos consumidos por día.",
+        "Preferencia de recordatorios por Telegram y fecha del último recordatorio enviado (solo aplica si tenés Telegram vinculado; se usa para no mandarte más de un mensaje por día y para que puedas apagarlos cuando quieras desde Configuración).",
         "Pagos (sólo si te suscribís o donás): identificador de cliente de Stripe, estado de la suscripción y fecha de fin de periodo, registro de cada donación (id de Stripe, monto, fecha).",
         "Tokens de acceso para AI (MCP): nombre, prefijo de 12 caracteres, fecha de creación, último uso, expiración y revocación. El token completo se hashea con SHA-256 antes de guardarlo; el plaintext sólo se muestra una vez.",
         "Metadatos técnicos mínimos: IP truncada y user-agent en logs de error y rate-limit (sin perfilado), última fecha de actividad, día de actividad para DAU/WAU.",
@@ -418,7 +430,7 @@ const ES: LocalisedMarketingContent = {
         "Ejecución del contrato (Art. 6(1)(b)): operar la cuenta, persistir tus gastos, ingresos y mensajes, procesar PDFs/audios/screenshots que vos nos mandás, ejecutar el agente con tus tools, cobrar la suscripción Supporter o donaciones que elijas hacer.",
         "Obligación legal (Art. 6(1)(c)): conservar registros de pagos y donaciones por el plazo que exija la normativa fiscal aplicable, verificar el email antes de habilitar contraseña.",
         "Interés legítimo (Art. 6(1)(f)): proteger Clara y sus usuarios contra abuso (Cloudflare Turnstile, rate-limits con IP), monitorear errores (Sentry si está configurado), auditar accesos administrativos.",
-        "Consentimiento (Art. 6(1)(a)): aceptación explícita de estos Términos y esta Política al registrarte (queda guardada en `User.acceptedTermsAt` con la versión).",
+        "Consentimiento (Art. 6(1)(a)): aceptación explícita de estos Términos y esta Política al registrarte (queda guardada en `User.acceptedTermsAt` con la versión). Vincular Telegram es en sí mismo una acción voluntaria que activa el canal bidireccional con el bot — incluidos los recordatorios diarios proactivos que Clara te manda a las 20:00 locales si en el día no cargaste nada. Podés apagarlos en cualquier momento desde Configuración → Integraciones → Telegram, sin perder el vínculo con el bot.",
         "Nunca vendemos datos. Nunca corremos analytics de comportamiento. Nunca usamos tus datos financieros para entrenar modelos.",
       ],
     },
@@ -746,6 +758,17 @@ const EN: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.9.0",
+      date: "2026-05-02",
+      title: "Daily Telegram reminders",
+      highlights: [
+        "If you haven't logged anything during the day, Clara sends you a Telegram message at 20:00 in your timezone asking whether you have any income or expense to record.",
+        "Only enabled for users who linked Telegram; a switch in Settings → Integrations → Telegram turns it off any time.",
+        "The messages are AI-written but do not consume your daily agent quota: they are system-initiated turns, not requests you made.",
+        "Timezone is inferred from the country you picked during onboarding; unknown countries default to 20:00 UTC.",
+      ],
+    },
+    {
       version: "0.8.1",
       date: "2026-05-02",
       title: "Telegram is replying again",
@@ -978,6 +1001,7 @@ const EN: LocalisedMarketingContent = {
         "Account and authentication: email, hashed password (bcrypt), optional name and avatar synced from Google if you sign in with Google, email-verified flag, passkeys (WebAuthn) you register, preferred language, country declared during onboarding.",
         "Financial data: banks you register, expense and income templates, monthly lines (amount, description, category, date, currency, frozen FX rate), the global savings pile and its movement ledger, agent instructions.",
         "Conversations: web chat messages (text + structured attachments as JSON), Telegram messages if you link the bot, agent usage counters and per-day model usage.",
+        "Telegram reminder preference and the timestamp of the last reminder we sent (only applies if you linked Telegram; used to avoid more than one outbound message per day and so you can turn reminders off whenever you want from Settings).",
         "Payments (only if you subscribe or donate): a Stripe customer id, subscription status and current period end, a record of each donation (Stripe id, amount, date).",
         "AI access tokens (MCP): name, 12-character prefix, creation date, last use, expiration and revocation. The full token is hashed with SHA-256 before storage; the plaintext is shown only once.",
         "Minimal technical metadata: truncated IP and user-agent in error and rate-limit logs (no profiling), last-seen date, daily activity row for DAU/WAU.",
@@ -990,7 +1014,7 @@ const EN: LocalisedMarketingContent = {
         "Performance of the contract (Art. 6(1)(b)): operating your account, persisting your expenses, incomes and messages, processing PDFs/audio/screenshots you send us, running the agent with your tools, charging the Supporter subscription or donations you choose to make.",
         "Legal obligation (Art. 6(1)(c)): keeping payment and donation records for the period required by applicable tax law, verifying your email before enabling password sign-in.",
         "Legitimate interest (Art. 6(1)(f)): protecting Clara and its users from abuse (Cloudflare Turnstile, IP rate-limits), monitoring errors (Sentry if configured), auditing administrative access.",
-        "Consent (Art. 6(1)(a)): explicit acceptance of these Terms and this Policy at signup (stored in `User.acceptedTermsAt` with the version).",
+        "Consent (Art. 6(1)(a)): explicit acceptance of these Terms and this Policy at signup (stored in `User.acceptedTermsAt` with the version). Linking Telegram is itself a voluntary action that activates the two-way channel with the bot — including the daily proactive reminders Clara sends at 20:00 local time when you haven't logged anything that day. You can turn these reminders off any time from Settings → Integrations → Telegram without breaking the link.",
         "We never sell data. We do not run behavioural analytics. We do not use your financial data to train models.",
       ],
     },

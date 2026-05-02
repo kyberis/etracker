@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
 import { requireUserId } from "@/lib/session";
@@ -23,6 +25,7 @@ export async function GET() {
         telegramVerifiedAt: true,
         telegramLinkCode: true,
         telegramLinkCodeExpires: true,
+        telegramNudgeEnabled: true,
       },
     });
     if (!user) return jsonError("User not found.", 404);
@@ -44,7 +47,34 @@ export async function GET() {
       verifiedAt: user.telegramVerifiedAt,
       pendingCode: pending ? user.telegramLinkCode : null,
       pendingExpiresAt: pending ? user.telegramLinkCodeExpires!.toISOString() : null,
+      nudgeEnabled: user.telegramNudgeEnabled,
     };
+  });
+}
+
+const patchSchema = z.object({
+  nudgeEnabled: z.boolean(),
+});
+
+/**
+ * PATCH → toggles the daily nudge preference. Default is ON for users with
+ * a linked bot; this endpoint lets them opt out (or flip it back on later)
+ * without losing the link itself.
+ */
+export async function PATCH(request: Request) {
+  return withApi(async () => {
+    const userId = await requireUserId();
+    const body = await request.json();
+    const parsed = patchSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError("Invalid payload.", 400);
+    }
+    const updated = await db.user.update({
+      where: { id: userId },
+      data: { telegramNudgeEnabled: parsed.data.nudgeEnabled },
+      select: { telegramNudgeEnabled: true },
+    });
+    return { ok: true, nudgeEnabled: updated.telegramNudgeEnabled };
   });
 }
 
@@ -107,6 +137,8 @@ export async function DELETE() {
         telegramVerifiedAt: null,
         telegramLinkCode: null,
         telegramLinkCodeExpires: null,
+        telegramNudgeEnabled: true,
+        telegramNudgeLastSentAt: null,
       },
     });
     return { ok: true };

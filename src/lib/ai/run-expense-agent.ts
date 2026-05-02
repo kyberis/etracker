@@ -577,3 +577,109 @@ export async function generateExpenseAgentReply({
     model: DEFAULT_MODEL,
   };
 }
+
+/**
+ * System-initiated, tool-less reply used for proactive outbound messages
+ * (daily Telegram nudge today; future push notifications / digests next).
+ *
+ * Separate from `generateExpenseAgentReply` on purpose:
+ * - No tools are available (`tools: {}`, `stopWhen: stepCountIs(1)`). The
+ *   model cannot mutate data, call the DB, or surf another user's rows.
+ *   Every number / fact lives only in the prompt we supply.
+ * - No conversation history is loaded. The message is one-shot.
+ * - No quota check (`consumeAgentQuota` is not called). The user did not
+ *   initiate this turn, so we do not bill it against their daily cap.
+ * - Observability is tagged `feature:system-nudge` + the concrete
+ *   `kind` so Vercel AI Gateway dashboards split costs per automation.
+ *
+ * Callers are responsible for delivering the returned `text` on the right
+ * channel (Telegram, email, push).
+ */
+export type SystemNudgeKind = "telegram_daily_nudge";
+
+export async function generateSystemInitiatedReply({
+  userId,
+  locale,
+  kind,
+  prompt,
+}: {
+  userId: string;
+  locale: Locale;
+  kind: SystemNudgeKind;
+  /**
+   * Full instruction shipped as the single `user` message. Keep it
+   * deterministic and free of PII beyond what the task strictly needs —
+   * see `automated-user-comms` and `legal-advisor` skills.
+   */
+  prompt: string;
+}): Promise<{
+  text: string;
+  usage: ExpenseAgentUsage;
+  model: string;
+}> {
+  const traceId = newTraceId();
+  const startedAt = Date.now();
+  const messages: ExpenseAgentMessages = [{ role: "user", content: prompt }];
+  logAIRequest({
+    traceId,
+    source: "telegram",
+    userId,
+    model: DEFAULT_MODEL,
+    messages,
+  });
+
+  const system =
+    locale === "en"
+      ? `You are Clara, an AI financial assistant. You speak neutral conversational English.
+
+This reply is SYSTEM-INITIATED: the user did NOT write to you. You are sending a short proactive check-in, not continuing a chat. Rules:
+- 1 to 3 sentences, warm but respectful of the interruption.
+- Never invent numbers, dates, categories, balances, transaction ids or bank names. If you want to mention data, only use what is in the prompt.
+- No bullet lists. No markdown links. No emojis beyond a single friendly one.
+- No financial advice ("you should", "better to", "we recommend"). Clara categorises and remembers; decisions are the user's.
+- Sign off by inviting them to reply here if they have something to log; do NOT promise you will follow up later.`
+      : `Sos Clara, la asistente financiera con IA. Hablás en español rioplatense.
+
+Este mensaje es INICIADO POR EL SISTEMA: el usuario NO te escribió. Estás mandando un recordatorio corto, no continuás una conversación. Reglas:
+- 1 a 3 oraciones, cálidas pero respetuosas de la interrupción.
+- Nunca inventes montos, fechas, categorías, balances, ids ni bancos. Si vas a nombrar datos, usá solo lo que venga en el prompt.
+- Sin viñetas. Sin links markdown. Sin emojis más allá de uno amigable.
+- Nada de asesoramiento financiero ("deberías", "te conviene", "te recomiendo"). Clara categoriza y recuerda; las decisiones son del usuario.
+- Cerrá invitando a responderte acá si tiene algo para cargar; NO prometas que vas a volver a escribir más tarde.`;
+
+  const result = await generateText({
+    maxRetries: CHAT_MAX_RETRIES,
+    model: gateway(DEFAULT_MODEL),
+    providerOptions: {
+      gateway: {
+        user: userId,
+        tags: [`feature:system-nudge`, `kind:${kind}`, `locale:${locale}`],
+      },
+    },
+    system,
+    messages,
+    tools: {},
+    stopWhen: stepCountIs(1),
+  });
+
+  logAIFinish({
+    traceId,
+    source: "telegram",
+    userId,
+    model: DEFAULT_MODEL,
+    finishReason: result.finishReason,
+    text: result.text,
+    totalUsage: result.totalUsage,
+    steps: result.steps.length,
+    latencyMs: Date.now() - startedAt,
+  });
+
+  return {
+    text: result.text.trim(),
+    usage: {
+      inputTokens: result.totalUsage?.inputTokens,
+      outputTokens: result.totalUsage?.outputTokens,
+    },
+    model: DEFAULT_MODEL,
+  };
+}

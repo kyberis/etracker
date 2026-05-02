@@ -28,6 +28,7 @@ async function loadSettingsData() {
         telegramVerifiedAt: true,
         telegramLinkCode: true,
         telegramLinkCodeExpires: true,
+        telegramNudgeEnabled: true,
         stripeCustomerId: true,
         subscriptionStatus: true,
         subscriptionCurrentPeriodEnd: true,
@@ -98,6 +99,7 @@ async function loadSettingsData() {
       pendingExpiresAt: tgPending
         ? user.telegramLinkCodeExpires!.toISOString()
         : null,
+      nudgeEnabled: user.telegramNudgeEnabled,
     },
     initialApiTokens: apiTokens.map((t) => ({
       id: t.id,
