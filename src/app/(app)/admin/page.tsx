@@ -6,6 +6,7 @@ import {
   AdminFeatureFlagsTable,
   type AdminFeatureFlag,
 } from "@/components/admin-feature-flags-table";
+import { AdminNotifyPanel } from "@/components/admin-notify-panel";
 import { AdminUsersTable, type AdminUser } from "@/components/admin-users-table";
 import { PageContainer } from "@/components/page-container";
 import {
@@ -116,6 +117,16 @@ export default async function AdminPage() {
           </Card>
         </Link>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.admin.notifyTitle}</CardTitle>
+          <CardDescription>{t.admin.notifyDescription}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminNotifyPanel />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

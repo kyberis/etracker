@@ -630,6 +630,9 @@ export const es = {
     featureFlagsTitle: "Feature flags",
     featureFlagsDescription:
       "Activá o desactivá funciones experimentales globalmente. Cada flag puede tener overrides por usuario desde la tabla de usuarios.",
+    notifyTitle: "Notificar a un usuario",
+    notifyDescription:
+      "Mensaje fuera del agente para incidentes (downtime, recuperación, avisos puntuales). Prefiere Telegram cuando está vinculado, si no cae a email.",
   },
 
   analytics: {

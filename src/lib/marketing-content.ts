@@ -174,6 +174,14 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.8.1",
+      date: "2026-05-02",
+      title: "Telegram volvió a responder",
+      highlights: [
+        "Arreglamos un bug que dejaba a Clara muda en Telegram: el webhook tiraba 500 en cada mensaje (texto, foto o nota de voz) por una librería de PDF que se cargaba donde no debía. Ya está resuelto.",
+      ],
+    },
+    {
       version: "0.8.0",
       date: "2026-05-02",
       title: "Billeteras de evento — agrupá los gastos de un viaje en una sola línea",
@@ -737,6 +745,14 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.8.1",
+      date: "2026-05-02",
+      title: "Telegram is replying again",
+      highlights: [
+        "Fixed a bug that left Clara silent on Telegram: the webhook was returning 500 on every inbound message (text, photo or voice) because a PDF library loaded eagerly when it shouldn't. Resolved.",
+      ],
+    },
     {
       version: "0.8.0",
       date: "2026-05-02",

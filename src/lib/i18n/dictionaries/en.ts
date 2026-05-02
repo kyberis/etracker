@@ -627,6 +627,9 @@ export const en: Dict = {
     featureFlagsTitle: "Feature flags",
     featureFlagsDescription:
       "Toggle experimental features globally. Each flag can have per-user overrides from the users table.",
+    notifyTitle: "Notify a user",
+    notifyDescription:
+      "Out-of-band message bypassing the AI agent (downtime, recovery, one-off notices). Prefers Telegram when linked, falls back to email.",
   },
 
   analytics: {
