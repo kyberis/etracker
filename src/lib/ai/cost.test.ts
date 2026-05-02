@@ -61,6 +61,40 @@ describe("ai/cost", () => {
       expect(out.totalUSD).toBeGreaterThan(0);
     });
 
+    it("strips the AI Gateway provider prefix when looking up pricing", () => {
+      const out = calculateCost(
+        "openai/gpt-4o-mini",
+        usage({ inputTokens: 1000, outputTokens: 1000, totalTokens: 2000 }),
+      );
+      expect(out.pricing).not.toBeNull();
+      expect(out.inputUSD).toBeCloseTo((1000 / 1_000_000) * 0.15, 10);
+      expect(out.outputUSD).toBeCloseTo((1000 / 1_000_000) * 0.6, 10);
+    });
+
+    it("prices the gpt-5 family routed through the AI Gateway", () => {
+      const mini = calculateCost(
+        "openai/gpt-5-mini",
+        usage({ inputTokens: 1_000_000, outputTokens: 1_000_000, totalTokens: 2_000_000 }),
+      );
+      expect(mini.inputUSD).toBeCloseTo(0.25, 10);
+      expect(mini.outputUSD).toBeCloseTo(2, 10);
+
+      const flagship = calculateCost(
+        "openai/gpt-5.4",
+        usage({ inputTokens: 1_000_000, outputTokens: 1_000_000, totalTokens: 2_000_000 }),
+      );
+      expect(flagship.inputUSD).toBeCloseTo(2.5, 10);
+      expect(flagship.outputUSD).toBeCloseTo(15, 10);
+    });
+
+    it("prefers the longest matching family for dated gpt-5-mini ids", () => {
+      const out = calculateCost(
+        "openai/gpt-5-mini-2026-03-05",
+        usage({ inputTokens: 1_000_000, outputTokens: 0, totalTokens: 1_000_000 }),
+      );
+      expect(out.inputUSD).toBeCloseTo(0.25, 10);
+    });
+
     it("returns zero usage when model is unknown and no overrides set", () => {
       const out = calculateCost(
         "totally-made-up-model",

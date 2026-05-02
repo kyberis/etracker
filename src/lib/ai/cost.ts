@@ -27,6 +27,10 @@ type ModelPricing = {
 };
 
 const PRICING: Record<string, ModelPricing> = {
+  "gpt-5.4": { inputPerM: 2.5, cachedInputPerM: 0.25, outputPerM: 15 },
+  "gpt-5": { inputPerM: 1.25, cachedInputPerM: 0.125, outputPerM: 10 },
+  "gpt-5-mini": { inputPerM: 0.25, cachedInputPerM: 0.025, outputPerM: 2 },
+  "gpt-5-nano": { inputPerM: 0.05, cachedInputPerM: 0.005, outputPerM: 0.4 },
   "gpt-4o": { inputPerM: 2.5, cachedInputPerM: 1.25, outputPerM: 10 },
   "gpt-4o-mini": { inputPerM: 0.15, cachedInputPerM: 0.075, outputPerM: 0.6 },
   "gpt-4.1": { inputPerM: 2, cachedInputPerM: 0.5, outputPerM: 8 },
@@ -45,11 +49,31 @@ function envFloat(name: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/**
+ * Strip the AI Gateway provider prefix (`openai/gpt-4o` → `gpt-4o`) so
+ * lookups against `PRICING` work regardless of whether the caller passed
+ * the gateway-formatted id or a bare model name.
+ */
+function stripProviderPrefix(modelId: string): string {
+  const slash = modelId.indexOf("/");
+  return slash === -1 ? modelId : modelId.slice(slash + 1);
+}
+
 function resolvePricing(modelId: string): ModelPricing | null {
   const direct = PRICING[modelId];
   if (direct) return direct;
 
-  const fuzzy = Object.keys(PRICING).find((k) => modelId.startsWith(k));
+  const bare = stripProviderPrefix(modelId);
+  const directBare = PRICING[bare];
+  if (directBare) return directBare;
+
+  // Fuzzy match against the bare model id so dated variants like
+  // `gpt-4o-2024-08-06` or `openai/gpt-5-mini-2026-03-05` resolve to their
+  // family pricing. Sort by descending key length so `gpt-5-mini` wins over
+  // `gpt-5` for `gpt-5-mini-...`.
+  const fuzzy = Object.keys(PRICING)
+    .sort((a, b) => b.length - a.length)
+    .find((k) => bare.startsWith(k));
   const base = fuzzy ? PRICING[fuzzy] : undefined;
 
   const override: ModelPricing = {
