@@ -937,6 +937,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         expenses={expenses}
         primaryCurrency={data.primaryCurrency}
         onTogglePaid={toggleLinePaid}
+        onLineEventChanged={() => router.refresh()}
       />
     </div>
   );

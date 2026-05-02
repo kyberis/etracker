@@ -58,6 +58,7 @@ export const es = {
       expenses: "Plantillas",
       incomes: "Ingresos",
       savings: "Ahorros",
+      events: "Eventos",
       settings: "Configuración",
       about: "Sobre Clara",
       admin: "Administración",

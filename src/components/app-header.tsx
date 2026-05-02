@@ -8,6 +8,7 @@ import {
   Landmark,
   ListChecks,
   LogOut,
+  Luggage,
   Menu,
   PiggyBank,
   Settings,
@@ -81,6 +82,12 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
       label: t.header.nav.savings,
       icon: PiggyBank,
       match: (p: string) => p === "/savings" || p.startsWith("/savings/"),
+    },
+    {
+      href: "/events",
+      label: t.header.nav.events,
+      icon: Luggage,
+      match: (p: string) => p === "/events" || p.startsWith("/events/"),
     },
     {
       href: "/settings",

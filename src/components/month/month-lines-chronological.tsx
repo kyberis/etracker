@@ -1,11 +1,27 @@
 "use client";
 
-import { format, isSameDay, isToday, isYesterday } from "date-fns";
-import { TrendingUp } from "lucide-react";
+import { format, isToday, isYesterday } from "date-fns";
+import {
+  ChevronDown,
+  ChevronRight,
+  Luggage,
+  MoreHorizontal,
+  TrendingUp,
+} from "lucide-react";
+import Link from "next/link";
+import { useCallback, useMemo, useState } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { formatLineAmount } from "@/lib/format";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { formatCurrency, formatLineAmount } from "@/lib/format";
 import { dateLocale } from "@/lib/i18n/format";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import type { MonthLinePayload } from "@/lib/month-page-types";
@@ -19,6 +35,8 @@ type Props = {
   expenses: MonthLinePayload[];
   primaryCurrency: string;
   onTogglePaid: (lineId: string, nextPaid: boolean) => void;
+  /** Llamado cuando se asocia/desasocia una línea a un evento — refresca página. */
+  onLineEventChanged?: () => void;
 };
 
 /** Etiqueta amigable de un grupo: "hoy", "ayer" o "26 abr". */
@@ -32,36 +50,192 @@ function dayLabel(
   return format(date, "d MMM", { locale: dateLocale(locale) });
 }
 
-type DayGroup = { key: string; label: string; lines: MonthLinePayload[] };
+/**
+ * Item del listado cronológico. Puede ser un gasto suelto o un bucket de
+ * evento (que adentro tiene los gastos individuales del mes pertenecientes
+ * a esa billetera, agrupados visualmente).
+ */
+type DayItem =
+  | { kind: "line"; line: MonthLinePayload; createdAt: Date }
+  | {
+      kind: "event";
+      eventId: string;
+      eventName: string;
+      eventColor: string | null;
+      eventStatus: "OPEN" | "CLOSED";
+      lines: MonthLinePayload[];
+      /** Suma en primary currency de las líneas en ESTE día. */
+      totalThisDay: number;
+      /** Para ordenar el bucket dentro del día. */
+      createdAt: Date;
+    };
 
-function groupByDay(
+type DayGroup = { key: string; label: string; items: DayItem[] };
+
+function groupByDayWithEvents(
   expenses: MonthLinePayload[],
   locale: Locale,
   tx: ReturnType<typeof useTx>,
 ): DayGroup[] {
   const groups: DayGroup[] = [];
   let current: DayGroup | null = null;
+  // Buckets de evento por día — clave compuesta `${dayKey}|${eventId}`.
+  const eventBucketByDay = new Map<string, DayItem & { kind: "event" }>();
+
   for (const expense of expenses) {
     const created = new Date(expense.createdAt);
-    if (!current || !isSameDay(new Date(current.lines[0].createdAt), created)) {
+    const dayKey = format(created, "yyyy-MM-dd");
+    if (!current || current.key !== dayKey) {
       current = {
-        key: format(created, "yyyy-MM-dd"),
+        key: dayKey,
         label: dayLabel(created, locale, tx),
-        lines: [],
+        items: [],
       };
       groups.push(current);
     }
-    current.lines.push(expense);
+
+    if (expense.event) {
+      const bucketKey = `${dayKey}|${expense.event.id}`;
+      let bucket = eventBucketByDay.get(bucketKey);
+      if (!bucket) {
+        bucket = {
+          kind: "event",
+          eventId: expense.event.id,
+          eventName: expense.event.name,
+          eventColor: expense.event.color,
+          eventStatus: expense.event.status,
+          lines: [],
+          totalThisDay: 0,
+          createdAt: created,
+        };
+        eventBucketByDay.set(bucketKey, bucket);
+        current.items.push(bucket);
+      }
+      bucket.lines.push(expense);
+      bucket.totalThisDay += Number(expense.amountConverted);
+    } else {
+      current.items.push({
+        kind: "line",
+        line: expense,
+        createdAt: created,
+      });
+    }
   }
   return groups;
 }
 
-export function MonthLinesChronological({ expenses, primaryCurrency, onTogglePaid }: Props) {
+/**
+ * Cache compartido en memoria de eventos OPEN del usuario, lazy-loaded la
+ * primera vez que se abre el menú "sumar a evento" en cualquier fila.
+ * Se invalida al asociar/desasociar para refrescar.
+ */
+type OpenEventOption = {
+  id: string;
+  name: string;
+  color: string | null;
+};
+
+export function MonthLinesChronological({
+  expenses,
+  primaryCurrency,
+  onTogglePaid,
+  onLineEventChanged,
+}: Props) {
   const locale = useLocale();
   const t = useT();
   const tx = useTx();
-  const groups = groupByDay(expenses, locale, tx);
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+  const [openEvents, setOpenEvents] = useState<OpenEventOption[] | null>(null);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [pendingLineId, setPendingLineId] = useState<string | null>(null);
+
+  // Refetch en cada apertura del menú. Es una sola query liviana y evita
+  // tener que coordinar un cache invalidator: si el usuario engancha o
+  // desengancha algo, la próxima apertura ya ve la lista actual.
+  const fetchOpenEvents = useCallback(async () => {
+    if (loadingEvents) return;
+    setLoadingEvents(true);
+    try {
+      const res = await fetch("/api/events?status=OPEN", { cache: "no-store" });
+      if (!res.ok) {
+        setOpenEvents([]);
+        return;
+      }
+      const data = (await res.json()) as {
+        events: Array<{ id: string; name: string; color: string | null }>;
+      };
+      setOpenEvents(
+        data.events.map((e) => ({ id: e.id, name: e.name, color: e.color })),
+      );
+    } catch {
+      setOpenEvents([]);
+    } finally {
+      setLoadingEvents(false);
+    }
+  }, [loadingEvents]);
+
+  const groups = useMemo(
+    () => groupByDayWithEvents(expenses, locale, tx),
+    [expenses, locale, tx],
+  );
   const pending = expenses.filter((e) => !e.paid).length;
+
+  function toggleEventExpanded(key: string) {
+    setExpandedEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  async function attachLineToEvent(lineId: string, eventId: string) {
+    setPendingLineId(lineId);
+    try {
+      const res = await fetch(`/api/events/${eventId}/lines`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lineId }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        alert(
+          error.error ??
+            tx({
+              es: "No se pudo enganchar al evento.",
+              en: "Could not attach to event.",
+            }),
+        );
+        return;
+      }
+      onLineEventChanged?.();
+    } finally {
+      setPendingLineId(null);
+    }
+  }
+
+  async function detachLineFromEvent(lineId: string, eventId: string) {
+    setPendingLineId(lineId);
+    try {
+      const res = await fetch(`/api/events/${eventId}/lines/${lineId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        alert(
+          error.error ??
+            tx({
+              es: "No se pudo desenganchar.",
+              en: "Could not detach.",
+            }),
+        );
+        return;
+      }
+      onLineEventChanged?.();
+    } finally {
+      setPendingLineId(null);
+    }
+  }
 
   return (
     <Card>
@@ -69,7 +243,10 @@ export function MonthLinesChronological({ expenses, primaryCurrency, onTogglePai
         <div className="space-y-0.5">
           <CardTitle className="text-sm">{t.month.chronoTitle}</CardTitle>
           <p className="text-muted-foreground text-xs">
-            {tx({ es: "orden cronológico · más nuevo primero", en: "chronological · newest first" })}
+            {tx({
+              es: "orden cronológico · más nuevo primero",
+              en: "chronological · newest first",
+            })}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -89,7 +266,10 @@ export function MonthLinesChronological({ expenses, primaryCurrency, onTogglePai
       <CardContent className="pb-4">
         {expenses.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
-            {tx({ es: "Todavía no hay gastos en este mes.", en: "No expenses in this month yet." })}
+            {tx({
+              es: "Todavía no hay gastos en este mes.",
+              en: "No expenses in this month yet.",
+            })}
           </p>
         ) : (
           <div className="space-y-1">
@@ -99,57 +279,135 @@ export function MonthLinesChronological({ expenses, primaryCurrency, onTogglePai
                   {group.label}
                 </p>
                 <ul className="mt-1 space-y-0.5">
-                  {group.lines.map((expense) => {
-                    const isInvestment = isInvestmentCategory(expense.category);
-                    return (
-                      <li key={expense.id}>
-                        <label
-                          className={cn(
-                            "hover:bg-muted/50 flex min-h-[2.75rem] cursor-pointer items-center gap-3 rounded-lg border border-transparent px-2 py-2",
-                            expense.paid && "opacity-70",
-                          )}
-                        >
-                          <Checkbox
-                            className="shrink-0"
-                            checked={expense.paid}
-                            onCheckedChange={(checked) =>
-                              onTogglePaid(expense.id, checked === true)
+                  {group.items.map((item) => {
+                    if (item.kind === "line") {
+                      return (
+                        <li key={item.line.id}>
+                          <ExpenseRow
+                            expense={item.line}
+                            primaryCurrency={primaryCurrency}
+                            locale={locale}
+                            tx={tx}
+                            isPending={pendingLineId === item.line.id}
+                            openEvents={openEvents}
+                            loadingEvents={loadingEvents}
+                            onTogglePaid={onTogglePaid}
+                            onAttach={(eventId) =>
+                              attachLineToEvent(item.line.id, eventId)
                             }
+                            onDetach={(eventId) =>
+                              detachLineFromEvent(item.line.id, eventId)
+                            }
+                            onOpenEventsMenu={fetchOpenEvents}
                           />
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className={cn(
-                                "flex items-center gap-1.5 truncate text-sm font-medium leading-tight",
-                                expense.paid && "text-muted-foreground line-through",
-                              )}
-                            >
-                              <span className="truncate">{expense.name}</span>
-                              {isInvestment ? (
-                                <span className="bg-cleo-violet/30 text-foreground inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-bold">
-                                  <TrendingUp className="size-2.5" />
-                                  {tx({ es: "inversión", en: "investment" })}
-                                </span>
-                              ) : null}
-                            </p>
-                            <p className="text-muted-foreground mt-0.5 truncate text-xs">
-                              <span className="font-medium">{expense.bankName}</span>
-                              <span className="mx-1">·</span>
-                              <span>{expense.category.toLowerCase()}</span>
-                            </p>
-                          </div>
-                          <p
-                            className={cn(
-                              "shrink-0 text-sm font-semibold tabular-nums",
-                              expense.paid
-                                ? "text-muted-foreground"
-                                : isInvestment
-                                  ? "text-cleo-violet"
-                                  : "text-bad",
-                            )}
+                        </li>
+                      );
+                    }
+                    const bucketKey = `${group.key}|${item.eventId}`;
+                    const expanded = expandedEvents.has(bucketKey);
+                    const lineCount = item.lines.length;
+                    return (
+                      <li key={bucketKey}>
+                        <div className="hover:bg-muted/50 flex min-h-[2.75rem] items-center gap-3 rounded-lg border border-transparent px-2 py-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleEventExpanded(bucketKey)}
+                            aria-expanded={expanded}
+                            aria-label={
+                              expanded
+                                ? tx({ es: "Contraer", en: "Collapse" })
+                                : tx({ es: "Expandir", en: "Expand" })
+                            }
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none"
                           >
-                            {formatLineAmount(expense, primaryCurrency, locale)}
-                          </p>
-                        </label>
+                            <span
+                              className="inline-flex size-2.5 shrink-0 rounded-full"
+                              style={{
+                                backgroundColor: item.eventColor ?? "#6b7280",
+                              }}
+                              aria-hidden="true"
+                            />
+                            <Luggage
+                              className="text-muted-foreground size-3.5 shrink-0"
+                              aria-hidden="true"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="flex items-center gap-1.5 truncate text-sm font-semibold leading-tight">
+                                <span className="truncate">
+                                  {item.eventName}
+                                </span>
+                                <span className="text-muted-foreground shrink-0 text-[10px] font-medium">
+                                  ·{" "}
+                                  {lineCount === 1
+                                    ? tx({ es: "1 gasto", en: "1 expense" })
+                                    : `${lineCount} ${tx({
+                                        es: "gastos",
+                                        en: "expenses",
+                                      })}`}
+                                </span>
+                              </p>
+                              <p className="text-muted-foreground mt-0.5 truncate text-xs">
+                                {tx({
+                                  es: "billetera de evento",
+                                  en: "event wallet",
+                                })}
+                              </p>
+                            </div>
+                            <p className="text-bad shrink-0 text-sm font-semibold tabular-nums">
+                              {formatCurrency(
+                                item.totalThisDay,
+                                primaryCurrency,
+                                locale,
+                              )}
+                            </p>
+                            {expanded ? (
+                              <ChevronDown
+                                className="text-muted-foreground size-4 shrink-0"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <ChevronRight
+                                className="text-muted-foreground size-4 shrink-0"
+                                aria-hidden="true"
+                              />
+                            )}
+                          </button>
+                          <Link
+                            href={`/events/${item.eventId}`}
+                            className="text-muted-foreground hover:text-foreground shrink-0 text-[11px] underline-offset-2 hover:underline"
+                            aria-label={tx({
+                              es: "Abrir billetera",
+                              en: "Open wallet",
+                            })}
+                          >
+                            {tx({ es: "abrir", en: "open" })}
+                          </Link>
+                        </div>
+                        {expanded ? (
+                          <ul className="border-l-muted ml-4 mt-1 space-y-0.5 border-l-2 pl-2">
+                            {item.lines.map((expense) => (
+                              <li key={expense.id}>
+                                <ExpenseRow
+                                  expense={expense}
+                                  primaryCurrency={primaryCurrency}
+                                  locale={locale}
+                                  tx={tx}
+                                  isPending={pendingLineId === expense.id}
+                                  openEvents={openEvents}
+                                  loadingEvents={loadingEvents}
+                                  onTogglePaid={onTogglePaid}
+                                  onAttach={(eventId) =>
+                                    attachLineToEvent(expense.id, eventId)
+                                  }
+                                  onDetach={(eventId) =>
+                                    detachLineFromEvent(expense.id, eventId)
+                                  }
+                                  onOpenEventsMenu={fetchOpenEvents}
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </li>
                     );
                   })}
@@ -160,5 +418,215 @@ export function MonthLinesChronological({ expenses, primaryCurrency, onTogglePai
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ExpenseRow({
+  expense,
+  primaryCurrency,
+  locale,
+  tx,
+  isPending,
+  openEvents,
+  loadingEvents,
+  onTogglePaid,
+  onAttach,
+  onDetach,
+  onOpenEventsMenu,
+}: {
+  expense: MonthLinePayload;
+  primaryCurrency: string;
+  locale: Locale;
+  tx: ReturnType<typeof useTx>;
+  isPending: boolean;
+  openEvents: OpenEventOption[] | null;
+  loadingEvents: boolean;
+  onTogglePaid: (lineId: string, nextPaid: boolean) => void;
+  onAttach: (eventId: string) => void;
+  onDetach: (eventId: string) => void;
+  onOpenEventsMenu: () => void;
+}) {
+  const isInvestment = isInvestmentCategory(expense.category);
+  const eventRef = expense.event;
+  const candidateEvents =
+    openEvents?.filter((e) => e.id !== eventRef?.id) ?? null;
+
+  return (
+    <div
+      className={cn(
+        "hover:bg-muted/50 flex min-h-[2.75rem] items-center gap-3 rounded-lg border border-transparent px-2 py-2",
+        expense.paid && "opacity-70",
+        isPending && "pointer-events-none opacity-50",
+      )}
+    >
+      <Checkbox
+        className="shrink-0"
+        checked={expense.paid}
+        onCheckedChange={(checked) => onTogglePaid(expense.id, checked === true)}
+        aria-label={tx({
+          es: "Marcar como pagado",
+          en: "Mark as paid",
+        })}
+      />
+      <div className="min-w-0 flex-1">
+        <p
+          className={cn(
+            "flex items-center gap-1.5 truncate text-sm font-medium leading-tight",
+            expense.paid && "text-muted-foreground line-through",
+          )}
+        >
+          <span className="truncate">{expense.name}</span>
+          {isInvestment ? (
+            <span className="bg-cleo-violet/30 text-foreground inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-bold">
+              <TrendingUp className="size-2.5" />
+              {tx({ es: "inversión", en: "investment" })}
+            </span>
+          ) : null}
+        </p>
+        <p className="text-muted-foreground mt-0.5 truncate text-xs">
+          <span className="font-medium">{expense.bankName}</span>
+          <span className="mx-1">·</span>
+          <span>{expense.category.toLowerCase()}</span>
+          {eventRef ? (
+            <>
+              <span className="mx-1">·</span>
+              <span
+                className="inline-flex items-center gap-1"
+                title={eventRef.name}
+              >
+                <span
+                  className="inline-flex size-1.5 rounded-full"
+                  style={{
+                    backgroundColor: eventRef.color ?? "#6b7280",
+                  }}
+                  aria-hidden="true"
+                />
+                <span className="truncate">{eventRef.name}</span>
+              </span>
+            </>
+          ) : null}
+        </p>
+      </div>
+      <p
+        className={cn(
+          "shrink-0 text-sm font-semibold tabular-nums",
+          expense.paid
+            ? "text-muted-foreground"
+            : isInvestment
+              ? "text-cleo-violet"
+              : "text-bad",
+        )}
+      >
+        {formatLineAmount(expense, primaryCurrency, locale)}
+      </p>
+      <DropdownMenu onOpenChange={(open) => open && onOpenEventsMenu()}>
+        <DropdownMenuTrigger
+          className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          aria-label={tx({ es: "Más acciones", en: "More actions" })}
+        >
+          <MoreHorizontal className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-56">
+          {eventRef ? (
+            <>
+              <DropdownMenuLabel>
+                {tx({ es: "Billetera de evento", en: "Event wallet" })}
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                render={
+                  <Link href={`/events/${eventRef.id}`}>
+                    <Luggage />
+                    <span className="truncate">{eventRef.name}</span>
+                  </Link>
+                }
+              />
+              {eventRef.status === "OPEN" ? (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => onDetach(eventRef.id)}
+                >
+                  {tx({ es: "Sacar del evento", en: "Remove from event" })}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled>
+                  {tx({
+                    es: "Evento cerrado · reabrilo para editar",
+                    en: "Event closed · reopen to edit",
+                  })}
+                </DropdownMenuItem>
+              )}
+              {candidateEvents && candidateEvents.length > 0 ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>
+                    {tx({ es: "Cambiar de evento", en: "Move to event" })}
+                  </DropdownMenuLabel>
+                  {candidateEvents.map((option) => (
+                    <DropdownMenuItem
+                      key={option.id}
+                      onClick={() => onAttach(option.id)}
+                    >
+                      <span
+                        className="inline-flex size-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: option.color ?? "#6b7280" }}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{option.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <DropdownMenuLabel>
+                {tx({
+                  es: "Sumar a billetera de evento",
+                  en: "Attach to event wallet",
+                })}
+              </DropdownMenuLabel>
+              {openEvents === null || loadingEvents ? (
+                <DropdownMenuItem disabled>
+                  {tx({ es: "Cargando…", en: "Loading…" })}
+                </DropdownMenuItem>
+              ) : openEvents.length === 0 ? (
+                <DropdownMenuItem disabled>
+                  {tx({
+                    es: "No tenés billeteras abiertas",
+                    en: "No open wallets",
+                  })}
+                </DropdownMenuItem>
+              ) : (
+                openEvents.map((option) => (
+                  <DropdownMenuItem
+                    key={option.id}
+                    onClick={() => onAttach(option.id)}
+                  >
+                    <span
+                      className="inline-flex size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: option.color ?? "#6b7280" }}
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{option.name}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                render={
+                  <Link href="/events">
+                    <Luggage />
+                    {tx({
+                      es: "Crear nueva billetera",
+                      en: "Create new wallet",
+                    })}
+                  </Link>
+                }
+              />
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

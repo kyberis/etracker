@@ -32,7 +32,7 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
         // ya ordenado, y los grupos por banco que se calculan después
         // heredan ese orden dentro de cada banco.
         lines: {
-          include: { bank: true },
+          include: { bank: true, event: true },
           orderBy: { createdAt: "desc" },
         },
         incomeLines: {
@@ -115,6 +115,18 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     bankName: line.bank.name,
     paid: line.paid,
     category: line.category,
+    event: line.event
+      ? {
+          id: line.event.id,
+          name: line.event.name,
+          color: line.event.color,
+          startDate: line.event.startDate.toISOString().slice(0, 10),
+          endDate: line.event.endDate
+            ? line.event.endDate.toISOString().slice(0, 10)
+            : null,
+          status: line.event.status,
+        }
+      : null,
     createdAt: line.createdAt.toISOString(),
   }));
 

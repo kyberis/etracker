@@ -55,6 +55,7 @@ export const en: Dict = {
       expenses: "Templates",
       incomes: "Income",
       savings: "Savings",
+      events: "Events",
       settings: "Settings",
       about: "About Clara",
       admin: "Admin",

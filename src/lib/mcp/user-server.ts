@@ -1,5 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
+  EventAttributionMode,
+  EventStatus,
   ExpenseCategory,
   IncomeCategory,
   Prisma,
@@ -19,6 +21,16 @@ import {
   parseMonthKey,
   toMonthStart,
 } from "@/lib/months";
+import {
+  attachLineToEvent,
+  closeEvent as closeEventService,
+  createEvent as createEventService,
+  detachLineFromEvent,
+  getActiveEventsAt,
+  getEvent as getEventService,
+  listEvents as listEventsService,
+  reopenEvent as reopenEventService,
+} from "@/lib/events";
 import {
   deleteSavingsMovement as deleteSavingsMovementService,
   getSavingsState,
@@ -1189,6 +1201,275 @@ export function registerUserMcp(server: McpServer): void {
         month,
         amount: Number(result.movement.amount),
       });
+    },
+  );
+
+  // ── Tools: billeteras de evento ────────────────────────────────────────
+
+  server.registerTool(
+    "listEvents",
+    {
+      title: "Listar billeteras de evento",
+      description:
+        "Lista las billeteras de evento del usuario (viajes, eventos puntuales). Pasá `status: 'OPEN'` para ver solo las activas. " +
+        "Cada evento incluye totales (totalConverted, lineCount), rango de fechas, modo de atribución y el mes destino si está cerrado.",
+      inputSchema: {
+        status: z.enum(["OPEN", "CLOSED"]).optional(),
+      },
+    },
+    async ({ status }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const events = await listEventsService(
+        userId,
+        status === "OPEN"
+          ? { status: EventStatus.OPEN }
+          : status === "CLOSED"
+            ? { status: EventStatus.CLOSED }
+            : {},
+      );
+      return jsonContent({ events });
+    },
+  );
+
+  server.registerTool(
+    "getActiveEvents",
+    {
+      title: "Eventos activos en una fecha",
+      description:
+        "Devuelve los eventos OPEN cuyo rango contiene `on` (default = hoy, UTC). Útil antes de cargar un gasto para detectar si pertenece a un viaje en curso.",
+      inputSchema: {
+        on: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Fecha en formato yyyy-MM-dd.")
+          .optional(),
+      },
+    },
+    async ({ on }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const date = parseIsoDate(on) ?? todayUtcDate();
+      const events = await getActiveEventsAt(userId, date);
+      return jsonContent({
+        on: date.toISOString().slice(0, 10),
+        events,
+      });
+    },
+  );
+
+  server.registerTool(
+    "getEvent",
+    {
+      title: "Ver una billetera de evento",
+      description:
+        "Devuelve totales y metadatos de una billetera específica (totalConverted, lineCount, rango, status, attributionMode/Month).",
+      inputSchema: { id: z.string().min(1) },
+    },
+    async ({ id }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const event = await getEventService(userId, id);
+      if (!event) return errContent("Evento no encontrado.");
+      return jsonContent({ event });
+    },
+  );
+
+  server.registerTool(
+    "createEvent",
+    {
+      title: "Crear billetera de evento",
+      description:
+        "Crea una billetera para un viaje / evento con un rango de fechas. " +
+        "`attributionMode` default = 'LUMP_SUM' (al cerrar se imputan todos los gastos a un único mes); usá 'BY_DATE' si querés que cada gasto quede en su mes real.",
+      inputSchema: {
+        name: z.string().min(1).max(120),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u).optional(),
+        color: z.string().regex(/^#?[0-9a-fA-F]{6}$/u).optional(),
+        attributionMode: z.enum(["BY_DATE", "LUMP_SUM"]).optional(),
+      },
+    },
+    async ({ name, startDate, endDate, color, attributionMode }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      const start = parseIsoDate(startDate);
+      if (!start) return errContent("startDate inválido (yyyy-MM-dd).");
+      const end = endDate ? parseIsoDate(endDate) : null;
+      if (endDate && !end) return errContent("endDate inválido (yyyy-MM-dd).");
+      try {
+        const event = await createEventService({
+          userId,
+          name,
+          startDate: start,
+          endDate: end ?? null,
+          color: color ?? null,
+          attributionMode:
+            attributionMode === "BY_DATE"
+              ? EventAttributionMode.BY_DATE
+              : EventAttributionMode.LUMP_SUM,
+        });
+        return jsonContent({ ok: true, event });
+      } catch (error) {
+        if (error instanceof Error && error.message === "EVENT_INVALID_RANGE") {
+          return errContent("endDate debe ser posterior a startDate.");
+        }
+        throw error;
+      }
+    },
+  );
+
+  server.registerTool(
+    "closeEvent",
+    {
+      title: "Cerrar billetera de evento",
+      description:
+        "Cierra una billetera. Para LUMP_SUM, mueve TODAS las líneas al mes destino en una sola transacción (preserva occurredOn). " +
+        "Tool destructivo (mueve líneas entre meses): requiere `confirm: true` después de la confirmación humana.",
+      inputSchema: {
+        id: z.string().min(1),
+        attributionMode: z.enum(["BY_DATE", "LUMP_SUM"]),
+        attributionMonth: monthKeySchema.optional(),
+        confirm: z
+          .literal(true)
+          .describe(
+            "Must be true after explicit human confirmation; otherwise the tool refuses.",
+          ),
+      },
+    },
+    async ({ id, attributionMode, attributionMonth, confirm }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      if (confirm !== true) {
+        return errContent(
+          "closeEvent refused: pass confirm=true after explicit human confirmation.",
+        );
+      }
+      if (attributionMode === "LUMP_SUM" && !attributionMonth) {
+        return errContent(
+          "attributionMonth (yyyy-MM) es obligatorio para LUMP_SUM.",
+        );
+      }
+      try {
+        const event = await closeEventService({
+          userId,
+          eventId: id,
+          mode:
+            attributionMode === "LUMP_SUM"
+              ? EventAttributionMode.LUMP_SUM
+              : EventAttributionMode.BY_DATE,
+          attributionMonth: attributionMonth ?? null,
+        });
+        if (!event) return errContent("Evento no encontrado.");
+        return jsonContent({ ok: true, event });
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message === "EVENT_ALREADY_CLOSED") {
+            return errContent("El evento ya está cerrado.");
+          }
+          if (error.message === "EVENT_MISSING_ATTRIBUTION_MONTH") {
+            return errContent(
+              "attributionMonth (yyyy-MM) es obligatorio para LUMP_SUM.",
+            );
+          }
+        }
+        throw error;
+      }
+    },
+  );
+
+  server.registerTool(
+    "reopenEvent",
+    {
+      title: "Reabrir billetera de evento",
+      description:
+        "Reabre una billetera cerrada. Si estaba en LUMP_SUM, vuelve a poner cada línea en el mes que corresponde a su `occurredOn`.",
+      inputSchema: { id: z.string().min(1) },
+    },
+    async ({ id }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      try {
+        const event = await reopenEventService({ userId, eventId: id });
+        if (!event) return errContent("Evento no encontrado.");
+        return jsonContent({ ok: true, event });
+      } catch (error) {
+        if (error instanceof Error && error.message === "EVENT_NOT_CLOSED") {
+          return errContent("El evento no está cerrado.");
+        }
+        throw error;
+      }
+    },
+  );
+
+  server.registerTool(
+    "attachExpenseToEvent",
+    {
+      title: "Sumar un gasto a una billetera de evento",
+      description:
+        "Engancha una `MonthExpenseLine` existente al evento. Si la fecha del gasto cae fuera del rango, la asocia igual y devuelve `outOfRange: true` (la UI / agente debería destacarlo). " +
+        "Tool de mutación: requiere `confirm: true`.",
+      inputSchema: {
+        eventId: z.string().min(1),
+        lineId: z.string().min(1),
+        confirm: z
+          .literal(true)
+          .describe(
+            "Must be true after explicit human confirmation; otherwise the tool refuses.",
+          ),
+      },
+    },
+    async ({ eventId, lineId, confirm }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      if (confirm !== true) {
+        return errContent(
+          "attachExpenseToEvent refused: pass confirm=true after explicit human confirmation.",
+        );
+      }
+      try {
+        const result = await attachLineToEvent({ userId, eventId, lineId });
+        if (!result.ok) return errContent("Evento o línea no encontrados.");
+        return jsonContent({
+          ok: true,
+          outOfRange: result.outOfRange ?? false,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "EVENT_CLOSED") {
+          return errContent(
+            "El evento está cerrado. Reabrilo antes de sumar gastos.",
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
+  server.registerTool(
+    "detachExpenseFromEvent",
+    {
+      title: "Sacar un gasto de una billetera de evento",
+      description:
+        "Quita el `eventId` de una línea del mes. La línea queda como gasto suelto. Tool de mutación: requiere `confirm: true`.",
+      inputSchema: {
+        lineId: z.string().min(1),
+        confirm: z
+          .literal(true)
+          .describe(
+            "Must be true after explicit human confirmation; otherwise the tool refuses.",
+          ),
+      },
+    },
+    async ({ lineId, confirm }, extra) => {
+      const userId = getUserIdFromExtra(extra);
+      if (!userId) return errContent("Unauthorized.");
+      if (confirm !== true) {
+        return errContent(
+          "detachExpenseFromEvent refused: pass confirm=true after explicit human confirmation.",
+        );
+      }
+      const result = await detachLineFromEvent({ userId, lineId });
+      if (!result.ok) return errContent("Línea no encontrada.");
+      return jsonContent({ ok: true });
     },
   );
 }

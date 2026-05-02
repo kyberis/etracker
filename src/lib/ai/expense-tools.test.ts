@@ -25,9 +25,13 @@ vi.mock("@/lib/db", () => ({
     },
     monthExpenseLine: {
       findFirst: vi.fn(),
+      create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
       count: vi.fn(),
+    },
+    event: {
+      findFirst: vi.fn(),
     },
     income: {
       findFirst: vi.fn(),
@@ -500,6 +504,147 @@ describe("income tools", () => {
       error: expect.stringContaining("createMonthIfNeeded") as unknown,
     });
     expect(db.monthIncomeLine.create).not.toHaveBeenCalled();
+  });
+});
+
+// ── addMonthLine + event wallet validation ─────────────────────────────────
+
+describe("addMonthLine — eventId validation", () => {
+  beforeEach(() => {
+    vi.mocked(db.user.findUnique).mockResolvedValue({
+      primaryCurrency: "USD",
+    } as never);
+    vi.mocked(db.monthRecord.findFirst).mockResolvedValue({
+      id: "month_1",
+    } as never);
+    vi.mocked(db.bank.findFirst).mockResolvedValue({
+      id: "bank_1",
+      name: "Visa",
+    } as never);
+  });
+
+  it("rejects when occurredOn falls outside the event date range", async () => {
+    vi.mocked(db.event.findFirst).mockResolvedValue({
+      id: "event_1",
+      name: "Trip to Mendoza",
+      status: "OPEN",
+      startDate: new Date(Date.UTC(2026, 3, 15)),
+      endDate: new Date(Date.UTC(2026, 3, 25)),
+    } as never);
+
+    const result = (await tools().addMonthLine.execute!(
+      {
+        name: "Hotel",
+        amount: 200,
+        bankId: "bank_1",
+        eventId: "event_1",
+        occurredOn: "2026-05-15",
+        currency: "USD",
+        category: "OTROS",
+        paid: true,
+      },
+      execOpts,
+    )) as { error?: string; outOfRange?: boolean; eventName?: string };
+
+    expect(result.error).toMatch(/outside/i);
+    expect(result.outOfRange).toBe(true);
+    expect(result.eventName).toBe("Trip to Mendoza");
+    expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the event is closed", async () => {
+    vi.mocked(db.event.findFirst).mockResolvedValue({
+      id: "event_1",
+      name: "Trip",
+      status: "CLOSED",
+      startDate: new Date(Date.UTC(2026, 3, 15)),
+      endDate: new Date(Date.UTC(2026, 3, 25)),
+    } as never);
+
+    const result = (await tools().addMonthLine.execute!(
+      {
+        name: "Hotel",
+        amount: 200,
+        bankId: "bank_1",
+        eventId: "event_1",
+        occurredOn: "2026-04-20",
+        currency: "USD",
+        category: "OTROS",
+        paid: true,
+      },
+      execOpts,
+    )) as { error?: string };
+
+    expect(result.error).toMatch(/closed/i);
+    expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
+  });
+
+  it("attaches the line to the event when occurredOn is inside the range", async () => {
+    vi.mocked(db.event.findFirst).mockResolvedValue({
+      id: "event_1",
+      name: "Trip to Mendoza",
+      status: "OPEN",
+      startDate: new Date(Date.UTC(2026, 3, 15)),
+      endDate: new Date(Date.UTC(2026, 3, 25)),
+    } as never);
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue({
+      id: "line_1",
+      name: "Hotel",
+      amount: new Prisma.Decimal("200"),
+      currency: "USD",
+      fxRate: new Prisma.Decimal("1"),
+      amountConverted: new Prisma.Decimal("200"),
+      category: "OTROS",
+      paid: true,
+    } as never);
+
+    const result = (await tools().addMonthLine.execute!(
+      {
+        name: "Hotel",
+        amount: 200,
+        bankId: "bank_1",
+        eventId: "event_1",
+        occurredOn: "2026-04-20",
+        currency: "USD",
+        category: "OTROS",
+        paid: true,
+      },
+      execOpts,
+    )) as {
+      ok?: boolean;
+      duplicate?: boolean;
+      line?: { eventId?: string | null; eventName?: string | null };
+    };
+
+    expect(result.ok).toBe(true);
+    expect(result.duplicate).toBe(false);
+    expect(result.line?.eventId).toBe("event_1");
+    expect(result.line?.eventName).toBe("Trip to Mendoza");
+    expect(db.monthExpenseLine.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventId: "event_1" }),
+      }),
+    );
+  });
+
+  it("rejects when the event id does not belong to the user", async () => {
+    vi.mocked(db.event.findFirst).mockResolvedValue(null);
+
+    const result = (await tools().addMonthLine.execute!(
+      {
+        name: "Hotel",
+        amount: 200,
+        bankId: "bank_1",
+        eventId: "event_other",
+        currency: "USD",
+        category: "OTROS",
+        paid: true,
+      },
+      execOpts,
+    )) as { error?: string };
+
+    expect(result.error).toMatch(/doesn't exist/i);
+    expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
   });
 });
 

@@ -28,6 +28,24 @@ enum SavingsMovementKind {
   MANUAL_WITHDRAWAL
 }
 
+/// Estado de una billetera de evento.
+/// - `OPEN`: el usuario sigue cargando gastos. Cada `MonthExpenseLine.eventId`
+///   asociado vive en su `MonthRecord` por `occurredOn`.
+/// - `CLOSED`: el evento se cerró. Si `attributionMode = LUMP_SUM` y hay
+///   `attributionMonthId`, las líneas se rebucketaron a ese mes.
+enum EventStatus {
+  OPEN
+  CLOSED
+}
+
+/// Cómo se imputan los gastos de un evento que cruza meses.
+/// - `BY_DATE`: cada gasto vive en el mes en que pasó (por `occurredOn`).
+/// - `LUMP_SUM`: al cerrar, todas las líneas se mueven al `attributionMonthId`.
+enum EventAttributionMode {
+  BY_DATE
+  LUMP_SUM
+}
+
 enum ExpenseCategory {
   VIVIENDA
   SERVICIOS
@@ -71,109 +89,110 @@ enum IncomeCategory {
 }
 
 model User {
-  id                       String              @id @default(cuid())
-  email                    String              @unique
+  id                           String                 @id @default(cuid())
+  email                        String                 @unique
   /// Null for users who only sign in with OAuth (e.g. Google).
-  passwordHash             String?
+  passwordHash                 String?
   /// Optional display fields synced from OAuth providers (Auth.js).
-  name                     String?
-  emailVerified            DateTime?
-  image                    String?
-  accounts                 Account[]
+  name                         String?
+  emailVerified                DateTime?
+  image                        String?
+  accounts                     Account[]
   /// Admin flag: gates access to /admin and the user-management API.
-  isAdmin                  Boolean             @default(false)
+  isAdmin                      Boolean                @default(false)
   /// Soft-disable: when false, blocks login (web + Google) and the agent (chat + Telegram).
-  isActive                 Boolean             @default(true)
+  isActive                     Boolean                @default(true)
   /// Per-user daily cap for agent messages (chat web + Telegram combined). Editable by admins.
-  dailyAgentMessageLimit   Int                 @default(30)
-  monthlyIncome            Decimal             @default(0) @db.Decimal(12, 2)
+  dailyAgentMessageLimit       Int                    @default(30)
+  monthlyIncome                Decimal                @default(0) @db.Decimal(12, 2)
   /// Pila acumulada de ahorros del usuario (en `primaryCurrency`). Es un
   /// cache denormalizado: el ledger inmutable vive en `SavingsMovement` y
   /// este campo es la suma firmada de todos los movimientos del usuario.
   /// Se mantiene sincronizado dentro de la misma transacción que inserta
   /// el movimiento (ver `recordSavingsMovement` en `src/lib/savings.ts`).
-  savings                  Decimal             @default(0) @db.Decimal(12, 2)
+  savings                      Decimal                @default(0) @db.Decimal(12, 2)
   /// ISO 4217 código (3 letras, mayúsculas). Moneda en la que se hacen las
   /// agregaciones (`MonthRecord.income`, totales por banco, balance, etc.).
   /// Las líneas individuales pueden venir en otras monedas y se convierten a
   /// esta vía `MonthExpenseLine.fxRate` + `amountConverted`.
-  primaryCurrency          String              @default("USD")
+  primaryCurrency              String                 @default("USD")
   /// Marca cuándo el usuario (o el AI en su nombre) confirmó la moneda
   /// principal. Null = todavía no se confirmó; el agente debe preguntarla.
-  primaryCurrencyConfirmedAt DateTime?
+  primaryCurrencyConfirmedAt   DateTime?
   /// Telegram identity once the user has linked the bot to this account. We
   /// key on `telegramUserId` (Telegram's stable numeric id) and remember the
   /// `chat_id` of the private chat so outbound messages don't need a lookup.
   /// `telegramUsername` is informational (it can change at any time).
-  telegramUserId           BigInt?             @unique
-  telegramUsername         String?
-  telegramChatId           BigInt?
-  telegramVerifiedAt       DateTime?
+  telegramUserId               BigInt?                @unique
+  telegramUsername             String?
+  telegramChatId               BigInt?
+  telegramVerifiedAt           DateTime?
   /// One-time code for `t.me/<bot>?start=<code>` — Telegram allows max 64 chars
   /// for `start`, so we cannot use long signed tokens in deep links.
-  telegramLinkCode         String?             @unique
-  telegramLinkCodeExpires  DateTime?
+  telegramLinkCode             String?                @unique
+  telegramLinkCodeExpires      DateTime?
   /// Reglas del usuario para el asistente e importaciones (CSV / fotos): qué no importar, categorías, etc.
-  expenseImportInstructions String?
+  expenseImportInstructions    String?
   /// Marca cuándo se mostró por primera vez el mensaje de bienvenida del asistente. Null = todavía no se saludó.
-  welcomedAt               DateTime?
+  welcomedAt                   DateTime?
   /// ISO-3166 alpha-2 (2 letras, mayúsculas) del país de residencia capturado
   /// en el wizard de onboarding. Lo usamos para sugerir la moneda principal.
-  country                  String?             @db.Char(2)
+  country                      String?                @db.Char(2)
   /// Motivos por los que el usuario abre Clara (chips multi-select del wizard).
   /// Valores: `personal`, `couple_family`, `freelance`, `business`, `other`.
   /// Puro hint para el agente; no gating de features.
-  usageReasons             String[]            @default([])
+  usageReasons                 String[]               @default([])
   /// Marca cuándo el usuario terminó (o saltó) el wizard de onboarding. Null
   /// = pendiente; el layout de `/app` redirige a `/onboarding` mientras sea
   /// null para nuevos registros y usuarios viejos que nunca lo completaron.
-  onboardingCompletedAt    DateTime?
+  onboardingCompletedAt        DateTime?
   /// Idioma preferido del usuario para la UI y el agente Clara. Valores
   /// soportados: "es" (rioplatense, default), "en" (English neutral). Lo
   /// escribe la herramienta `setUserLocale` del agente, el endpoint
   /// /api/settings/locale (selector del menú) y el formulario de Settings.
-  locale                   String              @default("es")
+  locale                       String                 @default("es")
   /// Última vez que el usuario fue visto activo (cualquier request autenticado).
   /// Lo actualiza `touchActivity()` como guardia: solo escribe una vez por día
   /// UTC para evitar contention. Lo consume el dashboard de analytics interno.
-  lastSeenAt               DateTime?
-  banks                    Bank[]
-  expenses                 Expense[]
-  incomes                  Income[]
-  monthRecords             MonthRecord[]
-  monthExpenseLines        MonthExpenseLine[]
-  monthIncomeLines         MonthIncomeLine[]
-  telegramMessages         TelegramMessage[]
-  webChatMessages          WebChatMessage[]
-  agentUsage               AgentMessageUsage[]
-  agentModelUsage          AgentDailyModelUsage[]
-  activeDays               DailyActiveUser[]
-  apiTokens                ApiToken[]
+  lastSeenAt                   DateTime?
+  banks                        Bank[]
+  expenses                     Expense[]
+  incomes                      Income[]
+  monthRecords                 MonthRecord[]
+  monthExpenseLines            MonthExpenseLine[]
+  monthIncomeLines             MonthIncomeLine[]
+  telegramMessages             TelegramMessage[]
+  webChatMessages              WebChatMessage[]
+  agentUsage                   AgentMessageUsage[]
+  agentModelUsage              AgentDailyModelUsage[]
+  activeDays                   DailyActiveUser[]
+  apiTokens                    ApiToken[]
   /// Stripe customer id (lazy: created on first checkout). Optional so
   /// self-hosters / users that never paid never get a customer record.
-  stripeCustomerId         String?             @unique
+  stripeCustomerId             String?                @unique
   /// Mirror of Stripe subscription status: "active" | "trialing" | "past_due"
   /// | "canceled" | null. Drives the "Supporter" pill and the settings card.
-  subscriptionStatus       String?
+  subscriptionStatus           String?
   /// End of the current billing period (renews/cancels at this instant).
   /// Surfaced in the settings UI; the webhook keeps it fresh.
   subscriptionCurrentPeriodEnd DateTime?
-  donations                Donation[]
-  featureFlagOverrides     FeatureFlagOverride[]
-  passkeys                 Passkey[]
-  savingsMovements         SavingsMovement[]
-  contactMessages          ContactMessage[]
+  donations                    Donation[]
+  featureFlagOverrides         FeatureFlagOverride[]
+  passkeys                     Passkey[]
+  savingsMovements             SavingsMovement[]
+  events                       Event[]
+  contactMessages              ContactMessage[]
   /// GDPR Art. 7(1) — demonstrable consent. Stamped when the user actively
   /// accepts the current Terms + Privacy version. NULL means the user has
   /// never accepted (legacy account or signup mid-deploy); the `(app)`
   /// layout gate redirects to /accept-terms in that case.
-  acceptedTermsAt          DateTime?
+  acceptedTermsAt              DateTime?
   /// Semver-like string of the Terms+Privacy version the user accepted (e.g.
   /// "1.0"). Compared against `CURRENT_TERMS_VERSION` in `src/lib/legal.ts`
   /// to force re-acceptance after a material change to the legal docs.
-  acceptedTermsVersion     String?
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
+  acceptedTermsVersion         String?
+  createdAt                    DateTime               @default(now())
+  updatedAt                    DateTime               @updatedAt
 }
 
 model Account {
@@ -259,7 +278,7 @@ model AgentMessageUsage {
 model TelegramMessage {
   id                String   @id @default(cuid())
   userId            String
-  role              String   // "user" | "assistant"
+  role              String // "user" | "assistant"
   text              String
   chatId            BigInt
   isGroup           Boolean  @default(false)
@@ -280,7 +299,7 @@ model TelegramMessage {
 model WebChatMessage {
   id        String   @id @default(cuid())
   userId    String
-  role      String   // "user" | "assistant"
+  role      String // "user" | "assistant"
   parts     Json
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -289,66 +308,70 @@ model WebChatMessage {
 }
 
 model Bank {
-  id                String              @id @default(cuid())
+  id                String             @id @default(cuid())
   userId            String
   name              String
   color             String?
-  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   expenses          Expense[]
   incomes           Income[]
   monthExpenseLines MonthExpenseLine[]
   monthIncomeLines  MonthIncomeLine[]
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@unique([userId, name])
 }
 
 // Expense template (definitions); month-specific copies live in MonthExpenseLine.
 model Expense {
-  id          String          @id @default(cuid())
+  id          String             @id @default(cuid())
   userId      String
   bankId      String
   name        String
-  amount      Decimal         @db.Decimal(12, 2)
-  isRecurring Boolean         @default(true)
+  amount      Decimal            @db.Decimal(12, 2)
+  isRecurring Boolean            @default(true)
   startMonth  DateTime
   endMonth    DateTime?
-  category    ExpenseCategory @default(OTROS)
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bank        Bank            @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  category    ExpenseCategory    @default(OTROS)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bank        Bank               @relation(fields: [bankId], references: [id], onDelete: Restrict)
   monthLines  MonthExpenseLine[]
 
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model MonthRecord {
-  id        String             @id @default(cuid())
-  userId    String
-  month     DateTime
+  id                 String             @id @default(cuid())
+  userId             String
+  month              DateTime
   /// @deprecated Total de ingreso del mes. Antes era el único campo de ingreso;
   /// ahora la fuente de verdad son las líneas (`MonthIncomeLine`) y se calcula
   /// como `SUM(amountConverted WHERE received)`. La columna queda en la tabla
   /// para no romper queries en una sola release y se elimina en N+1. Nuevos
   /// callers NO deben leer ni escribir este campo.
-  income    Decimal            @default(0) @db.Decimal(12, 2)
+  income             Decimal            @default(0) @db.Decimal(12, 2)
   /// Sobrante del mes anterior incorporado a este mes cuando el usuario eligió
   /// "sumar al ingreso". Se mantiene en columna aparte (en lugar de inflar
   /// `income`) para que la UI pueda mostrarlo desglosado y para no perderlo si
   /// el usuario edita el ingreso después. Está en `User.primaryCurrency`.
-  carryoverFromPrev   Decimal   @default(0) @db.Decimal(12, 2)
+  carryoverFromPrev  Decimal            @default(0) @db.Decimal(12, 2)
   /// Marca cuándo el usuario decidió qué hacer con el sobrante del mes anterior
   /// (sumarlo al ingreso o dejarlo aparte como ahorros). Null = todavía no se
   /// preguntó/decidió, así que la UI / Clara deben mostrar el prompt.
-  carryoverDecidedAt  DateTime?
-  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lines     MonthExpenseLine[]
-  incomeLines MonthIncomeLine[]
+  carryoverDecidedAt DateTime?
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lines              MonthExpenseLine[]
+  incomeLines        MonthIncomeLine[]
   /// Movimientos de la pila de ahorros vinculados a este mes (aporte mensual,
   /// derivación de sobrante, cobertura de deuda). Borrarlos al borrar el mes
   /// rompería el ledger; usamos `onDelete: SetNull` en la relación inversa.
-  savingsMovements SavingsMovement[]
+  savingsMovements   SavingsMovement[]
+  /// Eventos cuyos gastos se imputaron a este mes en modo `LUMP_SUM`. Cuando
+  /// se borra el mes, el evento queda con `attributionMonthId = NULL` para
+  /// preservar la trazabilidad (ver `Event.attributionMonth`).
+  attributedEvents   Event[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -357,54 +380,101 @@ model MonthRecord {
   @@index([userId])
 }
 
+/// Billetera de evento — agrupa gastos durante un rango de fechas (ej. un
+/// viaje, una boda, un cumpleaños). Mientras `status = OPEN`, los
+/// `MonthExpenseLine.eventId` viven en su `MonthRecord` por `occurredOn`.
+/// Al cerrar con `attributionMode = LUMP_SUM`, todas las líneas se rebucketan
+/// al `attributionMonthId` (preservando `occurredOn` para auditoría — el
+/// índice de dedupe no incluye `monthRecordId`, así que no se rompe).
+///
+/// Reglas:
+/// - `endDate` opcional: un evento sin fecha de fin queda "abierto" (ej. un
+///   proyecto que dura indefinido). Para auto-tagging la IA usa
+///   `[startDate, endDate ?? +∞]`.
+/// - Solo se puede tener `attributionMonthId` cuando `status = CLOSED` y
+///   `attributionMode = LUMP_SUM`. Cuando se reabre, se pone a NULL y las
+///   líneas se vuelven a rebucketar a su mes real por `occurredOn`.
+model Event {
+  id                 String               @id @default(cuid())
+  userId             String
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  /// Hex `#rrggbb` opcional para el dot del row colapsable en el dashboard.
+  color              String?
+  /// Inicio del rango de auto-tagging (UTC, sin hora).
+  startDate          DateTime             @db.Date
+  /// Fin del rango (inclusive). Null = abierto (sin tope superior).
+  endDate            DateTime?            @db.Date
+  status             EventStatus          @default(OPEN)
+  attributionMode    EventAttributionMode @default(LUMP_SUM)
+  /// Mes destino para `LUMP_SUM`. Null mientras `status = OPEN` o
+  /// `attributionMode = BY_DATE`. Si se borra el mes destino,
+  /// `onDelete: SetNull` deja el evento sin destino y la UI lo muestra como
+  /// "sin asignar" (no afecta a las líneas, que ya fueron movidas).
+  attributionMonthId String?
+  attributionMonth   MonthRecord?         @relation(fields: [attributionMonthId], references: [id], onDelete: SetNull)
+  closedAt           DateTime?
+  lines              MonthExpenseLine[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([userId, status])
+  @@index([attributionMonthId])
+}
+
 model MonthExpenseLine {
-  id            String          @id @default(cuid())
+  id              String          @id @default(cuid())
   /// Denormalizado desde `monthRecord.userId` para soportar el índice único
   /// global de deduplicación (un usuario no puede tener dos líneas con la
   /// misma fecha/descripción/monto/moneda). FK con cascade igual que
   /// `MonthRecord.userId`.
-  userId        String
-  monthRecordId String
-  templateId    String?
-  bankId        String
-  name          String
+  userId          String
+  monthRecordId   String
+  templateId      String?
+  bankId          String
+  name            String
   /// Fecha real del gasto (no la del bucket). Para imports CSV: la fecha
   /// que venga en la fila (booking/value date); cuando no haya, HOY (UTC).
   /// Para entradas manuales por chat / foto / formulario: HOY (UTC) salvo
   /// que el usuario indique otra fecha. Solo guardamos la parte de fecha
   /// (sin hora) para que la deduplicación sea determinística entre zonas
   /// horarias.
-  occurredOn    DateTime        @db.Date
+  occurredOn      DateTime        @db.Date
   /// Monto en la moneda original de la línea (`currency`).
-  amount        Decimal         @db.Decimal(12, 2)
+  amount          Decimal         @db.Decimal(12, 2)
   /// ISO 4217 (3 letras, mayúsculas). Moneda en la que el usuario carga el
   /// gasto. Si difiere de `User.primaryCurrency`, guardamos `fxRate` y
   /// `amountConverted` para que las matemáticas vivan en la moneda principal.
-  currency      String          @default("USD")
+  currency        String          @default("USD")
   /// Multiplicador `amount * fxRate = amountConverted`. Vale 1 cuando la
   /// línea ya está en la moneda principal del usuario. Se "congela" al crear
   /// la línea para que las agregaciones sean determinísticas.
-  fxRate        Decimal         @default(1) @db.Decimal(20, 10)
+  fxRate          Decimal         @default(1) @db.Decimal(20, 10)
   /// Monto pre-calculado en la moneda principal (`User.primaryCurrency`).
   /// Usalo para todos los `sum`/totales; nunca recalcules desde `amount`.
-  amountConverted Decimal       @db.Decimal(12, 2)
-  category      ExpenseCategory @default(OTROS)
-  paid          Boolean         @default(false)
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  monthRecord   MonthRecord     @relation(fields: [monthRecordId], references: [id], onDelete: Cascade)
-  template      Expense?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  bank          Bank            @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  amountConverted Decimal         @db.Decimal(12, 2)
+  category        ExpenseCategory @default(OTROS)
+  paid            Boolean         @default(false)
+  /// Billetera de evento a la que pertenece la línea. Null = gasto suelto.
+  /// `onDelete: SetNull` para que borrar el evento no destruya los gastos.
+  eventId         String?
+  event           Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthRecord     MonthRecord     @relation(fields: [monthRecordId], references: [id], onDelete: Cascade)
+  template        Expense?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  bank            Bank            @relation(fields: [bankId], references: [id], onDelete: Restrict)
 
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-
-  @@index([monthRecordId])
-  @@index([userId])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   // El índice único de deduplicación
   // (`userId`, `occurredOn`, lower(trim(regexp_replace(name,...))), `amount`,
   // `currency`) WHERE `templateId` IS NULL se crea con SQL en la migración
   // `20260429140000_expense_dedup` porque Prisma no expresa índices con
   // funciones ni parciales.
+
+  @@index([monthRecordId])
+  @@index([userId])
+  @@index([eventId])
 }
 
 /// Plantilla de ingreso (recurrente o de un solo mes). Espejo de `Expense`:
@@ -414,26 +484,26 @@ model MonthExpenseLine {
 /// muchas veces no importa "en qué cuenta cae" — y el chat-first flow no
 /// quiere obligar a elegir banco para registrar un cobro rápido.
 model Income {
-  id          String         @id @default(cuid())
+  id          String            @id @default(cuid())
   userId      String
   bankId      String?
   name        String
-  amount      Decimal        @db.Decimal(12, 2)
+  amount      Decimal           @db.Decimal(12, 2)
   /// ISO 4217 (3 letras, mayúsculas). Moneda original de la plantilla. Cuando
   /// se materializa una línea mensual desde la plantilla, si la moneda
   /// principal del usuario difiere, se snapshotea con `fxRate` y
   /// `amountConverted`, igual que en gastos.
-  currency    String         @default("USD")
-  isRecurring Boolean        @default(true)
+  currency    String            @default("USD")
+  isRecurring Boolean           @default(true)
   startMonth  DateTime
   endMonth    DateTime?
-  category    IncomeCategory @default(OTROS)
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bank        Bank?          @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  category    IncomeCategory    @default(OTROS)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bank        Bank?             @relation(fields: [bankId], references: [id], onDelete: SetNull)
   monthLines  MonthIncomeLine[]
 
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 /// Línea de ingreso de un mes. Espejo de `MonthExpenseLine`: cobros que el
@@ -483,15 +553,15 @@ model MonthIncomeLine {
   template        Income?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
   bank            Bank?          @relation(fields: [bankId], references: [id], onDelete: SetNull)
 
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  @@index([monthRecordId])
-  @@index([userId])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   // El índice único de deduplicación
   // (`userId`, `occurredOn`, lower(btrim(regexp_replace(name,...))), `amount`,
   // `currency`) WHERE `templateId` IS NULL se crea con SQL en la migración
   // de income porque Prisma no expresa índices con funciones ni parciales.
+
+  @@index([monthRecordId])
+  @@index([userId])
 }
 
 /// One-off donation made via Stripe Checkout. Persisted from the
@@ -576,13 +646,13 @@ model SavingsMovement {
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
-  @@index([userId, occurredOn])
-  @@index([userId, monthRecordId])
   /// Garantiza un solo MONTHLY_CONTRIBUTION y un solo CARRYOVER_DEPOSIT por
   /// (usuario, mes). Movimientos manuales (MANUAL_*) y DEBT_COVERAGE pueden
   /// no estar asociados a un mes (`monthRecordId NULL`); el índice único
   /// no aplica con NULLs en Postgres, así que no los limita.
   @@unique([userId, monthRecordId, kind], name: "uq_savings_one_per_kind_per_month")
+  @@index([userId, occurredOn])
+  @@index([userId, monthRecordId])
 }
 
 /// WebAuthn / FIDO2 credential ("passkey") registered by a user. Sign-in
@@ -594,26 +664,26 @@ model SavingsMovement {
 model Passkey {
   /// Base64URL-encoded credential id (WebAuthn `rawId`). Unique per browser
   /// + authenticator combo, so it doubles as the primary key.
-  id                  String   @id
+  id                  String    @id
   userId              String
   /// Base64URL-encoded COSE public key returned by `verifyRegistrationResponse`.
   credentialPublicKey String
   /// Authenticator signature counter; bumped on every successful auth and
   /// monotonically increasing. A regression here flags a cloned authenticator.
-  counter             Int      @default(0)
+  counter             Int       @default(0)
   /// "singleDevice" (platform-bound) or "multiDevice" (synced via iCloud /
   /// Google Password Manager / Bitwarden / 1Password).
   deviceType          String
   /// `true` when the credential is backed up to a passkey provider, so we can
   /// warn the user if they're about to delete their only platform passkey.
-  backedUp            Boolean  @default(false)
+  backedUp            Boolean   @default(false)
   /// Subset of {"usb","nfc","ble","internal","hybrid","cable","smart-card"}.
-  transports          String[] @default([])
+  transports          String[]  @default([])
   /// User-visible label ("MacBook Touch ID", "iPhone", "YubiKey 5C").
   name                String
   lastUsedAt          DateTime?
-  createdAt           DateTime @default(now())
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt           DateTime  @default(now())
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -634,20 +704,20 @@ model StripeWebhookEvent {
 /// plaintext) plus a short prefix so the user can identify the token in the
 /// settings UI without ever seeing the secret again after creation.
 model ApiToken {
-  id          String    @id @default(cuid())
-  userId      String
+  id         String    @id @default(cuid())
+  userId     String
   /// Human-readable label set by the user ("Claude Desktop", "Cursor", etc.).
-  name        String
+  name       String
   /// Hex sha-256 hash of the token. The plaintext is shown once, on creation.
-  tokenHash   String    @unique
+  tokenHash  String    @unique
   /// First 12 chars of the token (e.g. `ada_pat_3f8a`) for UI display.
-  prefix      String
-  lastUsedAt  DateTime?
-  expiresAt   DateTime?
-  revokedAt   DateTime?
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  prefix     String
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([userId])
 }
@@ -680,19 +750,19 @@ enum ContactMessageKind {
 /// - El admin puede marcar `readAt`, `repliedAt` y `archivedAt` desde la
 ///   bandeja sin tocar el cuerpo del mensaje.
 model ContactMessage {
-  id          String              @id @default(cuid())
-  kind        ContactMessageKind  @default(GENERAL)
-  name        String
-  email       String
-  body        String              @db.Text
-  userId      String?
-  user        User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
-  ip          String?
-  userAgent   String?             @db.Text
-  readAt      DateTime?
-  repliedAt   DateTime?
-  archivedAt  DateTime?
-  createdAt   DateTime            @default(now())
+  id         String             @id @default(cuid())
+  kind       ContactMessageKind @default(GENERAL)
+  name       String
+  email      String
+  body       String             @db.Text
+  userId     String?
+  user       User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ip         String?
+  userAgent  String?            @db.Text
+  readAt     DateTime?
+  repliedAt  DateTime?
+  archivedAt DateTime?
+  createdAt  DateTime           @default(now())
 
   @@index([createdAt])
   @@index([kind])

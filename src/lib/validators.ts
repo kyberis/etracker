@@ -364,6 +364,92 @@ export const monthlySavingsContributionSchema = z.object({
   note: z.string().max(500).optional(),
 });
 
+const eventColorSchema = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => (value && value.length ? value : undefined))
+  .refine((value) => !value || colorRegex.test(value), "Color must be a hex code.");
+
+const eventAttributionModeSchema = z.enum(["BY_DATE", "LUMP_SUM"]);
+
+export const eventCreateSchema = z
+  .object({
+    name: z.string().trim().min(1, "Event name is required.").max(120),
+    startDate: z
+      .string()
+      .regex(isoDateRegex, "startDate must be yyyy-MM-dd."),
+    endDate: z
+      .string()
+      .trim()
+      .optional()
+      .transform((v) => (v && v.length ? v : undefined))
+      .refine(
+        (v) => v === undefined || isoDateRegex.test(v),
+        "endDate must be yyyy-MM-dd when provided.",
+      ),
+    color: eventColorSchema,
+    attributionMode: eventAttributionModeSchema.optional(),
+  })
+  .refine(
+    (data) => !data.endDate || data.endDate >= data.startDate,
+    { path: ["endDate"], message: "endDate must be after startDate." },
+  );
+
+export const eventUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    startDate: z
+      .string()
+      .regex(isoDateRegex, "startDate must be yyyy-MM-dd.")
+      .optional(),
+    /** Pass `null` explicitly to clear endDate (leave the event open-ended). */
+    endDate: z
+      .union([z.string().regex(isoDateRegex, "endDate must be yyyy-MM-dd."), z.null()])
+      .optional(),
+    color: z
+      .union([
+        z
+          .string()
+          .trim()
+          .refine((v) => v === "" || colorRegex.test(v), "Color must be a hex code."),
+        z.null(),
+      ])
+      .optional(),
+    attributionMode: eventAttributionModeSchema.optional(),
+  })
+  .refine(
+    (data) =>
+      data.name !== undefined ||
+      data.startDate !== undefined ||
+      data.endDate !== undefined ||
+      data.color !== undefined ||
+      data.attributionMode !== undefined,
+    { message: "Nada para actualizar." },
+  );
+
+export const eventCloseSchema = z
+  .object({
+    attributionMode: eventAttributionModeSchema,
+    /** Required when attributionMode = LUMP_SUM. */
+    attributionMonth: z
+      .string()
+      .regex(monthRegex, "attributionMonth must be yyyy-MM.")
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.attributionMode === "BY_DATE" || data.attributionMonth !== undefined,
+    {
+      path: ["attributionMonth"],
+      message: "attributionMonth is required when attributionMode is LUMP_SUM.",
+    },
+  );
+
+export const eventAttachLineSchema = z.object({
+  lineId: z.string().min(1, "lineId is required."),
+});
+
 /**
  * Closed enum of usage reasons captured by the onboarding wizard. Stored as a
  * string array on `User.usageReasons`; the agent can read them as a hint but

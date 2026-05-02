@@ -12,6 +12,10 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`billing-and-quota-upsell`](billing-and-quota-upsell.md) — optional Stripe-backed
   Supporter plan + one-time donations gated behind the `quota_upsell` feature flag.
   Surfaces in chat 429, settings, public `/upgrade`.
+- [`events`](events.md) — event wallets (trips, weddings, birthdays, any
+  time-bound spend bucket). Group expenses by date range, close as a single
+  lump-sum month or keep BY_DATE, with collapsible row in the dashboard and
+  full agent / REST / MCP coverage.
 - [`gdpr-compliance`](gdpr-compliance.md) — demonstrable consent, data
   export/delete endpoints, sub-processor registry, retention windows,
   self-host controller resolution, public `/contact` form + `/admin/contact`

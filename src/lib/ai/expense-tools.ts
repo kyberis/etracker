@@ -1,4 +1,6 @@
 import {
+  EventAttributionMode,
+  EventStatus,
   Prisma,
   SavingsMovementKind,
   type ExpenseCategory,
@@ -10,6 +12,19 @@ import { z } from "zod";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
 import { getBanksCached, invalidateBanksCache } from "@/lib/cache/banks";
 import { db } from "@/lib/db";
+import {
+  attachLineToEvent,
+  closeEvent as closeEventService,
+  createEvent as createEventService,
+  deleteEvent as deleteEventService,
+  detachLineFromEvent,
+  getActiveEventsAt,
+  getEvent as getEventService,
+  isDateInEventRange,
+  listEvents as listEventsService,
+  reopenEvent as reopenEventService,
+  updateEvent as updateEventService,
+} from "@/lib/events";
 import {
   isUniqueViolation,
   parseIsoDate,
@@ -467,7 +482,9 @@ export function buildExpenseTools(userId: string) {
         "You can override the exchange rate with `fxRate` (e.g. parallel market rates); if omitted, " +
         "we fetch an automatic rate and freeze it onto the line. " +
         "Lines are unique by (user, date, description, amount, currency): " +
-        "if an identical one already exists the tool returns `duplicate=true` without creating anything.",
+        "if an identical one already exists the tool returns `duplicate=true` without creating anything. " +
+        "Pass `eventId` to attach the line to an event wallet (e.g. a trip). If `occurredOn` falls outside " +
+        "the event's date range, the tool returns `error` so you can ask the user before tagging.",
       inputSchema: z.object({
         name: z.string().min(1).max(120),
         amount: z.number().positive(),
@@ -498,6 +515,15 @@ export function buildExpenseTools(userId: string) {
           .optional()
           .describe(
             "Actual date of the expense (yyyy-MM-dd). Default = today. Pass it if the user indicates a different date (e.g. 'last week', a dated receipt).",
+          ),
+        eventId: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "Optional event wallet id to attach the line to. The event must be OPEN. " +
+            "If `occurredOn` is outside the event's [startDate, endDate], the tool errors out " +
+            "so you can confirm with the user before tagging.",
           ),
       }),
       execute: async (input) => {
@@ -541,6 +567,41 @@ export function buildExpenseTools(userId: string) {
         }
 
         const occurredOn = parseIsoDate(input.occurredOn) ?? todayUtcDate();
+
+        let eventId: string | null = null;
+        let eventName: string | null = null;
+        if (input.eventId) {
+          const event = await db.event.findFirst({
+            where: { id: input.eventId, userId },
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              startDate: true,
+              endDate: true,
+            },
+          });
+          if (!event) {
+            return { error: "The specified event doesn't exist." };
+          }
+          if (event.status !== EventStatus.OPEN) {
+            return {
+              error:
+                "That event is closed. Reopen it before adding more expenses.",
+            };
+          }
+          if (!isDateInEventRange(event, occurredOn)) {
+            return {
+              error:
+                `The expense date (${occurredOn.toISOString().slice(0, 10)}) is outside the event "${event.name}" range. Confirm with the user whether to extend the event or leave the expense unattached.`,
+              outOfRange: true as const,
+              eventName: event.name,
+            };
+          }
+          eventId = event.id;
+          eventName = event.name;
+        }
+
         let line;
         try {
           line = await db.monthExpenseLine.create({
@@ -557,6 +618,7 @@ export function buildExpenseTools(userId: string) {
               amountConverted: converted.amountConverted,
               category: input.category as ExpenseCategory,
               paid: input.paid,
+              eventId,
             },
           });
         } catch (error) {
@@ -585,6 +647,8 @@ export function buildExpenseTools(userId: string) {
             bankName: bank.name,
             category: line.category,
             paid: line.paid,
+            eventId,
+            eventName,
           },
         };
       },
@@ -1842,6 +1906,306 @@ export function buildExpenseTools(userId: string) {
           length: next.length,
           preview: next.length > 600 ? `${next.slice(0, 600)}…` : next,
         };
+      },
+    }),
+
+    listEvents: tool({
+      description:
+        "Lists the user's event wallets (e.g. trips). Pass `status: 'OPEN'` to see only active events you can attach expenses to. " +
+        "An event wallet groups expenses tagged with the same `eventId` over a date range. While `OPEN`, lines live in their real month buckets " +
+        "and surface as a collapsible row in the dashboard. When the user closes a multi-month event with `LUMP_SUM`, all lines move to a single chosen month.",
+      inputSchema: z.object({
+        status: z.enum(["OPEN", "CLOSED"]).optional(),
+      }),
+      execute: async ({ status }) => {
+        const events = await listEventsService(
+          userId,
+          status === "OPEN"
+            ? { status: EventStatus.OPEN }
+            : status === "CLOSED"
+              ? { status: EventStatus.CLOSED }
+              : {},
+        );
+        return { events };
+      },
+    }),
+
+    getActiveEvents: tool({
+      description:
+        "Returns the OPEN event wallets whose date range contains the given date (default = today). " +
+        "Call this BEFORE registering an expense if you suspect it might belong to a trip / event the user is on. " +
+        "If you get one or more matches, ask the user `\u00bf` lo sumo a tu <event.name>?` before tagging the line.",
+      inputSchema: z.object({
+        on: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
+          .optional()
+          .describe("Date in yyyy-MM-dd. Defaults to today."),
+      }),
+      execute: async ({ on }) => {
+        const date = parseIsoDate(on) ?? todayUtcDate();
+        const events = await getActiveEventsAt(userId, date);
+        return { events, on: date.toISOString().slice(0, 10) };
+      },
+    }),
+
+    getEvent: tool({
+      description:
+        "Reads a single event wallet (totals, line count, status, attribution mode/month). Use it to show the user what's in their trip wallet.",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      execute: async ({ id }) => {
+        const event = await getEventService(userId, id);
+        if (!event) return { error: "Event not found." };
+        return { event };
+      },
+    }),
+
+    createEvent: tool({
+      description:
+        "Creates an event wallet (e.g. a trip, a wedding, a birthday). The event groups expenses logged during the date range. " +
+        "Default `attributionMode` is `LUMP_SUM`: when closing the event you'll ask the user which month to attribute all expenses to. " +
+        "Use `BY_DATE` only if the user wants every expense to live in its real calendar month (no rebucket on close). " +
+        "Confirm with the user before calling: name, startDate, endDate (optional — leave blank if open-ended).",
+      inputSchema: z.object({
+        name: z.string().min(1).max(120),
+        startDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format."),
+        endDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
+          .optional(),
+        color: hexColorSchema.optional(),
+        attributionMode: z
+          .enum(["BY_DATE", "LUMP_SUM"])
+          .optional()
+          .default("LUMP_SUM"),
+      }),
+      execute: async ({ name, startDate, endDate, color, attributionMode }) => {
+        const start = parseIsoDate(startDate);
+        if (!start) return { error: "Invalid startDate (yyyy-MM-dd)." };
+        const end = endDate ? parseIsoDate(endDate) : null;
+        if (endDate && !end) return { error: "Invalid endDate (yyyy-MM-dd)." };
+        if (end && end < start) {
+          return { error: "endDate must be after startDate." };
+        }
+        try {
+          const event = await createEventService({
+            userId,
+            name,
+            startDate: start,
+            endDate: end ?? null,
+            color: normalizeHexColor(color),
+            attributionMode:
+              attributionMode === "BY_DATE"
+                ? EventAttributionMode.BY_DATE
+                : EventAttributionMode.LUMP_SUM,
+          });
+          return { ok: true as const, event };
+        } catch (error) {
+          if (error instanceof Error && error.message === "EVENT_INVALID_RANGE") {
+            return { error: "endDate must be after startDate." };
+          }
+          throw error;
+        }
+      },
+    }),
+
+    updateEvent: tool({
+      description:
+        "Updates an OPEN event wallet (rename, change dates, color, attributionMode). " +
+        "Use it to extend `endDate` when a trip runs longer than planned, or to rename. Closed events must be reopened first.",
+      inputSchema: z.object({
+        id: z.string().min(1),
+        name: z.string().min(1).max(120).optional(),
+        startDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
+          .optional(),
+        endDate: z
+          .union([
+            z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format."),
+            z.null(),
+          ])
+          .optional()
+          .describe("Pass `null` to clear endDate (leave the event open-ended)."),
+        color: hexColorSchema.nullable().optional(),
+        attributionMode: z.enum(["BY_DATE", "LUMP_SUM"]).optional(),
+      }),
+      execute: async ({ id, name, startDate, endDate, color, attributionMode }) => {
+        let start: Date | undefined;
+        if (startDate !== undefined) {
+          const parsed = parseIsoDate(startDate);
+          if (!parsed) return { error: "Invalid startDate (yyyy-MM-dd)." };
+          start = parsed;
+        }
+        let end: Date | null | undefined;
+        if (endDate !== undefined) {
+          if (endDate === null) {
+            end = null;
+          } else {
+            const parsed = parseIsoDate(endDate);
+            if (!parsed) return { error: "Invalid endDate (yyyy-MM-dd)." };
+            end = parsed;
+          }
+        }
+        try {
+          const event = await updateEventService({
+            userId,
+            eventId: id,
+            ...(name !== undefined ? { name } : {}),
+            ...(start !== undefined ? { startDate: start } : {}),
+            ...(end !== undefined ? { endDate: end } : {}),
+            ...(color !== undefined ? { color: normalizeHexColor(color) } : {}),
+            ...(attributionMode !== undefined
+              ? {
+                  attributionMode:
+                    attributionMode === "BY_DATE"
+                      ? EventAttributionMode.BY_DATE
+                      : EventAttributionMode.LUMP_SUM,
+                }
+              : {}),
+          });
+          if (!event) return { error: "Event not found." };
+          return { ok: true as const, event };
+        } catch (error) {
+          if (error instanceof Error) {
+            if (error.message === "EVENT_CLOSED") {
+              return {
+                error:
+                  "The event is closed. Reopen it first if you want to edit it.",
+              };
+            }
+            if (error.message === "EVENT_INVALID_RANGE") {
+              return { error: "endDate must be after startDate." };
+            }
+          }
+          throw error;
+        }
+      },
+    }),
+
+    closeEvent: tool({
+      description:
+        "Closes an event wallet. " +
+        "If `attributionMode = LUMP_SUM`, ALL lines tagged with this event move to the chosen `attributionMonth` (yyyy-MM) " +
+        "in a single transaction (occurredOn is preserved for audit). " +
+        "If `attributionMode = BY_DATE`, lines stay in their real-month buckets. " +
+        "Before calling, ask the user how they want to attribute the spend (especially for events crossing months).",
+      inputSchema: z.object({
+        id: z.string().min(1),
+        attributionMode: z.enum(["BY_DATE", "LUMP_SUM"]),
+        attributionMonth: optionalMonthKey.describe(
+          "yyyy-MM. Required when attributionMode = LUMP_SUM.",
+        ),
+      }),
+      execute: async ({ id, attributionMode, attributionMonth }) => {
+        if (attributionMode === "LUMP_SUM" && !attributionMonth) {
+          return {
+            error:
+              "attributionMonth (yyyy-MM) is required for LUMP_SUM. Ask the user which month they want all the event's expenses imputed to.",
+          };
+        }
+        try {
+          const event = await closeEventService({
+            userId,
+            eventId: id,
+            mode:
+              attributionMode === "LUMP_SUM"
+                ? EventAttributionMode.LUMP_SUM
+                : EventAttributionMode.BY_DATE,
+            attributionMonth: attributionMonth ?? null,
+          });
+          if (!event) return { error: "Event not found." };
+          return { ok: true as const, event };
+        } catch (error) {
+          if (error instanceof Error) {
+            if (error.message === "EVENT_ALREADY_CLOSED") {
+              return { error: "The event is already closed." };
+            }
+            if (error.message === "EVENT_MISSING_ATTRIBUTION_MONTH") {
+              return {
+                error:
+                  "attributionMonth (yyyy-MM) is required for LUMP_SUM.",
+              };
+            }
+          }
+          throw error;
+        }
+      },
+    }),
+
+    reopenEvent: tool({
+      description:
+        "Reopens a closed event wallet. If it was closed with LUMP_SUM, every line is moved back to the month its " +
+        "`occurredOn` belongs to (any missing destination month is created automatically).",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      execute: async ({ id }) => {
+        try {
+          const event = await reopenEventService({ userId, eventId: id });
+          if (!event) return { error: "Event not found." };
+          return { ok: true as const, event };
+        } catch (error) {
+          if (error instanceof Error && error.message === "EVENT_NOT_CLOSED") {
+            return { error: "The event is not closed." };
+          }
+          throw error;
+        }
+      },
+    }),
+
+    deleteEvent: tool({
+      description:
+        "Deletes an event wallet. Lines tagged with it lose `eventId` and reappear as standalone expenses in their original month. " +
+        "Use this only when the user explicitly says they want to delete the event; for closing the event, use `closeEvent`.",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      execute: async ({ id }) => {
+        const result = await deleteEventService(userId, id);
+        if (!result.ok) return { error: "Event not found." };
+        return {
+          ok: true as const,
+          detachedLineCount: result.detachedLineCount,
+        };
+      },
+    }),
+
+    attachLineToEvent: tool({
+      description:
+        "Attaches an existing month line to an OPEN event wallet. Useful when the user just registered an expense and then " +
+        "remembers it was part of a trip. If the line's `occurredOn` is outside the event's date range the tool still " +
+        "attaches it but returns `outOfRange: true` so you can confirm with the user.",
+      inputSchema: z.object({
+        eventId: z.string().min(1),
+        lineId: z.string().min(1),
+      }),
+      execute: async ({ eventId, lineId }) => {
+        try {
+          const result = await attachLineToEvent({ userId, eventId, lineId });
+          if (!result.ok) return { error: "Event or line not found." };
+          return {
+            ok: true as const,
+            outOfRange: result.outOfRange ?? false,
+          };
+        } catch (error) {
+          if (error instanceof Error && error.message === "EVENT_CLOSED") {
+            return {
+              error:
+                "The event is closed. Reopen it before attaching more lines.",
+            };
+          }
+          throw error;
+        }
+      },
+    }),
+
+    detachLineFromEvent: tool({
+      description:
+        "Removes the event tag from a month line. The line stays in its current month as a standalone expense.",
+      inputSchema: z.object({ lineId: z.string().min(1) }),
+      execute: async ({ lineId }) => {
+        const result = await detachLineFromEvent({ userId, lineId });
+        if (!result.ok) return { error: "Line not found." };
+        return { ok: true as const };
       },
     }),
 

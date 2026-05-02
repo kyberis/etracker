@@ -1,3 +1,15 @@
+export type MonthLineEventRef = {
+  id: string;
+  name: string;
+  color: string | null;
+  /** yyyy-MM-dd. */
+  startDate: string;
+  /** yyyy-MM-dd o null si está sin tope. */
+  endDate: string | null;
+  /** OPEN / CLOSED. La UI usa esto para decidir si permite desenganchar. */
+  status: "OPEN" | "CLOSED";
+};
+
 export type MonthLinePayload = {
   id: string;
   name: string;
@@ -13,6 +25,12 @@ export type MonthLinePayload = {
   bankName: string;
   paid: boolean;
   category: string;
+  /**
+   * Billetera de evento a la que pertenece la línea. `null` para gastos
+   * sueltos. La UI agrupa todas las líneas con el mismo `event.id` en un
+   * único row colapsable dentro del listado del mes.
+   */
+  event: MonthLineEventRef | null;
   /**
    * ISO timestamp del momento en que se creó la línea. Es el único orden
    * cronológico real disponible para `MonthExpenseLine` (no hay fecha de

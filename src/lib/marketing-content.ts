@@ -174,6 +174,18 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.8.0",
+      date: "2026-05-02",
+      title: "Billeteras de evento — agrupá los gastos de un viaje en una sola línea",
+      highlights: [
+        "Armá una billetera para tu próximo viaje (o casamiento, cumple, evento puntual) con un nombre y un rango de fechas. Mientras esté abierta, los gastos siguen viviendo en su mes real, pero el dashboard los agrupa en una sola fila colapsable con el total.",
+        "Clara detecta que estás de viaje: cuando cargás un gasto cuya fecha cae adentro del rango del evento, lo suma automáticamente y te avisa el total acumulado. Si la descripción no pega (Spotify, alquiler), te pregunta antes de etiquetarlo.",
+        "Al cerrar el evento elegís cómo imputar la plata: 'todo a un mes' (default — ideal para viajes que cruzan meses) o 'cada gasto en su mes real'. Si después necesitás reabrirlo, los gastos vuelven a sus meses originales sin perder nada.",
+        "Cobertura completa: agente y MCP exponen las nuevas herramientas (`createEvent`, `closeEvent`, `attachExpenseToEvent`, etc.), todas con confirmación explícita en MCP cuando mueven datos.",
+        "Paridad UI: todo lo del chat se hace también con clicks. En cada fila del mes hay un menú para etiquetar o sacar de un evento al toque. Desde la página de la billetera tenés 'Sumar gastos' para enganchar varios gastos sueltos juntos, y editás nombre, fechas y color sin pasar por la consola.",
+      ],
+    },
+    {
       version: "0.7.4",
       date: "2026-05-01",
       title: "Lanzamiento LinkedIn: MCP endurecido, Telegram + PDF, i18n técnica",
@@ -725,6 +737,18 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.8.0",
+      date: "2026-05-02",
+      title: "Event wallets — group every expense from a trip into one line",
+      highlights: [
+        "Create a wallet for your next trip (or wedding, birthday, one-off event) with a name and date range. While the wallet is open, expenses still live in their real month, but the dashboard groups them under a single collapsible row with the running total.",
+        "Clara figures out you're on the road: when you log an expense whose date falls inside the event's range, she auto-tags it and tells you the running total. If the description doesn't fit (Spotify, rent), she asks before tagging.",
+        "When you close the wallet, pick how to attribute the spend: 'everything to one month' (default — perfect for trips that span months) or 'keep each expense in its real month'. If you reopen later, expenses return to their original months without losing a thing.",
+        "Full coverage: the AI agent and the per-user MCP expose the new tools (`createEvent`, `closeEvent`, `attachExpenseToEvent`, etc.), with explicit confirmation on every MCP write call.",
+        "UI parity: everything chat can do is one click away. Each row in the month view has a menu to tag or detach from an event. The wallet page has an 'Add expenses' action to bulk-attach existing standalone expenses, and you can edit the name, dates and color without leaving the screen.",
+      ],
+    },
     {
       version: "0.7.4",
       date: "2026-05-01",
