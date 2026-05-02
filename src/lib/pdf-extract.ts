@@ -1,5 +1,3 @@
-import { PDFParse } from "pdf-parse";
-
 /**
  * Shared PDF text + page-image extractor used by the web `/api/chat/extract-pdf`
  * route AND the Telegram webhook so both surfaces stay in lockstep.
@@ -7,6 +5,14 @@ import { PDFParse } from "pdf-parse";
  * Returns `text` when the PDF has a selectable text layer; otherwise renders
  * the first N pages as PNG data URLs so the agent can read them like a bank
  * screenshot. Returns `null` for both fields when neither extraction works.
+ *
+ * IMPORTANT: `pdf-parse` transitively loads `pdfjs-dist`, which references
+ * `DOMMatrix` at module-evaluation time. In the Node.js serverless runtime
+ * `DOMMatrix` doesn't exist, causing a crash on every request — even ones that
+ * never touch PDFs — because the static import is evaluated eagerly. We avoid
+ * this by (a) converting the import to a dynamic `import()` inside the function
+ * body so the module is only evaluated when actually needed, and (b) polyfilling
+ * `DOMMatrix` before that evaluation so pdfjs-dist doesn't throw.
  */
 
 const MAX_TEXT_CHARS = 120_000;
@@ -52,6 +58,12 @@ export function dataUrlToBuffer(dataUrl: string): {
 
 /** Extract text + optional page images from a PDF buffer. */
 export async function extractPdf(buffer: Buffer): Promise<PdfExtractResult> {
+  // pdfjs-dist accesses DOMMatrix at module-evaluation time; polyfill before
+  // the dynamic import so the library doesn't throw in Node.js serverless.
+  if (typeof DOMMatrix === "undefined") {
+    (globalThis as Record<string, unknown>).DOMMatrix = class DOMMatrix {};
+  }
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   try {
     const textResult = await parser.getText();
