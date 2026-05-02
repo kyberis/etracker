@@ -5,6 +5,7 @@ import { jsonError, withApi } from "@/lib/http";
 import { pickFromAcceptLanguage } from "@/lib/i18n/locale";
 import { CURRENT_TERMS_VERSION } from "@/lib/legal";
 import { limitByIp } from "@/lib/rate-limit";
+import { notifyAdminOfNewUser } from "@/lib/signup-notify";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 import {
   createVerificationToken,
@@ -84,6 +85,15 @@ export async function POST(request: Request) {
       verificationToken,
       locale,
     );
+
+    // Best-effort admin ping. Failures are swallowed inside the helper so a
+    // flaky Resend call never blocks signup; we don't `await` for the same
+    // reason — the user-facing response shouldn't wait on operator mail.
+    void notifyAdminOfNewUser({
+      userId: user.id,
+      email: user.email,
+      source: "credentials",
+    });
 
     return new Response(
       JSON.stringify({

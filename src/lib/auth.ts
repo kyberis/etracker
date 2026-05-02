@@ -8,6 +8,7 @@ import { isoBase64URL } from "@simplewebauthn/server/helpers";
 
 import { touchActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
+import { notifyAdminOfNewUser } from "@/lib/signup-notify";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 import {
   getChallengeFromCookieHeader,
@@ -252,6 +253,22 @@ export const authOptions: NextAuthOptions = {
         session.user.isActive = token.isActive ?? true;
       }
       return session;
+    },
+  },
+  events: {
+    /**
+     * Fires once per user, only when the adapter (PrismaAdapter) creates the
+     * row. The email/password path bypasses the adapter and notifies from
+     * `POST /api/auth/register` instead, so this hook covers Google sign-ins
+     * exclusively. Best-effort: failures are swallowed inside the helper.
+     */
+    async createUser({ user }) {
+      if (!user?.id || !user.email) return;
+      void notifyAdminOfNewUser({
+        userId: user.id,
+        email: user.email,
+        source: "google",
+      });
     },
   },
 };

@@ -100,6 +100,20 @@ export function getContactNotifyEmail(): string | null {
 }
 
 /**
+ * Server-only address used by `src/lib/signup-notify.ts` to ping the admin
+ * when a new user signs up. Reads `SIGNUP_NOTIFY_EMAIL` and returns `null`
+ * when unset (best-effort: signup still succeeds; just no notification goes
+ * out — fine for self-hosters and local dev). Never hardcode a default
+ * here; the trefolio-hosted destination lives in Vercel project env vars.
+ *
+ * Never call this from client components.
+ */
+export function getSignupNotifyEmail(): string | null {
+  const value = process.env.SIGNUP_NOTIFY_EMAIL?.trim();
+  return value && value.length > 0 ? value : null;
+}
+
+/**
  * `true` when the running user has accepted the current pair of legal
  * documents. Use to gate the `(app)` layout and the chat agent.
  */
