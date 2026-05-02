@@ -20,7 +20,7 @@ export async function POST(
       return { event };
     } catch (error) {
       if (error instanceof Error && error.message === "EVENT_NOT_CLOSED") {
-        return jsonError("El evento no está cerrado.", 409);
+        return jsonError("Event is not closed.", 409);
       }
       throw error;
     }

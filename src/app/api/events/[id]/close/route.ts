@@ -38,11 +38,11 @@ export async function POST(
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === "EVENT_ALREADY_CLOSED") {
-          return jsonError("El evento ya está cerrado.", 409);
+          return jsonError("Event is already closed.", 409);
         }
         if (error.message === "EVENT_MISSING_ATTRIBUTION_MONTH") {
           return jsonError(
-            "attributionMonth es obligatorio para LUMP_SUM.",
+            "attributionMonth is required for LUMP_SUM.",
             400,
           );
         }

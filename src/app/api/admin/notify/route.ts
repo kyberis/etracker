@@ -26,8 +26,8 @@ const FROM_ADDRESS_DEFAULT = "Clara <noreply@clara.trefolio.com>";
 const SUBJECT_DEFAULT = "Mensaje de Clara";
 
 const notifySchema = z.object({
-  email: z.string().email("Email inválido."),
-  message: z.string().min(1, "El mensaje no puede estar vacío.").max(4000),
+  email: z.string().email("Invalid email."),
+  message: z.string().min(1, "Message cannot be empty.").max(4000),
   subject: z.string().min(1).max(120).optional(),
 });
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     });
 
     if (!target) {
-      return jsonError("No existe un usuario con ese email.", 404);
+      return jsonError("No user found with that email.", 404);
     }
 
     if (target.telegramChatId && target.telegramVerifiedAt) {

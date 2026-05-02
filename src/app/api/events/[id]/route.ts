@@ -81,7 +81,7 @@ export async function PATCH(
     } catch (error) {
       if (error instanceof Error && error.message === "EVENT_CLOSED") {
         return jsonError(
-          "El evento está cerrado. Reabrilo primero para editarlo.",
+          "Event is closed. Reopen it first to edit.",
           409,
         );
       }

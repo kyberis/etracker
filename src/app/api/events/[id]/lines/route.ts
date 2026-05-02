@@ -29,7 +29,7 @@ export async function POST(
     } catch (error) {
       if (error instanceof Error && error.message === "EVENT_CLOSED") {
         return jsonError(
-          "El evento está cerrado. Reabrilo antes de sumar gastos.",
+          "Event is closed. Reopen it before adding expenses.",
           409,
         );
       }
