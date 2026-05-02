@@ -1,6 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
+import { Send } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,11 @@ export type AdminUser = {
   isActive: boolean;
   dailyAgentMessageLimit: number;
   createdAt: string;
+  telegram: {
+    linked: boolean;
+    username: string | null;
+    verifiedAt: string | null;
+  };
   todayUsage: {
     count: number;
     inputTokens: number;
@@ -125,6 +131,7 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
           <TableRow>
             <TableHead>{t.admin.columnsEmail}</TableHead>
             <TableHead>{tx({ es: "Estado", en: "Status" })}</TableHead>
+            <TableHead>{t.admin.columnsTelegram}</TableHead>
             <TableHead>{t.admin.columnsToday}</TableHead>
             <TableHead className="w-32">{t.admin.columnsLimit}</TableHead>
             <TableHead>{t.admin.columnsCreated}</TableHead>
@@ -171,6 +178,26 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
                         : tx({ es: "desactivado", en: "inactive" })}
                     </span>
                   </div>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {u.telegram.linked ? (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                        <Send className="size-3.5" aria-hidden />
+                        {u.telegram.username ? `@${u.telegram.username}` : tx({ es: "vinculado", en: "linked" })}
+                      </span>
+                      {u.telegram.verifiedAt ? (
+                        <span className="text-muted-foreground text-[10px]">
+                          {tx({ es: "desde", en: "since" })}{" "}
+                          {format(new Date(u.telegram.verifiedAt), "yyyy-MM-dd")}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">
+                      {tx({ es: "sin vincular", en: "not linked" })}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   <span className="font-mono">

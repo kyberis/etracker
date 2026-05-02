@@ -616,6 +616,7 @@ export const es = {
     columnsAdmin: "Admin",
     columnsLimit: "Límite diario",
     columnsToday: "Hoy",
+    columnsTelegram: "Telegram",
     columnsCreated: "Creado",
     columnsActions: "Acciones",
     enable: "Activar",

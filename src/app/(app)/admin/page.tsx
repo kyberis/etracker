@@ -48,6 +48,9 @@ export default async function AdminPage() {
       isActive: true,
       dailyAgentMessageLimit: true,
       createdAt: true,
+      telegramUserId: true,
+      telegramUsername: true,
+      telegramVerifiedAt: true,
       agentUsage: {
         where: { day: today },
         select: { count: true, inputTokens: true, outputTokens: true },
@@ -65,6 +68,11 @@ export default async function AdminPage() {
       isActive: u.isActive,
       dailyAgentMessageLimit: u.dailyAgentMessageLimit,
       createdAt: u.createdAt.toISOString(),
+      telegram: {
+        linked: u.telegramUserId !== null,
+        username: u.telegramUsername,
+        verifiedAt: u.telegramVerifiedAt?.toISOString() ?? null,
+      },
       todayUsage: {
         count: usage?.count ?? 0,
         inputTokens: usage?.inputTokens ?? 0,

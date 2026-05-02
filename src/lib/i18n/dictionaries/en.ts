@@ -613,6 +613,7 @@ export const en: Dict = {
     columnsAdmin: "Admin",
     columnsLimit: "Daily limit",
     columnsToday: "Today",
+    columnsTelegram: "Telegram",
     columnsCreated: "Created",
     columnsActions: "Actions",
     enable: "Enable",
