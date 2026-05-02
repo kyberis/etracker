@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { ACCOUNT_DELETION_GRACE_DAYS } from "@/lib/account-deletion";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
 import { intlLocale } from "@/lib/i18n/format";
 import { isLocale, LOCALE_LABELS } from "@/lib/i18n/locale";
@@ -530,6 +531,7 @@ function DeleteAccountCard({
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [phrase, setPhrase] = useState("");
+  const [force, setForce] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -538,12 +540,13 @@ function DeleteAccountCard({
     setError(null);
     setSubmitting(true);
     try {
-      const body: Record<string, string> = {};
+      const body: Record<string, string | boolean> = {};
       if (hasPassword) {
         body.currentPassword = password;
       } else {
         body.confirmPhrase = phrase;
       }
+      if (force) body.force = true;
       const res = await fetch("/api/account", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -554,9 +557,23 @@ function DeleteAccountCard({
         setError(data.error ?? t.settings.deleteFailed);
         return;
       }
-      // Account is gone; bounce to login. `router.refresh()` would 401 and
-      // loop, `assign` is the simplest correct exit.
-      window.location.assign(locale === "en" ? "/en?deleted=1" : "/es?deleted=1");
+      // The response carries `scheduledFor` for soft-delete, or
+      // `purgedNow: true` for the force path. We pass `?force=1` along on
+      // the force path so the public confirmation page renders the
+      // "permanently deleted, nothing to recover" copy. `router.refresh()`
+      // would 401 and loop now that the session cookie is wiped —
+      // `assign` is the simplest correct exit.
+      const data = (await res.json().catch(() => ({}))) as {
+        scheduledFor?: string;
+        purgedNow?: boolean;
+      };
+      const lang = locale === "en" ? "en" : "es";
+      const params = new URLSearchParams();
+      if (data.scheduledFor) params.set("until", data.scheduledFor);
+      if (data.purgedNow) params.set("force", "1");
+      const query = params.toString();
+      const target = `/${lang}/account-deleted${query ? `?${query}` : ""}`;
+      window.location.assign(target);
     } finally {
       setSubmitting(false);
     }
@@ -574,11 +591,11 @@ function DeleteAccountCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-muted-foreground text-sm">
-          {t.settings.deleteDescription}
+          {t.settings.deleteDescription(ACCOUNT_DELETION_GRACE_DAYS)}
         </p>
         <p className="text-destructive flex items-center gap-1.5 text-sm font-medium">
           <AlertTriangle className="size-4 shrink-0" aria-hidden />
-          {t.settings.deleteWarning}
+          {t.settings.deleteWarning(ACCOUNT_DELETION_GRACE_DAYS)}
         </p>
 
         {!open ? (
@@ -627,11 +644,32 @@ function DeleteAccountCard({
               </div>
             )}
 
+            <label className="border-destructive/30 bg-destructive/5 flex items-start gap-2 rounded-md border p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={force}
+                onChange={(event) => setForce(event.target.checked)}
+              />
+              <span className="space-y-1">
+                <span className="text-destructive block font-medium">
+                  {t.settings.deleteForceLabel}
+                </span>
+                <span className="text-muted-foreground block text-xs">
+                  {t.settings.deleteForceHint(ACCOUNT_DELETION_GRACE_DAYS)}
+                </span>
+              </span>
+            </label>
+
             {error ? <FormStatus tone="error">{error}</FormStatus> : null}
 
             <div className="flex items-center gap-2">
               <Button type="submit" variant="destructive" disabled={submitting}>
-                {submitting ? t.settings.deleteSubmitting : t.settings.deleteSubmit}
+                {submitting
+                  ? t.settings.deleteSubmitting
+                  : force
+                    ? t.settings.deleteForceSubmit
+                    : t.settings.deleteSubmit}
               </Button>
               <Button
                 type="button"
@@ -641,6 +679,7 @@ function DeleteAccountCard({
                   setOpen(false);
                   setPassword("");
                   setPhrase("");
+                  setForce(false);
                   setError(null);
                 }}
               >

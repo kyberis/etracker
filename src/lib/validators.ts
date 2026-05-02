@@ -570,3 +570,67 @@ export const adminUpdateUserSchema = z
       data.isActive !== undefined || data.dailyAgentMessageLimit !== undefined,
     { message: "Nada para actualizar." },
   );
+
+// ---------------------------------------------------------------------------
+// Shared event wallets
+// ---------------------------------------------------------------------------
+
+/**
+ * Payload for `POST /api/events/share/[token]/accept`.
+ *
+ * `mode = "guest"`: anonymous accept (the visitor has no Clara session).
+ * Requires a `displayName` so the chat can refer to them naturally.
+ * `locale` is optional; we sniff the URL `[lang]` segment when omitted.
+ *
+ * `mode = "registered"`: the visitor is logged in (a NextAuth session is
+ * required by the route). `displayName` is optional — defaults to the
+ * caller's `User.name ?? email`.
+ */
+export const eventShareAcceptSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("guest"),
+    displayName: z
+      .string()
+      .trim()
+      .min(1, "Decinos cómo querés que te llamen.")
+      .max(80, "Demasiado largo (máximo 80 caracteres)."),
+    locale: z.string().trim().min(2).max(8).optional(),
+  }),
+  z.object({
+    mode: z.literal("registered"),
+    displayName: z
+      .string()
+      .trim()
+      .min(1)
+      .max(80)
+      .optional(),
+  }),
+]);
+
+/** Payload for `POST /api/auth/upgrade-guest`. */
+export const guestUpgradeSchema = z.object({
+  guestUserId: z.string().min(1),
+  email: z
+    .string()
+    .email("El email no es válido.")
+    .transform((value) => value.toLowerCase().trim()),
+  password: z
+    .string()
+    .min(8, "La contraseña debe tener al menos 8 caracteres.")
+    .max(128, "La contraseña es demasiado larga."),
+  acceptedTermsVersion: z.string().min(1, "Tenés que aceptar los Términos."),
+  /** Optional override for `User.locale` (defaults to keeping current). */
+  locale: z.string().trim().min(2).max(8).optional(),
+});
+
+/**
+ * Refinement for tools/routes that take an optional `paidByUserId` on a
+ * monthly expense line. Empty strings are coerced to `undefined` so a
+ * blank form field is treated the same as "not specified".
+ */
+export const paidByUserIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .optional()
+  .or(z.literal("").transform(() => undefined));

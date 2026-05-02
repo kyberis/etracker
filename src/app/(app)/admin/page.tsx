@@ -7,6 +7,10 @@ import {
   type AdminFeatureFlag,
 } from "@/components/admin-feature-flags-table";
 import { AdminNotifyPanel } from "@/components/admin-notify-panel";
+import {
+  AdminPendingPurgeTable,
+  type AdminPendingPurgeUser,
+} from "@/components/admin-pending-purge-table";
 import { AdminUsersTable, type AdminUser } from "@/components/admin-users-table";
 import { PageContainer } from "@/components/page-container";
 import {
@@ -16,6 +20,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  ACCOUNT_DELETION_GRACE_DAYS,
+  getDeletionScheduledFor,
+  getGraceDaysRemaining,
+  reminderAlreadySent,
+} from "@/lib/account-deletion";
 import { getTodayUtcDate } from "@/lib/agent-quota";
 import { getAuthSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -30,6 +40,30 @@ export default async function AdminPage() {
   }
 
   const today = getTodayUtcDate();
+  const pendingPurgeRows = await db.user.findMany({
+    where: { deletedAt: { not: null } },
+    orderBy: { deletedAt: "asc" },
+    select: {
+      id: true,
+      email: true,
+      deletedAt: true,
+      deletionRemindersSent: true,
+    },
+  });
+  const now = new Date();
+  const pendingPurgeUsers: AdminPendingPurgeUser[] = pendingPurgeRows
+    .filter((u): u is typeof u & { deletedAt: Date } => u.deletedAt !== null)
+    .map((u) => ({
+      id: u.id,
+      email: u.email,
+      deletedAt: u.deletedAt.toISOString(),
+      scheduledFor: getDeletionScheduledFor(u.deletedAt).toISOString(),
+      daysRemaining: getGraceDaysRemaining(u.deletedAt, now),
+      remindersSent: {
+        tMinus7: reminderAlreadySent(u.deletionRemindersSent, 0),
+        tMinus1: reminderAlreadySent(u.deletionRemindersSent, 1),
+      },
+    }));
   const featureFlags = await listFeatureFlags();
   const initialFlags: AdminFeatureFlag[] = featureFlags.map((f) => ({
     key: f.key,
@@ -133,6 +167,21 @@ export default async function AdminPage() {
         </CardHeader>
         <CardContent>
           <AdminNotifyPanel />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.admin.pendingPurgeTitle}</CardTitle>
+          <CardDescription>
+            {t.admin.pendingPurgeDescription(ACCOUNT_DELETION_GRACE_DAYS)}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminPendingPurgeTable
+            initialUsers={pendingPurgeUsers}
+            graceDays={ACCOUNT_DELETION_GRACE_DAYS}
+          />
         </CardContent>
       </Card>
 

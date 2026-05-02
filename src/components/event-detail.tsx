@@ -16,6 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  EventSharePanel,
+  type ParticipantPayload,
+  type SettlementPayload,
+} from "@/components/event-share-panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/format";
@@ -64,6 +69,10 @@ type LinePayload = {
   bankName: string;
   category: string;
   paid: boolean;
+  /** Set when the line lives in a multi-participant event. Optional so
+   * legacy / candidate-attach payloads (which don't track this) still
+   * conform to the type. */
+  paidByUserId?: string | null;
 };
 
 type Props = {
@@ -74,6 +83,13 @@ type Props = {
   /** Cualquier línea sin evento — fallback cuando el usuario quiere ampliar. */
   candidatesAll: LinePayload[];
   primaryCurrency: string;
+  /** Optional: viewer-aware fields that gate share controls + badges.
+   * When omitted (legacy callers) the component degrades gracefully:
+   * no share dialog, no participant list, no settlement card. */
+  currentUserId?: string;
+  isOwner?: boolean;
+  participants?: ParticipantPayload[];
+  settlement?: SettlementPayload | null;
 };
 
 function formatDateLabel(iso: string, locale: ReturnType<typeof useLocale>): string {
@@ -91,6 +107,10 @@ export function EventDetail({
   candidatesInRange,
   candidatesAll,
   primaryCurrency,
+  currentUserId,
+  isOwner = true,
+  participants,
+  settlement,
 }: Props) {
   const tx = useTx();
   const locale = useLocale();
@@ -99,6 +119,18 @@ export function EventDetail({
   const [isPending, setIsPending] = useState(false);
   const [editingMeta, setEditingMeta] = useState(false);
   const [isAttaching, setIsAttaching] = useState(false);
+
+  // For the "Pagó X" badge per line and the share panel: build a name
+  // lookup once. Falls back to "?" when the row predates the join (or
+  // the participant was hard-deleted, which currently shouldn't happen
+  // — removeParticipant tombstones).
+  const participantNameById = new Map<string, string>();
+  if (participants) {
+    for (const p of participants) participantNameById.set(p.userId, p.displayName);
+  }
+  // Multi-participant events show "Paid by X" pills; single-participant
+  // events would just say "Paid by you" everywhere which is noise.
+  const showPaidByBadges = (participants?.length ?? 0) >= 2;
 
   const monthKeysWithSpend = new Map<string, number>();
   for (const line of lines) {
@@ -374,6 +406,17 @@ export function EventDetail({
                       {line.bankName} · {line.category.toLowerCase()} ·{" "}
                       {formatDateLabel(line.occurredOn, locale)}
                     </p>
+                    {showPaidByBadges && line.paidByUserId ? (
+                      <p className="text-muted-foreground mt-1 text-[11px]">
+                        <span className="border-border/60 bg-muted/40 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+                          {tx({ es: "Pagó", en: "Paid by" })}{" "}
+                          {line.paidByUserId === currentUserId
+                            ? tx({ es: "vos", en: "you" })
+                            : (participantNameById.get(line.paidByUserId) ??
+                              "?")}
+                        </span>
+                      </p>
+                    ) : null}
                   </div>
                   <p className="shrink-0 text-sm font-semibold tabular-nums">
                     {formatCurrency(
@@ -382,7 +425,7 @@ export function EventDetail({
                       locale,
                     )}
                   </p>
-                  {event.status === "OPEN" ? (
+                  {event.status === "OPEN" && isOwner ? (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -402,6 +445,18 @@ export function EventDetail({
           )}
         </CardContent>
       </Card>
+
+      {participants && currentUserId ? (
+        <EventSharePanel
+          eventId={event.id}
+          eventStatus={event.status}
+          isOwner={isOwner}
+          currentUserId={currentUserId}
+          participants={participants}
+          settlement={settlement ?? null}
+          onRefresh={() => router.refresh()}
+        />
+      ) : null}
 
       <CloseEventDialog
         open={isClosing}

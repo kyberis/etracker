@@ -82,11 +82,16 @@ export async function verifyBearerToken(
       userId: true,
       revokedAt: true,
       expiresAt: true,
+      // Pulled together with the token so soft-deleted accounts (and
+      // admin-disabled users) cannot use a previously-minted PAT during
+      // the 30-day grace window. One join, no extra round-trip.
+      user: { select: { isActive: true, deletedAt: true } },
     },
   });
   if (!row) return null;
   if (row.revokedAt) return null;
   if (row.expiresAt && row.expiresAt < new Date()) return null;
+  if (!row.user || !row.user.isActive || row.user.deletedAt) return null;
 
   // Best-effort `lastUsedAt` bump — failures here must not block the
   // request, so we swallow errors but log for debugging.

@@ -426,9 +426,10 @@ export const en: Dict = {
     exportLimit: "Up to 3 downloads per hour.",
 
     deleteTitle: "Delete my account",
-    deleteDescription:
-      "Deletes your account and every related row (banks, templates, messages, savings, MCP tokens, passkeys). If you have an active Supporter subscription we cancel it immediately. Donations stay on file at Stripe for tax reasons and are not refundable.",
-    deleteWarning: "This is irreversible.",
+    deleteDescription: (graceDays: number) =>
+      `Marks your account for deletion and queues it for ${graceDays} days. Nothing is removed in the meantime — you can recover it any time from the restore screen. If you have an active Supporter subscription we cancel it immediately. Donations stay on file at Stripe for tax reasons and are not refundable.`,
+    deleteWarning: (graceDays: number) =>
+      `After ${graceDays} days the deletion is permanent and cascades.`,
     deletePasswordLabel: "Your password",
     deletePasswordHint: "We ask for it to confirm it's you.",
     deletePhraseLabel: "Confirmation phrase",
@@ -437,6 +438,54 @@ export const en: Dict = {
     deleteSubmit: "Delete my account",
     deleteSubmitting: "Deleting…",
     deleteFailed: "Could not delete the account.",
+    deleteForceLabel: "Skip the grace window — delete permanently right now",
+    deleteForceHint: (graceDays: number) =>
+      `By default we hold the data for ${graceDays} days so you can change your mind. Tick this to wipe everything immediately. This cannot be undone.`,
+    deleteForceSubmit: "Delete permanently",
+  },
+
+  accountRestore: {
+    title: "Your account is pending deletion",
+    intro: (email: string) =>
+      `You requested to delete the account ${email}. While you're on this screen nothing has been removed yet: your banks, templates, expenses, messages and savings are all still there.`,
+    scheduledLine: (scheduledFor: string, deletedAt: string) =>
+      `Request logged on ${deletedAt}. If you do nothing we'll delete it permanently on ${scheduledFor}.`,
+    daysRemaining: (days: number, grace: number) =>
+      `You have ${days} day${days === 1 ? "" : "s"} left (out of ${grace}) to recover it.`,
+    graceElapsed:
+      "The grace period has elapsed. We'll wipe the account on the next daily sweep.",
+    whatNowTitle: "What you can do:",
+    bulletRestore: "Restore the account now and pick up where you left off.",
+    bulletWait: (grace: number) =>
+      `Do nothing: ${grace} days after the request we erase everything in cascade.`,
+    bulletSignOut:
+      "Sign out: the account stays in the deletion queue and you land back on the home page.",
+    restore: "Restore my account",
+    restoring: "Restoring…",
+    signOut: "Sign out",
+    signingOut: "Signing out…",
+    restoreError: "We couldn't restore the account. Try again in a moment.",
+  },
+
+  accountDeleted: {
+    title: "We received your delete request",
+    intro: (graceDays: number) =>
+      `Your account is queued for deletion. You have ${graceDays} days to change your mind: until then your data is still intact.`,
+    scheduledLine: (scheduledFor: string) =>
+      `If you do nothing we'll delete it permanently on ${scheduledFor}.`,
+    recoveryHint:
+      "Changed your mind? Sign in with the same email and we'll take you straight to the recovery screen.",
+    signIn: "Sign in to recover it",
+    backHome: "Back to home",
+    metaTitle: "Account pending deletion",
+    metaDescription:
+      "Your Clara account is scheduled for deletion. Sign in to recover it before the grace period expires.",
+    forceTitle: "Your account has been deleted",
+    forceIntro:
+      "We've removed your Clara account and everything tied to it: banks, templates, expenses, savings, chat history, MCP tokens. There is nothing left to recover.",
+    forceMetaTitle: "Account deleted",
+    forceMetaDescription:
+      "Your Clara account has been permanently deleted at your request.",
   },
 
   app: {
@@ -631,6 +680,22 @@ export const en: Dict = {
     notifyTitle: "Notify a user",
     notifyDescription:
       "Out-of-band message bypassing the AI agent (downtime, recovery, one-off notices). Prefers Telegram when linked, falls back to email.",
+    pendingPurgeTitle: "Pending account deletions",
+    pendingPurgeDescription: (graceDays: number) =>
+      `Soft-deleted accounts. Each row gets hard-deleted on its scheduled date (${graceDays}-day grace). T-7 and T-1 reminder emails go out from the daily purge cron. You can force an immediate purge if the user contacts support and waives the grace window.`,
+    pendingPurgeEmpty: "Nothing pending. The deletion queue is empty.",
+    pendingPurgeColumnsEmail: "Email",
+    pendingPurgeColumnsDeletedAt: "Soft-deleted at",
+    pendingPurgeColumnsScheduledFor: "Scheduled for",
+    pendingPurgeColumnsRemaining: "Days left",
+    pendingPurgeColumnsReminders: "Reminders sent",
+    pendingPurgeRemindersNone: "—",
+    pendingPurgeForceLabel: "Purge now",
+    pendingPurgeForcing: "Purging…",
+    pendingPurgeForceConfirm: (email: string) =>
+      `Permanently delete ${email}? This cancels the grace window and cascades to every row. Cannot be undone.`,
+    pendingPurgeForceSuccess: "Account permanently deleted.",
+    pendingPurgeForceError: "Could not purge the account.",
   },
 
   analytics: {

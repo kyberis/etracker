@@ -15,6 +15,18 @@ export async function requireUserId() {
 }
 
 /**
+ * Like `requireUserId` but returns `null` when there is no session
+ * instead of throwing. Use for endpoints that have a public branch and
+ * a logged-in branch (e.g. share-link accept).
+ */
+export async function getOptionalUserId(): Promise<string | null> {
+  const session = await getAuthSession();
+  const id = session?.user?.id ?? null;
+  if (id) void touchActivity(id);
+  return id;
+}
+
+/**
  * Asserts the caller is signed in **and** has `isAdmin = true` in the DB.
  * Throws `Error("UNAUTHORIZED")` for unauthenticated callers and
  * `Error("FORBIDDEN")` for non-admins. `withApi` maps these to 401/403.

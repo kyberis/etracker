@@ -58,8 +58,22 @@ export async function POST(request: Request) {
       );
     }
 
-    const existing = await db.user.findUnique({ where: { email: payload.email } });
+    const existing = await db.user.findUnique({
+      where: { email: payload.email },
+      select: { id: true, deletedAt: true },
+    });
     if (existing) {
+      if (existing.deletedAt) {
+        // Email belongs to a soft-deleted account that is still in the
+        // 30-day grace window. Allowing a new signup to claim the address
+        // would either silently shadow the old data (security hole) or
+        // require us to hard-delete on signup (gives an attacker a way to
+        // shorten the grace period). Direct the user to recover instead.
+        return jsonError(
+          "That email belongs to an account that is pending deletion. Sign in to recover it from the restore page.",
+          409,
+        );
+      }
       return jsonError(
         "That email is already registered. If you signed up with Google, sign in with Google.",
         409,

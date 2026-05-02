@@ -1,5 +1,6 @@
 import {
   EventAttributionMode,
+  EventParticipantRole,
   EventStatus,
   Prisma,
   type Event as PrismaEvent,
@@ -33,6 +34,10 @@ import { expireYearTimeline } from "@/lib/year-timeline-data";
 
 export type EventPayload = {
   id: string;
+  /** The event creator (owner). Lines always live in this user's books;
+   * shared-event participants can read and contribute via the
+   * `EventParticipant` join table. */
+  userId: string;
   name: string;
   color: string | null;
   startDate: string;
@@ -67,6 +72,7 @@ function toEventPayload(
     ) ?? new Prisma.Decimal(0);
   return {
     id: event.id,
+    userId: event.userId,
     name: event.name,
     color: event.color,
     startDate: toIsoDate(event.startDate),
@@ -97,19 +103,41 @@ export async function createEvent(input: CreateEventInput): Promise<EventPayload
   if (input.endDate && input.endDate < input.startDate) {
     throw new Error("EVENT_INVALID_RANGE");
   }
-  const created = await db.event.create({
-    data: {
-      userId: input.userId,
-      name: input.name.trim(),
-      startDate: input.startDate,
-      endDate: input.endDate ?? null,
-      color: normalizeColor(input.color),
-      attributionMode: input.attributionMode ?? EventAttributionMode.LUMP_SUM,
-    },
-    include: {
-      attributionMonth: { select: { month: true } },
-      _count: { select: { lines: true } },
-    },
+  // Single transaction: event + OWNER participant. Every event must have an
+  // OWNER row from day one so authorization checks (`isEventParticipant` /
+  // `isEventOwner`) and the settlement engine can treat all events
+  // uniformly. The owner's `displayName` snapshot mirrors the backfill
+  // migration: name if set, else email local-part.
+  const owner = await db.user.findUnique({
+    where: { id: input.userId },
+    select: { name: true, email: true },
+  });
+  const ownerDisplayName = pickOwnerDisplayName(owner);
+
+  const created = await db.$transaction(async (tx) => {
+    const event = await tx.event.create({
+      data: {
+        userId: input.userId,
+        name: input.name.trim(),
+        startDate: input.startDate,
+        endDate: input.endDate ?? null,
+        color: normalizeColor(input.color),
+        attributionMode: input.attributionMode ?? EventAttributionMode.LUMP_SUM,
+      },
+      include: {
+        attributionMonth: { select: { month: true } },
+        _count: { select: { lines: true } },
+      },
+    });
+    await tx.eventParticipant.create({
+      data: {
+        eventId: event.id,
+        userId: input.userId,
+        role: EventParticipantRole.OWNER,
+        displayName: ownerDisplayName,
+      },
+    });
+    return event;
   });
   return toEventPayload(created);
 }
@@ -340,8 +368,17 @@ export async function getEvent(
   userId: string,
   eventId: string,
 ): Promise<EventPayload | null> {
+  // Visibility: owner OR active participant. We use a single query with
+  // an OR over the join so guests landing via the share-link can see the
+  // event in the same way a regular user can.
   const event = await db.event.findFirst({
-    where: { id: eventId, userId },
+    where: {
+      id: eventId,
+      OR: [
+        { userId },
+        { participants: { some: { userId, removedAt: null } } },
+      ],
+    },
     include: {
       attributionMonth: { select: { month: true } },
       lines: { select: { amountConverted: true } },
@@ -356,9 +393,15 @@ export async function listEvents(
   userId: string,
   options: { status?: EventStatus } = {},
 ): Promise<EventPayload[]> {
+  // Include events the user owns OR is an active participant of.
+  // Guests created via share-link see only the trip they were invited to;
+  // regular users see their own + every shared trip they accepted.
   const events = await db.event.findMany({
     where: {
-      userId,
+      OR: [
+        { userId },
+        { participants: { some: { userId, removedAt: null } } },
+      ],
       ...(options.status ? { status: options.status } : {}),
     },
     include: {
@@ -468,4 +511,399 @@ function normalizeColor(input: string | null | undefined): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+}
+
+function pickOwnerDisplayName(
+  user: { name: string | null; email: string } | null,
+): string {
+  if (!user) return "Owner";
+  if (user.name && user.name.trim().length > 0) return user.name.trim();
+  // Fallback to the email local-part so the chat message reads naturally
+  // ("marcos te invitó a Mendoza Trip") instead of leaking the full address.
+  const local = user.email.split("@")[0];
+  return local || user.email;
+}
+
+// ---------------------------------------------------------------------------
+// Participant management (shared event wallets)
+// ---------------------------------------------------------------------------
+
+export type ParticipantPayload = {
+  userId: string;
+  role: EventParticipantRole;
+  displayName: string;
+  joinedAt: string;
+  removedAt: string | null;
+  /** Convenience flag: did this participant link Telegram already? */
+  telegramLinked: boolean;
+  /** Discriminator so the UI can show "Guest" pills next to GUEST users. */
+  userKind: "REGULAR" | "GUEST";
+};
+
+/**
+ * Returns true when `userId` is the OWNER of `eventId`. Single source of
+ * truth for "can this user mint share-tokens / remove participants /
+ * delete the event".
+ */
+export async function isEventOwner(args: {
+  userId: string;
+  eventId: string;
+}): Promise<boolean> {
+  const ev = await db.event.findUnique({
+    where: { id: args.eventId },
+    select: { userId: true },
+  });
+  return Boolean(ev && ev.userId === args.userId);
+}
+
+/**
+ * Returns true when `userId` is the OWNER OR an active GUEST participant
+ * of `eventId`. Used by the routes that allow any participant to act
+ * (read, attach lines, etc.).
+ */
+export async function isEventParticipant(args: {
+  userId: string;
+  eventId: string;
+}): Promise<boolean> {
+  const event = await db.event.findFirst({
+    where: {
+      id: args.eventId,
+      OR: [
+        { userId: args.userId },
+        { participants: { some: { userId: args.userId, removedAt: null } } },
+      ],
+    },
+    select: { id: true },
+  });
+  return Boolean(event);
+}
+
+/**
+ * List all active participants of an event. Caller must already be
+ * authorized (owner or participant); we don't re-check here so callers
+ * can compose us with whatever auth flow they already ran.
+ */
+export async function listParticipants(args: {
+  eventId: string;
+}): Promise<ParticipantPayload[]> {
+  const rows = await db.eventParticipant.findMany({
+    where: { eventId: args.eventId, removedAt: null },
+    orderBy: [{ role: "asc" }, { joinedAt: "asc" }], // OWNER first, then by join time.
+    select: {
+      userId: true,
+      role: true,
+      displayName: true,
+      joinedAt: true,
+      removedAt: true,
+      user: {
+        select: { kind: true, telegramVerifiedAt: true },
+      },
+    },
+  });
+  return rows.map((r) => ({
+    userId: r.userId,
+    role: r.role,
+    displayName: r.displayName,
+    joinedAt: r.joinedAt.toISOString(),
+    removedAt: r.removedAt ? r.removedAt.toISOString() : null,
+    telegramLinked: Boolean(r.user.telegramVerifiedAt),
+    userKind: r.user.kind,
+  }));
+}
+
+export type AddParticipantInput = {
+  eventId: string;
+  userId: string;
+  /** Defaults to GUEST. Pass OWNER only from `createEvent` (we don't
+   * support "transferring ownership" yet). */
+  role?: EventParticipantRole;
+  /** Snapshot. We do NOT auto-update this when User.name changes. */
+  displayName: string;
+  /** Optional one-time Telegram link code (only for GUEST users). */
+  telegramLinkCode?: string | null;
+};
+
+/**
+ * Idempotent: adding the same (eventId, userId) twice just resurrects an
+ * existing tombstoned row (clears `removedAt` and refreshes
+ * `displayName`). The unique constraint enforces single-row-per-pair.
+ */
+export async function addParticipant(
+  input: AddParticipantInput,
+): Promise<ParticipantPayload> {
+  const role = input.role ?? EventParticipantRole.GUEST;
+  const row = await db.eventParticipant.upsert({
+    where: {
+      eventId_userId: { eventId: input.eventId, userId: input.userId },
+    },
+    create: {
+      eventId: input.eventId,
+      userId: input.userId,
+      role,
+      displayName: input.displayName,
+      telegramLinkCode: input.telegramLinkCode ?? null,
+    },
+    update: {
+      removedAt: null,
+      displayName: input.displayName,
+      // Only overwrite the link code if a fresh one was passed in. Otherwise
+      // a re-accept would clobber a still-pending one (but in practice the
+      // landing only mints a code for brand-new GUEST users).
+      ...(input.telegramLinkCode !== undefined
+        ? { telegramLinkCode: input.telegramLinkCode }
+        : {}),
+    },
+    select: {
+      userId: true,
+      role: true,
+      displayName: true,
+      joinedAt: true,
+      removedAt: true,
+      user: { select: { kind: true, telegramVerifiedAt: true } },
+    },
+  });
+  return {
+    userId: row.userId,
+    role: row.role,
+    displayName: row.displayName,
+    joinedAt: row.joinedAt.toISOString(),
+    removedAt: row.removedAt ? row.removedAt.toISOString() : null,
+    telegramLinked: Boolean(row.user.telegramVerifiedAt),
+    userKind: row.user.kind,
+  };
+}
+
+/**
+ * Soft-remove a participant. Refuses to remove the OWNER (transferring
+ * ownership is unsupported and the OWNER row is required by the
+ * settlement engine to anchor the event userId). Idempotent.
+ */
+export async function removeParticipant(args: {
+  eventId: string;
+  /** The user being removed. */
+  userId: string;
+  /** The user doing the removal. Must be the OWNER. */
+  callerUserId: string;
+}): Promise<{ ok: true } | { ok: false; reason: "forbidden" | "not_found" | "cannot_remove_owner" }> {
+  const event = await db.event.findUnique({
+    where: { id: args.eventId },
+    select: { userId: true },
+  });
+  if (!event) return { ok: false, reason: "not_found" };
+  if (event.userId !== args.callerUserId) {
+    return { ok: false, reason: "forbidden" };
+  }
+  if (args.userId === event.userId) {
+    return { ok: false, reason: "cannot_remove_owner" };
+  }
+  const row = await db.eventParticipant.findUnique({
+    where: { eventId_userId: { eventId: args.eventId, userId: args.userId } },
+    select: { id: true, removedAt: true },
+  });
+  if (!row) return { ok: false, reason: "not_found" };
+  if (row.removedAt) return { ok: true };
+  await db.eventParticipant.update({
+    where: { id: row.id },
+    data: { removedAt: new Date() },
+  });
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Settlement (equal-share split)
+// ---------------------------------------------------------------------------
+
+export type SettlementParticipant = {
+  userId: string;
+  displayName: string;
+  /** What this participant actually paid (sum of MonthExpenseLine.amountConverted). */
+  paid: number;
+  /** Net = paid − fairShare. Positive = creditor, negative = debtor. */
+  balance: number;
+};
+
+export type SettlementTransfer = {
+  fromUserId: string;
+  fromDisplayName: string;
+  toUserId: string;
+  toDisplayName: string;
+  amount: number;
+};
+
+export type SettlementBreakdown = {
+  eventId: string;
+  /** Currency that all amounts are denominated in (= owner's primary). */
+  currency: string;
+  /** Total spent across all lines (in `currency`). */
+  total: number;
+  /** Equal share per active participant. */
+  fairShare: number;
+  participants: SettlementParticipant[];
+  transfers: SettlementTransfer[];
+};
+
+/**
+ * Compute the equal-share settlement for an event.
+ *
+ * Math (everything in cents to avoid floating-point drift):
+ *   1. paidByUserCents[userId] = SUM(amountConverted * 100) per paidByUserId
+ *      (lines without paidByUserId fall back to the event owner — this is
+ *      the legacy/single-owner case and matches what the UI already shows).
+ *   2. totalCents = SUM(paidByUserCents[*])
+ *   3. fairShareCents = floor(totalCents / N), with the remainder absorbed
+ *      by the owner so debtors never owe a fractional cent.
+ *   4. netCents[userId] = paid − fairShare. Greedy match positives with
+ *      negatives until both sides are zero.
+ *
+ * Currency assumption: `MonthExpenseLine.amountConverted` is already in
+ * `User.primaryCurrency` of the EVENT OWNER, so we don't need to do any
+ * cross-FX work here. The owner's currency is the settlement currency.
+ *
+ * Returns `null` if the event has zero active participants (defensive —
+ * shouldn't happen because the OWNER row is always present).
+ */
+export async function computeSettlement(
+  eventId: string,
+): Promise<SettlementBreakdown | null> {
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    select: {
+      id: true,
+      userId: true,
+      participants: {
+        where: { removedAt: null },
+        select: { userId: true, displayName: true },
+      },
+      user: { select: { primaryCurrency: true } },
+    },
+  });
+  if (!event || event.participants.length === 0) return null;
+  const currency = event.user?.primaryCurrency ?? "USD";
+
+  const lines = await db.monthExpenseLine.findMany({
+    where: { eventId },
+    select: { amountConverted: true, paidByUserId: true },
+  });
+
+  const participantById = new Map<
+    string,
+    { displayName: string; paidCents: bigint }
+  >();
+  for (const p of event.participants) {
+    participantById.set(p.userId, {
+      displayName: p.displayName,
+      paidCents: 0n,
+    });
+  }
+
+  let totalCents = 0n;
+  for (const line of lines) {
+    // Decimal → cents bigint via toFixed(2) avoids the float roundtrip.
+    const amountCents = decimalToCents(line.amountConverted);
+    totalCents += amountCents;
+    // Lines without paidByUserId attribute to the owner (legacy + most
+    // common case for single-participant events). Lines whose
+    // paidByUserId points to a removed participant ALSO fall back to the
+    // owner so the math always closes — losing fidelity here is fine
+    // because the removed participant's debts were settled at removal
+    // time (or, if they weren't, the owner explicitly chose to absorb).
+    const payer =
+      line.paidByUserId && participantById.has(line.paidByUserId)
+        ? line.paidByUserId
+        : event.userId;
+    const entry = participantById.get(payer);
+    if (entry) entry.paidCents += amountCents;
+  }
+
+  const N = BigInt(event.participants.length);
+  if (N === 0n) return null;
+  const fairShareCents = totalCents / N;
+  const remainderCents = totalCents - fairShareCents * N;
+
+  const participants: SettlementParticipant[] = [];
+  const netCents = new Map<string, bigint>();
+  for (const p of event.participants) {
+    const entry = participantById.get(p.userId);
+    const paidCents = entry?.paidCents ?? 0n;
+    // Owner absorbs the remainder so debtor amounts always round cleanly.
+    const myShareCents = fairShareCents + (p.userId === event.userId ? remainderCents : 0n);
+    const balanceCents = paidCents - myShareCents;
+    netCents.set(p.userId, balanceCents);
+    participants.push({
+      userId: p.userId,
+      displayName: p.displayName,
+      paid: centsToNumber(paidCents),
+      balance: centsToNumber(balanceCents),
+    });
+  }
+
+  const transfers = greedyMatch(netCents, event.participants);
+
+  return {
+    eventId,
+    currency,
+    total: centsToNumber(totalCents),
+    fairShare: centsToNumber(fairShareCents),
+    participants,
+    transfers,
+  };
+}
+
+function decimalToCents(value: Prisma.Decimal): bigint {
+  // toFixed(2) gives us the value rounded to 2 dp, then we strip the dot
+  // and parse as BigInt. Negative amounts (refunds someday?) are
+  // preserved by the sign bit.
+  const fixed = value.toFixed(2);
+  const negative = fixed.startsWith("-");
+  const digits = (negative ? fixed.slice(1) : fixed).replace(".", "");
+  const big = BigInt(digits);
+  return negative ? -big : big;
+}
+
+function centsToNumber(cents: bigint): number {
+  // Two-decimal currency, safe in Number range for any plausible
+  // wallet (max ~9 quadrillion cents).
+  return Number(cents) / 100;
+}
+
+function greedyMatch(
+  netCents: Map<string, bigint>,
+  participants: Array<{ userId: string; displayName: string }>,
+): SettlementTransfer[] {
+  const nameById = new Map<string, string>();
+  for (const p of participants) nameById.set(p.userId, p.displayName);
+
+  // Sort creditors (positive balance) descending, debtors (negative)
+  // ascending, then walk both lists. Stable order means the same input
+  // always produces the same transfer list (good for snapshot tests).
+  const creditors = [...netCents.entries()]
+    .filter(([, c]) => c > 0n)
+    .sort((a, b) => (a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : 0));
+  const debtors = [...netCents.entries()]
+    .filter(([, c]) => c < 0n)
+    .sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+
+  const transfers: SettlementTransfer[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const [debtorId, debtorCents] = debtors[i];
+    const [creditorId, creditorCents] = creditors[j];
+    const owedCents = -debtorCents; // positive
+    const transferCents = owedCents < creditorCents ? owedCents : creditorCents;
+    if (transferCents > 0n) {
+      transfers.push({
+        fromUserId: debtorId,
+        fromDisplayName: nameById.get(debtorId) ?? "?",
+        toUserId: creditorId,
+        toDisplayName: nameById.get(creditorId) ?? "?",
+        amount: centsToNumber(transferCents),
+      });
+    }
+    debtors[i] = [debtorId, debtorCents + transferCents];
+    creditors[j] = [creditorId, creditorCents - transferCents];
+    if (debtors[i][1] === 0n) i += 1;
+    if (creditors[j][1] === 0n) j += 1;
+  }
+  return transfers;
 }

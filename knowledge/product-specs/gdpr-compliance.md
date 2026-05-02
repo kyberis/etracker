@@ -27,7 +27,7 @@ and inherit these patterns by default.
 | Right (Art.) | Where it lives | How a user exercises it |
 |--------------|----------------|--------------------------|
 | Access (15) + Portability (20) | `GET /api/account/export` | Settings → Tu información → "Descargar JSON" |
-| Erasure (17) | `DELETE /api/account` | Settings → Tu información → "Borrar mi cuenta" |
+| Erasure (17) | `DELETE /api/account` (soft) + `/api/cron/account-purge` (hard, T+30d). See [`account-soft-delete.md`](account-soft-delete.md) | Settings → Tu información → "Borrar mi cuenta" |
 | Rectification (16) | Existing settings forms (email, name, country, etc.) | Settings |
 | Restriction (18), Objection (21), Withdrawal (7(3)) | `/contact` form, kind `PRIVACY` | Public form at `/[lang]/contact` |
 
@@ -72,7 +72,8 @@ Current set:
 
 Numerical and listed in §6 of `PRIVACY_SECTIONS`. Highlights:
 
-- Account: account lifetime.
+- Account: account lifetime + 30-day soft-delete grace window. See
+  [`account-soft-delete.md`](account-soft-delete.md).
 - TTS audio: 7 days.
 - Logs: 30 days.
 - Stripe webhook idempotency: 18 months.
@@ -105,9 +106,11 @@ clarifications that don't change rights or obligations.
 ## Related code
 
 - Endpoints: `src/app/api/account/export/route.ts`, `src/app/api/account/route.ts`,
+  `src/app/api/account/restore/route.ts`, `src/app/api/cron/account-purge/route.ts`,
   `src/app/api/onboarding/route.ts`, `src/app/api/contact/route.ts`,
   `src/app/api/admin/contact/[id]/route.ts`.
-- Pages: `src/app/(marketing)/[lang]/{privacy,terms,contact}/page.tsx`,
+- Pages: `src/app/(marketing)/[lang]/{privacy,terms,contact,account-deleted}/page.tsx`,
   `src/app/(onboarding)/accept-terms/page.tsx`,
+  `src/app/account/restore/page.tsx`,
   `src/app/(app)/admin/contact/...`.
-- Schema: `prisma/schema.prisma` (User consent fields, ContactMessage model).
+- Schema: `prisma/schema.prisma` (User consent fields, `User.deletedAt`, ContactMessage model).

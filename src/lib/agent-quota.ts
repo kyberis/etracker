@@ -63,12 +63,15 @@ function getResetAtUtc(): string {
 export async function consumeAgentQuota(userId: string): Promise<QuotaResult> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { isActive: true, dailyAgentMessageLimit: true },
+    select: { isActive: true, deletedAt: true, dailyAgentMessageLimit: true },
   });
   if (!user) {
     return { ok: false, reason: "disabled" };
   }
-  if (!user.isActive) {
+  if (!user.isActive || user.deletedAt) {
+    // Treat soft-deleted accounts as disabled for the chat agent so the
+    // (app) layout's redirect to /account/restore is enforced even when
+    // the chat is reached via Telegram or a stale tab.
     return { ok: false, reason: "disabled" };
   }
 

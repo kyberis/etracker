@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/daily-nudge",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/account-purge",
+      "schedule": "30 3 * * *"
     }
   ]
 }

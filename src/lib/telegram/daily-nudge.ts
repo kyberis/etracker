@@ -122,6 +122,9 @@ export async function runDailyNudge(
   const candidates = (await db.user.findMany({
     where: {
       isActive: true,
+      // Skip soft-deleted accounts: they're in the 30-day grace window and
+      // the daily nudge would land in a chat the user is trying to leave.
+      deletedAt: null,
       telegramChatId: { not: null },
       telegramVerifiedAt: { not: null },
       telegramNudgeEnabled: true,

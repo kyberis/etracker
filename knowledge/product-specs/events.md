@@ -146,9 +146,9 @@ convention for MCP write tools.
   ask — likely as `EventIncomeLink` rather than reusing `Event`.
 - **Per-event budget + alerts**: not implemented. Hook into the future
   `budgets-and-alerts` spec when it lands.
-- **Split-bill within an event**: shared trips between two users are not
-  modelled. Today the user logs whatever portion landed on their card; the
-  whole-trip cost view requires a future "shared events" feature.
+- **Split-bill within an event**: equal-split between participants is
+  now covered by [`event-sharing`](event-sharing.md). Tip- or item-level
+  custom splits are still TODO.
 - **Multi-currency snapshot**: event totals use the existing per-line
   `amountConverted` (snapshot in the user's primary currency at the moment
   of entry). FX drift across the event window is not corrected.

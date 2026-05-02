@@ -73,6 +73,17 @@ type FakeUser = {
   telegramUserId: bigint | null;
 };
 
+type FakeEventParticipant = {
+  userId: string;
+  eventId: string;
+  displayName: string;
+  removedAt: Date | null;
+  event: {
+    name: string;
+    user: { name: string | null; email: string };
+  };
+};
+
 const state = {
   users: new Map<string, FakeUser>(),
   telegramMessages: [] as Array<{
@@ -83,6 +94,8 @@ const state = {
     isGroup: boolean;
     createdAt: Date;
   }>,
+  /** Keyed by `telegramLinkCode`. */
+  eventParticipants: new Map<string, FakeEventParticipant>(),
 };
 
 function installDbStub() {
@@ -154,12 +167,39 @@ function installDbStub() {
         return data;
       },
     },
+    // The shared-event-wallets refactor added a participant link-code
+    // lookup BEFORE the legacy user link-code lookup. None of the
+    // existing tests use the participant path, so always return null
+    // and let the legacy branch run.
+    eventParticipant: {
+      findUnique: async ({
+        where,
+      }: {
+        where: { telegramLinkCode?: string; eventId_userId?: unknown };
+      }) => {
+        if (where.telegramLinkCode) {
+          return state.eventParticipants.get(where.telegramLinkCode) ?? null;
+        }
+        return null;
+      },
+      update: async () => ({}),
+    },
+    $transaction: async (
+      ops: Array<unknown> | ((tx: unknown) => Promise<unknown>),
+    ) => {
+      // Both call shapes used by the route: array-of-promises and
+      // function. Each is a no-op against our state but we await so
+      // the test surface mirrors prod behaviour.
+      if (typeof ops === "function") return ops(lazyDb.db);
+      return Promise.all(ops);
+    },
   });
 }
 
 beforeEach(() => {
   state.users.clear();
   state.telegramMessages.length = 0;
+  state.eventParticipants.clear();
   installDbStub();
   process.env.TELEGRAM_WEBHOOK_SECRET = "test-secret";
   lazyClient.sendTelegramMessage.mockClear();
@@ -307,6 +347,48 @@ describe("Telegram webhook — first-run AI setup", () => {
       (c: unknown[]) => c[1],
     );
     expect(sentTexts).toContain(welcomeLinked);
+  });
+
+  it("links a fresh GUEST via EventParticipant.telegramLinkCode and sends the event-aware welcome", async () => {
+    // GUEST user (User.kind === "GUEST") was created by the share
+    // landing accept handler. They receive a t.me/<bot>?start=<code>
+    // deep-link which the webhook resolves via EventParticipant.
+    state.users.set("guest-user", {
+      id: "guest-user",
+      locale: "es",
+      telegramLinkCode: null,
+      telegramLinkCodeExpires: null,
+      telegramUserId: null,
+    });
+    // The mock `db.user.findUnique` reads from `state.users`. We need
+    // to expose `kind` on the read so the route picks the GUEST
+    // welcome variant.
+    (state.users.get("guest-user") as unknown as { kind: string }).kind =
+      "GUEST";
+    state.eventParticipants.set("ep-code-1", {
+      userId: "guest-user",
+      eventId: "evt_1",
+      displayName: "Marina",
+      removedAt: null,
+      event: {
+        name: "Mendoza Trip",
+        user: { name: "Marcos", email: "marcos@example.com" },
+      },
+    });
+
+    const response = await postUpdate(buildStartUpdate("ep-code-1"));
+    expect(response.status).toBe(200);
+
+    // No agent kickoff for guests — the welcome is static and
+    // event-aware, not the onboarding flow.
+    expect(lazyAgent.generateExpenseAgentReply).not.toHaveBeenCalled();
+    const sentTexts = lazyClient.sendTelegramMessage.mock.calls.map(
+      (c: unknown[]) => c[1],
+    );
+    // The welcome string is taken from `event-share-strings.ts` and
+    // mentions both the event name and the owner's display name.
+    expect(sentTexts.some((t: unknown) => typeof t === "string" && t.includes("Mendoza Trip"))).toBe(true);
+    expect(sentTexts.some((t: unknown) => typeof t === "string" && t.includes("Marcos"))).toBe(true);
   });
 
   it("forwards setupHint on follow-up messages from a linked user", async () => {

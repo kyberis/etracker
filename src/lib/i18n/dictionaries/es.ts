@@ -430,9 +430,10 @@ export const es = {
     exportLimit: "Máximo 3 descargas por hora.",
 
     deleteTitle: "Borrar mi cuenta",
-    deleteDescription:
-      "Borra tu cuenta y todos los datos asociados (bancos, plantillas, mensajes, ahorros, tokens MCP, passkeys). Si tenés suscripción Supporter activa, la cancelamos en el momento. Las donaciones quedan registradas en Stripe para fines fiscales y no son reembolsables.",
-    deleteWarning: "Esto es irreversible.",
+    deleteDescription: (graceDays: number) =>
+      `Marca tu cuenta para borrarse y la pone en cola por ${graceDays} días. Mientras tanto no se borra nada y podés recuperarla cuando quieras desde la pantalla de restauración. Si tenés suscripción Supporter activa, la cancelamos en el momento. Las donaciones quedan en Stripe por motivos fiscales y no son reembolsables.`,
+    deleteWarning: (graceDays: number) =>
+      `Después de ${graceDays} días, el borrado es definitivo y en cascada.`,
     deletePasswordLabel: "Tu contraseña",
     deletePasswordHint: "Te la pedimos para confirmar que sos vos.",
     deletePhraseLabel: "Frase de confirmación",
@@ -441,6 +442,54 @@ export const es = {
     deleteSubmit: "Borrar mi cuenta",
     deleteSubmitting: "Borrando…",
     deleteFailed: "No se pudo borrar la cuenta.",
+    deleteForceLabel: "Saltarse la gracia — borrar definitivamente ahora",
+    deleteForceHint: (graceDays: number) =>
+      `Por defecto guardamos tus datos ${graceDays} días por si te arrepentís. Si marcás esto, borramos todo al instante. No se puede deshacer.`,
+    deleteForceSubmit: "Borrar definitivamente",
+  },
+
+  accountRestore: {
+    title: "Tu cuenta está pendiente de eliminación",
+    intro: (email: string) =>
+      `Pediste borrar la cuenta ${email}. Mientras estás en esta pantalla, todavía no se borró nada: tus bancos, plantillas, gastos, mensajes y ahorros siguen ahí.`,
+    scheduledLine: (scheduledFor: string, deletedAt: string) =>
+      `Solicitud registrada el ${deletedAt}. Si no hacés nada, la borramos definitivamente el ${scheduledFor}.`,
+    daysRemaining: (days: number, grace: number) =>
+      `Te quedan ${days} día${days === 1 ? "" : "s"} (de ${grace}) para recuperarla.`,
+    graceElapsed:
+      "El plazo de recuperación ya pasó. Vamos a borrar la cuenta en la próxima limpieza diaria.",
+    whatNowTitle: "Qué podés hacer:",
+    bulletRestore: "Restaurar la cuenta ahora y seguir como si nada hubiera pasado.",
+    bulletWait: (grace: number) =>
+      `No hacer nada: dentro de ${grace} días desde la solicitud borramos todo en cascada.`,
+    bulletSignOut:
+      "Cerrar sesión: la cuenta queda en cola de borrado y vos te volvés a la página principal.",
+    restore: "Restaurar mi cuenta",
+    restoring: "Restaurando…",
+    signOut: "Cerrar sesión",
+    signingOut: "Cerrando sesión…",
+    restoreError: "No pudimos restaurar la cuenta. Probá de nuevo en un rato.",
+  },
+
+  accountDeleted: {
+    title: "Pediste borrar tu cuenta",
+    intro: (graceDays: number) =>
+      `La marcamos para eliminación. Tenés ${graceDays} días para cambiar de idea: hasta entonces, tus datos siguen ahí intactos.`,
+    scheduledLine: (scheduledFor: string) =>
+      `Si no hacés nada, la borramos definitivamente el ${scheduledFor}.`,
+    recoveryHint:
+      "¿Te arrepentiste? Iniciá sesión con el mismo email y te llevamos directo a la pantalla de recuperación.",
+    signIn: "Iniciar sesión para recuperarla",
+    backHome: "Volver al inicio",
+    metaTitle: "Cuenta pendiente de eliminación",
+    metaDescription:
+      "Tu cuenta de Clara está marcada para borrarse. Iniciá sesión para recuperarla antes de que el plazo expire.",
+    forceTitle: "Tu cuenta fue borrada",
+    forceIntro:
+      "Eliminamos tu cuenta de Clara y todo lo asociado: bancos, plantillas, gastos, ahorros, historial de chat, tokens MCP. No queda nada por recuperar.",
+    forceMetaTitle: "Cuenta borrada",
+    forceMetaDescription:
+      "Tu cuenta de Clara fue borrada de forma permanente, tal como lo pediste.",
   },
 
   app: {
@@ -634,6 +683,22 @@ export const es = {
     notifyTitle: "Notificar a un usuario",
     notifyDescription:
       "Mensaje fuera del agente para incidentes (downtime, recuperación, avisos puntuales). Prefiere Telegram cuando está vinculado, si no cae a email.",
+    pendingPurgeTitle: "Cuentas pendientes de borrado",
+    pendingPurgeDescription: (graceDays: number) =>
+      `Cuentas borradas en modo lógico. Cada fila se elimina en su fecha programada (gracia de ${graceDays} días). Los recordatorios T-7 y T-1 los manda el cron diario. Si el usuario contacta soporte renunciando a la gracia, podés forzar el borrado definitivo desde acá.`,
+    pendingPurgeEmpty: "No hay nada pendiente. La cola de borrado está vacía.",
+    pendingPurgeColumnsEmail: "Email",
+    pendingPurgeColumnsDeletedAt: "Borrado lógico el",
+    pendingPurgeColumnsScheduledFor: "Se borra el",
+    pendingPurgeColumnsRemaining: "Días restantes",
+    pendingPurgeColumnsReminders: "Recordatorios enviados",
+    pendingPurgeRemindersNone: "—",
+    pendingPurgeForceLabel: "Borrar ahora",
+    pendingPurgeForcing: "Borrando…",
+    pendingPurgeForceConfirm: (email: string) =>
+      `¿Borrar ${email} de forma permanente? Cancela la ventana de gracia y borra en cascada. No se puede deshacer.`,
+    pendingPurgeForceSuccess: "Cuenta borrada de forma permanente.",
+    pendingPurgeForceError: "No se pudo borrar la cuenta.",
   },
 
   analytics: {

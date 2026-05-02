@@ -9,9 +9,17 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 
 ## Live specs
 
+- [`account-soft-delete`](account-soft-delete.md) — self-service "Borrar mi cuenta"
+  with a 30-day grace queue and one-click restore. Daily cron hard-deletes past
+  the window; chat, MCP and Telegram nudge are paused while pending.
 - [`billing-and-quota-upsell`](billing-and-quota-upsell.md) — optional Stripe-backed
   Supporter plan + one-time donations gated behind the `quota_upsell` feature flag.
   Surfaces in chat 429, settings, public `/upgrade`.
+- [`event-sharing`](event-sharing.md) — multi-participant event wallets:
+  share a trip via a one-shot link, invite friends with or without a
+  Clara account (Telegram-only `GUEST` users supported), track "who
+  paid what", and settle up at close with an equal-split breakdown
+  and Telegram notifications.
 - [`events`](events.md) — event wallets (trips, weddings, birthdays, any
   time-bound spend bucket). Group expenses by date range, close as a single
   lump-sum month or keep BY_DATE, with collapsible row in the dashboard and

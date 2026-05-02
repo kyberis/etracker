@@ -3,6 +3,7 @@ import {
   EventStatus,
   Prisma,
   SavingsMovementKind,
+  UserKind,
   type ExpenseCategory,
   type IncomeCategory,
 } from "@prisma/client";
@@ -12,9 +13,9 @@ import { z } from "zod";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
 import { getBanksCached, invalidateBanksCache } from "@/lib/cache/banks";
 import { db } from "@/lib/db";
+import { closeEventAndSettle } from "@/lib/event-close-settle";
 import {
   attachLineToEvent,
-  closeEvent as closeEventService,
   createEvent as createEventService,
   deleteEvent as deleteEventService,
   detachLineFromEvent,
@@ -95,12 +96,41 @@ function formatMoney(value: number): string {
 }
 
 /**
+ * Optional scoping passed to `buildExpenseTools` to restrict the agent's
+ * world. Used by Telegram chat for `User.kind = GUEST` accounts: those
+ * users only have access to a single shared event so the toolset locks
+ * `addMonthLine` and `listEventParticipants` to that one event and the
+ * caller never sees the rest of the catalogue.
+ */
+export type BuildExpenseToolsOptions = {
+  /**
+   * `User.kind`. Defaults to REGULAR. When GUEST the catalogue is
+   * filtered to just the event-related tools at the bottom of this
+   * module.
+   */
+  userKind?: UserKind;
+  /**
+   * For GUEST users: the single event they're allowed to operate on.
+   * `addMonthLine` ignores any `eventId` from the LLM and forces this
+   * value; `listEventParticipants` makes its `eventId` argument
+   * optional and defaults to this.
+   */
+  scopedEventId?: string | null;
+};
+
+/**
  * Build the expense toolset bound to a single user. The tools encapsulate the
  * same business logic as our REST routes (creating templates, adding monthly
  * lines, marking paid, etc.) so the chat agent and the UI never diverge.
  */
-export function buildExpenseTools(userId: string) {
-  return {
+export function buildExpenseTools(
+  userId: string,
+  options: BuildExpenseToolsOptions = {},
+) {
+  const userKind = options.userKind ?? UserKind.REGULAR;
+  const scopedEventId = options.scopedEventId ?? null;
+  const isGuest = userKind === UserKind.GUEST;
+  const fullToolset = {
     getMonthState: tool({
       description:
         "Reads the user's state for a month (yyyy-MM). If no month is passed, uses the current month. Returns `primaryCurrency`, received income, expected income, income lines (each with its original currency + converted amount + `received` flag), carryover from the previous month, expense lines, planned/paid/remaining totals (in the primary currency), balance (received income + carryover − planned), savings stack, and if applicable `carryoverPrompt` with the previous month's balance pending a decision.",
@@ -525,26 +555,109 @@ export function buildExpenseTools(userId: string) {
             "If `occurredOn` is outside the event's [startDate, endDate], the tool errors out " +
             "so you can confirm with the user before tagging.",
           ),
+        paidByUserId: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "Required when the event has more than one active participant: who actually " +
+            "paid for this line. Pass the userId returned by `listEventParticipants`. " +
+            "If the user said 'I paid' / 'me' / 'yo', use the current user's id (look it up " +
+            "in `listEventParticipants` -> `currentUserId`). Ignored when the line is not " +
+            "tied to a shared event.",
+          ),
       }),
       execute: async (input) => {
         const month = getCurrentMonthKey();
         const monthStart = toMonthStart(parseMonthKey(month));
-        const [user, record] = await Promise.all([
-          db.user.findUnique({
-            where: { id: userId },
-            select: { primaryCurrency: true },
-          }),
-          db.monthRecord.findFirst({ where: { userId, month: monthStart } }),
-        ]);
-        if (!user) return { error: "User not found." };
-        if (!record) {
+
+        // For GUEST users, the tool is locked to a single event and the
+        // line must live under the event OWNER's userId (so it shows up
+        // in the owner's dashboard and counts towards the event total).
+        // The owner's bank list is what's resolvable.
+        const requestedEventId = scopedEventId ?? input.eventId ?? null;
+
+        let storageUserId = userId;
+        let eventOwnerId: string | null = null;
+        let event: {
+          id: string;
+          name: string;
+          status: EventStatus;
+          startDate: Date;
+          endDate: Date | null;
+          userId: string;
+        } | null = null;
+
+        if (requestedEventId) {
+          // Look up the event without restricting on userId so participants
+          // (not just owners) can attach lines.
+          event = await db.event.findUnique({
+            where: { id: requestedEventId },
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              startDate: true,
+              endDate: true,
+              userId: true,
+            },
+          });
+          if (!event) {
+            return { error: "The specified event doesn't exist." };
+          }
+          // Authorization: owner OR active participant.
+          if (event.userId !== userId) {
+            const part = await db.eventParticipant.findUnique({
+              where: {
+                eventId_userId: {
+                  eventId: event.id,
+                  userId,
+                },
+              },
+              select: { removedAt: true },
+            });
+            if (!part || part.removedAt) {
+              return { error: "You are not a participant of this event." };
+            }
+          }
+          if (event.status !== EventStatus.OPEN) {
+            return {
+              error:
+                "That event is closed. Reopen it before adding more expenses.",
+            };
+          }
+          eventOwnerId = event.userId;
+          storageUserId = event.userId; // line lives in the owner's books
+        } else if (isGuest) {
+          // Defensive: a GUEST without scopedEventId shouldn't happen
+          // (loadGuestEventScope returns null before we get here), but
+          // refuse loose-line creation just in case.
           return {
             error:
-              "The current month is not set up yet. Ask the user to create it with createMonthIfNeeded.",
+              "As a guest of a shared event, you can only log expenses for that event.",
           };
         }
+
+        const [storageUser, record] = await Promise.all([
+          db.user.findUnique({
+            where: { id: storageUserId },
+            select: { primaryCurrency: true },
+          }),
+          db.monthRecord.findFirst({
+            where: { userId: storageUserId, month: monthStart },
+          }),
+        ]);
+        if (!storageUser) return { error: "User not found." };
+        if (!record) {
+          return {
+            error: isGuest
+              ? "The event owner's current month is not set up yet. Ask them to open the dashboard once."
+              : "The current month is not set up yet. Ask the user to create it with createMonthIfNeeded.",
+          };
+        }
+        // Bank must belong to the storage user (event owner for shared events).
         const bank = await db.bank.findFirst({
-          where: { id: input.bankId, userId },
+          where: { id: input.bankId, userId: storageUserId },
           select: { id: true, name: true },
         });
         if (!bank) return { error: "The specified bank doesn't exist." };
@@ -553,8 +666,8 @@ export function buildExpenseTools(userId: string) {
         try {
           converted = await convertToPrimary({
             amount: input.amount,
-            currency: input.currency ?? user.primaryCurrency,
-            primary: user.primaryCurrency,
+            currency: input.currency ?? storageUser.primaryCurrency,
+            primary: storageUser.primaryCurrency,
             fxRate: input.fxRate,
           });
         } catch (error) {
@@ -568,28 +681,10 @@ export function buildExpenseTools(userId: string) {
 
         const occurredOn = parseIsoDate(input.occurredOn) ?? todayUtcDate();
 
-        let eventId: string | null = null;
         let eventName: string | null = null;
-        if (input.eventId) {
-          const event = await db.event.findFirst({
-            where: { id: input.eventId, userId },
-            select: {
-              id: true,
-              name: true,
-              status: true,
-              startDate: true,
-              endDate: true,
-            },
-          });
-          if (!event) {
-            return { error: "The specified event doesn't exist." };
-          }
-          if (event.status !== EventStatus.OPEN) {
-            return {
-              error:
-                "That event is closed. Reopen it before adding more expenses.",
-            };
-          }
+        let eventId: string | null = null;
+        let paidByUserId: string | null = null;
+        if (event) {
           if (!isDateInEventRange(event, occurredOn)) {
             return {
               error:
@@ -600,13 +695,31 @@ export function buildExpenseTools(userId: string) {
           }
           eventId = event.id;
           eventName = event.name;
+
+          // Validate paidByUserId: must be an active participant of the event.
+          const candidate = input.paidByUserId ?? userId;
+          const payer = await db.eventParticipant.findUnique({
+            where: {
+              eventId_userId: { eventId: event.id, userId: candidate },
+            },
+            select: { removedAt: true },
+          });
+          if (!payer || payer.removedAt) {
+            return {
+              error:
+                input.paidByUserId
+                  ? "paidByUserId is not an active participant of this event. Call listEventParticipants to see the valid options."
+                  : "Couldn't determine who paid; pass paidByUserId after asking the user.",
+            };
+          }
+          paidByUserId = candidate;
         }
 
         let line;
         try {
           line = await db.monthExpenseLine.create({
             data: {
-              userId,
+              userId: storageUserId,
               monthRecordId: record.id,
               templateId: null,
               bankId: input.bankId,
@@ -619,6 +732,7 @@ export function buildExpenseTools(userId: string) {
               category: input.category as ExpenseCategory,
               paid: input.paid,
               eventId,
+              paidByUserId,
             },
           });
         } catch (error) {
@@ -643,13 +757,63 @@ export function buildExpenseTools(userId: string) {
             currency: line.currency,
             fxRate: line.fxRate.toString(),
             amountConverted: line.amountConverted.toString(),
-            primaryCurrency: user.primaryCurrency,
+            primaryCurrency: storageUser.primaryCurrency,
             bankName: bank.name,
             category: line.category,
             paid: line.paid,
             eventId,
             eventName,
+            paidByUserId,
+            ownedBy: eventOwnerId,
           },
+        };
+      },
+    }),
+
+    listEventParticipants: tool({
+      description:
+        "Lists active participants of an event (their userId, displayName, role). Use this BEFORE addMonthLine on a SHARED event to pick the right paidByUserId. " +
+        "When the user mentions 'I paid' / 'me' use the current user's id; when they say a name, match it to a participant's displayName. If ambiguous, ask 'who paid? options: <names>'.",
+      inputSchema: z.object({
+        eventId: scopedEventId
+          ? z.string().min(1).optional()
+          : z.string().min(1),
+      }),
+      execute: async ({ eventId: requestedId }) => {
+        const targetId = scopedEventId ?? requestedId;
+        if (!targetId) return { error: "eventId is required." };
+        // Authorization: caller must be participant or owner of the event.
+        const event = await db.event.findUnique({
+          where: { id: targetId },
+          select: { id: true, name: true, userId: true },
+        });
+        if (!event) return { error: "Event not found." };
+        if (event.userId !== userId) {
+          const part = await db.eventParticipant.findUnique({
+            where: {
+              eventId_userId: { eventId: targetId, userId },
+            },
+            select: { removedAt: true },
+          });
+          if (!part || part.removedAt) {
+            return { error: "Not a participant of this event." };
+          }
+        }
+        const rows = await db.eventParticipant.findMany({
+          where: { eventId: targetId, removedAt: null },
+          orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
+          select: { userId: true, displayName: true, role: true },
+        });
+        return {
+          eventId: targetId,
+          eventName: event.name,
+          currentUserId: userId,
+          participants: rows.map((p) => ({
+            userId: p.userId,
+            displayName: p.displayName,
+            role: p.role,
+            isCurrentUser: p.userId === userId,
+          })),
         };
       },
     }),
@@ -2091,7 +2255,8 @@ export function buildExpenseTools(userId: string) {
         "If `attributionMode = LUMP_SUM`, ALL lines tagged with this event move to the chosen `attributionMonth` (yyyy-MM) " +
         "in a single transaction (occurredOn is preserved for audit). " +
         "If `attributionMode = BY_DATE`, lines stay in their real-month buckets. " +
-        "Before calling, ask the user how they want to attribute the spend (especially for events crossing months).",
+        "Before calling, ask the user how they want to attribute the spend (especially for events crossing months). " +
+        "When the event has multiple participants, this tool also broadcasts the equal-split settlement (who paid what, who owes whom) to every linked Telegram chat.",
       inputSchema: z.object({
         id: z.string().min(1),
         attributionMode: z.enum(["BY_DATE", "LUMP_SUM"]),
@@ -2107,7 +2272,7 @@ export function buildExpenseTools(userId: string) {
           };
         }
         try {
-          const event = await closeEventService({
+          const result = await closeEventAndSettle({
             userId,
             eventId: id,
             mode:
@@ -2116,8 +2281,13 @@ export function buildExpenseTools(userId: string) {
                 : EventAttributionMode.BY_DATE,
             attributionMonth: attributionMonth ?? null,
           });
-          if (!event) return { error: "Event not found." };
-          return { ok: true as const, event };
+          if (!result.event) return { error: "Event not found." };
+          return {
+            ok: true as const,
+            event: result.event,
+            settlement: result.settlement,
+            notificationsSent: result.notificationsSent,
+          };
         } catch (error) {
           if (error instanceof Error) {
             if (error.message === "EVENT_ALREADY_CLOSED") {
@@ -2226,6 +2396,30 @@ export function buildExpenseTools(userId: string) {
       },
     }),
   };
+
+  if (!isGuest) {
+    return fullToolset;
+  }
+
+  // GUEST scope: surface ONLY the tools that make sense for someone whose
+  // entire world is a single shared event. The LLM cannot invoke any
+  // other tool because they're not in this object.
+  const guestAllowed = [
+    "addMonthLine",
+    "listEventParticipants",
+    "getEvent",
+    "listEvents",
+    "renderChart",
+    "setUserLocale",
+  ] as const;
+  const filtered: Partial<typeof fullToolset> = {};
+  for (const key of guestAllowed) {
+    if (key in fullToolset) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (filtered as any)[key] = (fullToolset as any)[key];
+    }
+  }
+  return filtered as typeof fullToolset;
 }
 
 export function isCurrentMonth(month: string) {

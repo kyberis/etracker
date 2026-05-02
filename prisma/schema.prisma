@@ -46,6 +46,25 @@ enum EventAttributionMode {
   LUMP_SUM
 }
 
+/// Discriminador de "tipo de cuenta" para soportar el flujo de billeteras de
+/// evento compartidas: cuando alguien acepta un share-link sin tener cuenta
+/// Clara, creamos un `User(kind = GUEST)` con email sintético que SOLO puede
+/// operar el evento al que fue invitado vía Telegram. El upgrade a REGULAR
+/// se hace en `/upgrade-guest` (email + password + Terms).
+enum UserKind {
+  REGULAR
+  GUEST
+}
+
+/// Rol de un participante dentro de una billetera de evento compartida.
+/// El creador del evento siempre tiene una fila con `OWNER`; los invitados
+/// (REGULAR o GUEST) tienen `GUEST`. Solo OWNER puede borrar el evento,
+/// remover participantes, mintear/revocar share-tokens.
+enum EventParticipantRole {
+  OWNER
+  GUEST
+}
+
 enum ExpenseCategory {
   VIVIENDA
   SERVICIOS
@@ -90,6 +109,16 @@ enum IncomeCategory {
 
 model User {
   id                           String                 @id @default(cuid())
+  /// Tipo de cuenta. `REGULAR` es el default para todos los signups normales.
+  /// `GUEST` se asigna automáticamente a usuarios creados a partir de un
+  /// share-link de evento que aceptan unirse sin tener cuenta previa: solo
+  /// pueden operar el evento al que fueron invitados (vía Telegram), no
+  /// pueden loguearse a /app, no pueden ver otros datos. El upgrade flip
+  /// a `REGULAR` lo hace el endpoint `/api/auth/upgrade-guest` y exige
+  /// email + password + acceptedTerms. Los GUEST usan emails sintéticos
+  /// del tipo `guest+<id>@guest.clara.local` para no romper el unique de
+  /// `email`.
+  kind                         UserKind               @default(REGULAR)
   email                        String                 @unique
   /// Null for users who only sign in with OAuth (e.g. Google).
   passwordHash                 String?
@@ -192,6 +221,16 @@ model User {
   passkeys                     Passkey[]
   savingsMovements             SavingsMovement[]
   events                       Event[]
+  /// Eventos compartidos en los que participa este usuario (incluye los que
+  /// creó como `OWNER` y los que aceptó como `GUEST`).
+  eventParticipations          EventParticipant[]
+  /// Líneas de gasto cuyo `paidByUserId` apunta a este usuario. Distinto de
+  /// `monthExpenseLines` (donde `userId` = dueño del evento). Esta relación
+  /// existe para que Prisma sepa cómo borrar en cascada cuando se borra el
+  /// usuario.
+  paidExpenseLines             MonthExpenseLine[]     @relation("PaidByUser")
+  /// Share-tokens que este usuario creó para invitar a sus eventos.
+  eventShareTokens             EventShareToken[]      @relation("ShareTokenCreator")
   contactMessages              ContactMessage[]
   /// GDPR Art. 7(1) — demonstrable consent. Stamped when the user actively
   /// accepts the current Terms + Privacy version. NULL means the user has
@@ -202,8 +241,30 @@ model User {
   /// "1.0"). Compared against `CURRENT_TERMS_VERSION` in `src/lib/legal.ts`
   /// to force re-acceptance after a material change to the legal docs.
   acceptedTermsVersion         String?
+  /// Soft-delete marker. `null` for active accounts. When the user clicks
+  /// "Borrar mi cuenta" we set this to `now()` instead of running
+  /// `db.user.delete()`: the (app) layout redirects them to
+  /// `/account/restore`, every mutating surface (api-token verification,
+  /// agent quota, Telegram daily-nudge cron) refuses them, and the
+  /// `/api/cron/account-purge` cron hard-deletes anything older than
+  /// `ACCOUNT_DELETION_GRACE_DAYS` (30) once per day. Restoring is just
+  /// clearing the column; the cron's `WHERE deletedAt < cutoff` is atomic
+  /// so a restore that happens before the cron tick wins the race.
+  deletedAt                    DateTime?
+  /// Bitmask of soft-delete reminder emails already dispatched. Bit 0 is
+  /// the T-7 reminder, bit 1 is the T-1 reminder. The daily purge cron
+  /// reads this to keep reminders idempotent across runs (we don't want a
+  /// missed cron tick to spam the user once it catches up). Cleared
+  /// automatically when `deletedAt` is reset by a restore.
+  deletionRemindersSent        Int                    @default(0)
   createdAt                    DateTime               @default(now())
   updatedAt                    DateTime               @updatedAt
+
+  // The partial index `User_deletedAt_idx` ON "User"("deletedAt")
+  // WHERE "deletedAt" IS NOT NULL is created in
+  // `20260502240000_account_soft_delete` because Prisma cannot express
+  // partial indexes; the cron's `WHERE deletedAt < cutoff` scan relies on
+  // it without bloating writes for the 99.9% active rows.
 }
 
 model Account {
@@ -426,11 +487,72 @@ model Event {
   attributionMonth   MonthRecord?         @relation(fields: [attributionMonthId], references: [id], onDelete: SetNull)
   closedAt           DateTime?
   lines              MonthExpenseLine[]
+  /// Participantes activos + removidos del evento. El owner siempre tiene
+  /// una fila con `role = OWNER`, los invitados con `role = GUEST`. La
+  /// migración hace backfill para los eventos existentes.
+  participants       EventParticipant[]
+  /// Share-tokens emitidos para invitar a este evento (stateful para poder
+  /// revocar y observar uso).
+  shareTokens        EventShareToken[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
   @@index([userId, status])
   @@index([attributionMonthId])
+}
+
+/// Join entre `User` y `Event` para soportar billeteras de evento compartidas.
+/// El owner siempre tiene una fila con `role = OWNER`. Los invitados (REGULAR
+/// o GUEST) tienen `role = GUEST`. `removedAt` permite tombstone (sin perder
+/// la atribución histórica de líneas que pagó). El `displayName` se snapshotea
+/// al momento de unirse así el chat de Telegram puede decir "vos / Marcos /
+/// Lucia" sin tener que joinear contra User en cada turno.
+model EventParticipant {
+  id               String               @id @default(cuid())
+  eventId          String
+  userId           String
+  role             EventParticipantRole
+  /// Visible en chat ("vos / Marcos / Lucia"). Snapshot al join, editable
+  /// solo via `PATCH` interno si hace falta.
+  displayName      String
+  /// One-time code corto para `t.me/<bot>?start=<code>` que la share-link
+  /// landing genera para los GUEST recién creados. Una vez consumido por
+  /// el webhook de Telegram se borra (set null). 64 chars max por límite
+  /// de Telegram.
+  telegramLinkCode String?              @unique
+  joinedAt         DateTime             @default(now())
+  removedAt        DateTime?
+  event            Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@index([eventId])
+}
+
+/// Token de share (stateful) para invitar a un evento. Guardamos solo el
+/// `sha256(token)` así no podemos reconstruir el token plano si nos roban
+/// la base. `revokedAt` permite invalidar al instante. `expiresAt` es
+/// obligatorio (default 30 días en código). `lastUsedAt` se actualiza en
+/// cada accept para que el owner vea actividad. Un cron periódico borra
+/// los expirados (`expiresAt < now() - 30d`).
+model EventShareToken {
+  id          String    @id @default(cuid())
+  eventId     String
+  createdById String
+  /// `sha256(<base64url-random>)`. Único para detectar colisión y para
+  /// el lookup en accept (calculamos el hash del token plano que viene
+  /// en la URL y buscamos por igualdad).
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation("ShareTokenCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([eventId])
+  @@index([createdById])
 }
 
 model MonthExpenseLine {
@@ -470,6 +592,14 @@ model MonthExpenseLine {
   /// `onDelete: SetNull` para que borrar el evento no destruya los gastos.
   eventId         String?
   event           Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  /// Quién pagó esta línea cuando vive en una billetera de evento compartida
+  /// con varios participantes. Null = legado / evento de un solo dueño /
+  /// gasto suelto. Cuando el evento tiene >1 participante activo el código
+  /// (AI tool + REST) exige este campo para que el reparto del cierre
+  /// (`computeSettlement`) sea correcto. `onDelete: SetNull` para que
+  /// borrar el usuario no aniquile las líneas (auditoría histórica).
+  paidByUserId    String?
+  paidByUser      User?           @relation("PaidByUser", fields: [paidByUserId], references: [id], onDelete: SetNull)
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   monthRecord     MonthRecord     @relation(fields: [monthRecordId], references: [id], onDelete: Cascade)
   template        Expense?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
@@ -486,6 +616,7 @@ model MonthExpenseLine {
   @@index([monthRecordId])
   @@index([userId])
   @@index([eventId])
+  @@index([paidByUserId])
 }
 
 /// Plantilla de ingreso (recurrente o de un solo mes). Espejo de `Expense`:

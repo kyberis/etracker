@@ -6,8 +6,11 @@ import {
   streamText,
 } from "ai";
 
+import { UserKind } from "@prisma/client";
+
 import { buildExpenseTools } from "@/lib/ai/expense-tools";
 import type { TelegramSetupHint } from "@/lib/telegram/setup-state";
+import type { GuestEventScope } from "@/lib/telegram/event-guest-state";
 import {
   logAIFinish,
   logAIRequest,
@@ -117,6 +120,12 @@ type SystemPromptOptions = {
    * See `src/lib/telegram/setup-state.ts` for the derivation rules.
    */
   setupHint?: TelegramSetupHint;
+  /**
+   * GUEST users invited via a shared-event link have a single event in
+   * scope. When present, we replace the regular product-context block with
+   * a tightly scoped one that forbids anything outside this event.
+   */
+  guestEventScope?: GuestEventScope;
 };
 
 /**
@@ -170,10 +179,54 @@ Setup inicial de Telegram (activo porque el usuario todavía no terminó de conf
 - Tono: cálido y al grano. Para estos turnos de onboarding preferí estilo conversacional aunque el pedido haya sido corto.`;
 }
 
+/**
+ * Replacement system prompt for GUEST users (those invited to a shared
+ * event via a magic link). Drops the entire personal-finance toolkit and
+ * focuses the agent on logging trip expenses with mandatory `paidByUserId`.
+ */
+function guestEventScopePrompt(
+  scope: GuestEventScope,
+  locale: Locale,
+): string {
+  if (locale === "en") {
+    return `You are Clara, the AI assistant invited to track expenses for the shared event "${scope.eventName}" (organised by ${scope.ownerDisplayName}).
+
+You are talking to a GUEST. They can ONLY interact with this event — nothing else from Clara is available to them. Be friendly and brief; the goal is to log every shared expense and remember who paid.
+
+Hard rules:
+- Never offer to create banks, templates, monthly views, savings, or any other Clara feature. If the user asks for them, gently explain they need a full Clara account (mention the upgrade link will arrive after the trip closes).
+- All expenses MUST be tagged with this event. The tool \`addMonthLine\` is locked to event "${scope.eventName}" — you don't need to (and shouldn't) pass \`eventId\` or other event ids.
+- For EVERY expense, before calling \`addMonthLine\`, call \`listEventParticipants\` (or rely on the cached result from earlier in the conversation) and DETERMINE WHO PAID. Pass the participant's \`userId\` as \`paidByUserId\`. If the user said "I paid" or "me", use the current user's id. If they named a participant, match the displayName. If unclear, ask once: "Who paid? Options: <comma-separated displayNames>".
+- Currency: the trip is reported in ${scope.primaryCurrency}. If the user gives an amount in another currency, pass it as \`currency\` in \`addMonthLine\` and we'll convert.
+- Bank id: the trip lives in the organiser's bank list. If you don't have one cached, pick a reasonable default (the user usually doesn't know or care which one).
+
+Tone: warm, concise, rioplatense vibe even in English. Short confirmations after each successful logging ("Logged: USD 60 gas, ${scope.ownerDisplayName} paid.").`;
+  }
+  return `Sos Clara, la asistente con IA invitada a llevar los gastos del evento compartido "${scope.eventName}" (organizado por ${scope.ownerDisplayName}).
+
+Estás hablando con un INVITADO. SOLO puede interactuar con este evento — el resto de Clara no está disponible para él. Sé cálido y breve; el objetivo es cargar cada gasto compartido y recordar quién pagó.
+
+Reglas duras:
+- Nunca le ofrezcas crear bancos, plantillas, vistas mensuales, ahorros, ni ninguna otra función de Clara. Si lo pide, explicá amablemente que necesita una cuenta completa de Clara (mencioná que después del cierre del viaje le va a llegar un link para crearla).
+- Todos los gastos DEBEN ir etiquetados con este evento. La tool \`addMonthLine\` está bloqueada al evento "${scope.eventName}" — no hace falta (ni debés) pasar \`eventId\` ni otros ids.
+- Para CADA gasto, antes de llamar \`addMonthLine\`, llamá \`listEventParticipants\` (o usá el resultado cacheado de turnos anteriores) y DETERMINÁ QUIÉN PAGÓ. Pasá el \`userId\` del participante como \`paidByUserId\`. Si el usuario dice "pagué yo" o "yo", usá el id del usuario actual. Si nombra a un participante, hacelo matchear con el displayName. Si está poco claro, preguntá una vez: "¿Quién pagó? Opciones: <displayNames separados por coma>".
+- Moneda: el viaje se reporta en ${scope.primaryCurrency}. Si el usuario te da un monto en otra moneda, pasalo como \`currency\` en \`addMonthLine\` y nosotros lo convertimos.
+- bankId: el viaje vive en la lista de bancos del organizador. Si no tenés uno cacheado, elegí un default razonable (el invitado normalmente no sabe ni le importa cuál).
+
+Tono: cálido, corto, rioplatense. Confirmaciones cortas después de cada carga ("Cargué: USD 60 nafta, pagó ${scope.ownerDisplayName}.").`;
+}
+
 function buildSystemPrompt(
   userImportInstructions?: string | null,
   options?: SystemPromptOptions,
 ) {
+  // GUEST scope replaces the entire prompt, by design.
+  if (options?.guestEventScope) {
+    return guestEventScopePrompt(
+      options.guestEventScope,
+      options.locale ?? "es",
+    );
+  }
   const responseStyle = options?.responseStyle ?? "concise";
   const activeMonth =
     options?.activeMonth && /^\d{4}-\d{2}$/.test(options.activeMonth.trim())
@@ -486,6 +539,7 @@ export async function generateExpenseAgentReply({
   source = "telegram",
   responseStyle = "concise",
   setupHint,
+  guestEventScope,
 }: {
   userId: string;
   messages: ExpenseAgentMessages;
@@ -493,6 +547,12 @@ export async function generateExpenseAgentReply({
   responseStyle?: ExpenseAgentResponseStyle;
   /** Telegram first-run setup hint. See `loadTelegramSetupHint`. */
   setupHint?: TelegramSetupHint;
+  /**
+   * GUEST users have a single shared event in scope. When present, the
+   * system prompt is replaced with a guest-only variant and the toolset is
+   * filtered to event-related tools only.
+   */
+  guestEventScope?: GuestEventScope;
 }): Promise<{
   text: string;
   /** HTTPS PNG URLs for messaging channels (Telegram photo). */
@@ -507,6 +567,7 @@ export async function generateExpenseAgentReply({
       primaryCurrency: true,
       primaryCurrencyConfirmedAt: true,
       locale: true,
+      kind: true,
     },
   });
   const locale: Locale = isLocale(user?.locale) ? user.locale : "es";
@@ -521,7 +582,11 @@ export async function generateExpenseAgentReply({
     providerOptions: {
       gateway: {
         user: userId,
-        tags: [`feature:chat-${source}`, `locale:${locale}`],
+        tags: [
+          `feature:chat-${source}`,
+          `locale:${locale}`,
+          ...(user?.kind === UserKind.GUEST ? ["kind:guest"] : []),
+        ],
       },
     },
     system: buildSystemPrompt(user?.expenseImportInstructions ?? null, {
@@ -530,9 +595,13 @@ export async function generateExpenseAgentReply({
       primaryCurrencyConfirmedAt: user?.primaryCurrencyConfirmedAt ?? null,
       locale,
       setupHint,
+      guestEventScope,
     }),
     messages,
-    tools: buildExpenseTools(userId),
+    tools: buildExpenseTools(userId, {
+      userKind: user?.kind ?? undefined,
+      scopedEventId: guestEventScope?.eventId,
+    }),
     stopWhen: stepCountIs(8),
     onStepFinish: (step) => {
       logAIStep({

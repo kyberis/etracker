@@ -174,6 +174,32 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.11.0",
+      date: "2026-05-02",
+      title: "Compartí un viaje y repartan los gastos al cierre",
+      highlights: [
+        "Las billeteras de evento ahora se comparten: desde el detalle del viaje generás un link y se lo mandás a quien venga. Se puede revocar cuando quieras y, por seguridad, el link en claro solo se ve una vez al generarlo.",
+        "Quien abre el link puede sumarse de dos formas: con su cuenta de Clara (un click y el viaje aparece en su panel) o solo por Telegram, sin crear cuenta. En el segundo caso le abrimos una conversación con el bot y queda como invitado del viaje.",
+        "Cada gasto del viaje guarda quién pagó. Cuando son varios participantes, Clara te pregunta 'pagaste vos o lo puso Marina?' antes de cargar, así no quedan gastos huérfanos a la hora de repartir.",
+        "Vista previa del reparto en vivo: en la pantalla del viaje ves total, parte que toca por cabeza, lo que pagaste vos, tu saldo (te deben / debés) y las transferencias sugeridas. Se actualiza con cada gasto.",
+        "Al cerrar el viaje, cada participante recibe por Telegram el resumen exacto: cuánto sale por cabeza, qué pagaste, y cuánto le tenés que pasar a quién (o cobrarle). El organizador absorbe el centavo de redondeo para que las cifras queden limpias.",
+        "Si te invitaron solo por Telegram y querés tener cuenta completa después, hay un upgrade en `/upgrade-guest` que te pide email + contraseña y mantiene todo lo que ya cargaste en el viaje.",
+      ],
+    },
+    {
+      version: "0.10.0",
+      date: "2026-05-02",
+      title: "Borrar cuenta con 30 días para arrepentirte",
+      highlights: [
+        "Cuando pedís borrar la cuenta desde Configuración, ahora queda en cola por 30 días: nada se pierde y, si te arrepentís, iniciás sesión y tocás \"Restaurar mi cuenta\".",
+        "Mientras estás en cola: el chat, las APIs y los recordatorios diarios de Telegram quedan en pausa, y tu PAT de MCP deja de funcionar para que ningún cliente AI siga tocando datos que pediste borrar.",
+        "Si tenés Supporter activo, lo cancelamos en el momento que apretás borrar — no esperamos a los 30 días, así no se cobra otro mes que no vas a usar.",
+        "A los 7 y al último día te avisamos por email para que no te pierdas la ventana de gracia. Si te arrepentiste, el botón te lleva directo a recuperar la cuenta.",
+        "Si lo querés borrar definitivamente sin esperar, hay una opción explícita: marcás \"Saltarse la gracia\" en el formulario y eliminamos todo al instante.",
+        "Pasados los 30 días, una limpieza diaria borra todo en cascada: bancos, plantillas, gastos, mensajes, ahorros, tokens MCP y passkeys. La política de privacidad y los términos suben a 1.1 con este cambio.",
+      ],
+    },
+    {
       version: "0.9.0",
       date: "2026-05-02",
       title: "Recordatorios diarios por Telegram",
@@ -415,7 +441,9 @@ const ES: LocalisedMarketingContent = {
       heading: "2. Qué datos recolectamos",
       body: [
         "Cuenta y autenticación: email, contraseña hasheada (bcrypt), nombre y avatar opcionales sincronizados desde Google si entrás con Google, marca de email verificado, passkeys (WebAuthn) que registres, idioma preferido, país declarado en el onboarding.",
-        "Datos financieros: bancos que registres, plantillas de gastos e ingresos, líneas mensuales (monto, descripción, categoría, fecha, moneda, tipo de cambio congelado), pila global de ahorro y su ledger de movimientos, instrucciones para el agente.",
+        "Tipo de cuenta (`User.kind`): por defecto REGULAR. Si entraste a Clara aceptando la invitación a un viaje compartido sin crear cuenta, tu cuenta es GUEST: solo tiene tu nombre de pantalla, el chat de Telegram vinculado y acceso a ese único viaje. No tiene contraseña, ni email obligatorio, ni acceso al panel ni a tus propios meses; podés convertirla en REGULAR en cualquier momento desde /upgrade-guest.",
+        "Datos financieros: bancos que registres, plantillas de gastos e ingresos, líneas mensuales (monto, descripción, categoría, fecha, moneda, tipo de cambio congelado), y, en gastos cargados dentro de una billetera de evento compartida, qué participante pagó esa línea (`paidByUserId`); pila global de ahorro y su ledger de movimientos, instrucciones para el agente.",
+        "Billeteras de evento compartidas: si invitás a alguien a un viaje vía un share-link, guardamos por cada participante su nombre de pantalla a nivel evento, su rol (organizador o invitado) y, en el caso de invitados nuevos por Telegram, un código de un solo uso para vincular el bot. Los share-links se guardan como hash sha256 — nunca el link en claro — y los podés revocar desde la pantalla del viaje cuando quieras; revocación, expiración y último uso son visibles para vos.",
         "Conversaciones: mensajes del chat web (texto + adjuntos como JSON estructurado), mensajes de Telegram si vinculás el bot, contadores de uso del agente y modelos consumidos por día.",
         "Preferencia de recordatorios por Telegram y fecha del último recordatorio enviado (solo aplica si tenés Telegram vinculado; se usa para no mandarte más de un mensaje por día y para que puedas apagarlos cuando quieras desde Configuración).",
         "Pagos (sólo si te suscribís o donás): identificador de cliente de Stripe, estado de la suscripción y fecha de fin de periodo, registro de cada donación (id de Stripe, monto, fecha).",
@@ -459,12 +487,13 @@ const ES: LocalisedMarketingContent = {
     {
       heading: "6. Plazos de retención",
       body: [
-        "Cuenta y datos financieros: hasta que borres la cuenta. El borrado es inmediato y en cascada.",
+        "Cuenta y datos financieros: hasta que borres la cuenta. Cuando pedís borrarla queda en una cola de 30 días en la que podés recuperarla con un click; pasados los 30 días, el borrado es definitivo y en cascada.",
         "Audios TTS en Vercel Blob: hasta 7 días.",
         "Logs de aplicación (Vercel/Sentry): 30 días.",
         "Idempotencia de webhooks de Stripe: 18 meses.",
         "Recibos de donaciones y suscripciones: 7 años (obligación fiscal en la UE).",
         "Tokens MCP: hasta que los revoques; revocados se purgan a los 30 días.",
+        "Tokens de share-link de eventos compartidos: hasta el momento de expiración o revocación; revocados o expirados se purgan a los 30 días. Las cuentas de invitado (User.kind = GUEST) creadas a partir de uno de esos links siguen las reglas generales: viven mientras vos no las borres, o se purgan en cascada cuando el organizador del viaje borra el evento o su propia cuenta.",
         "Mensajes del chat (web y Telegram): hasta que borres la cuenta o le pidas al agente que los purgue.",
         "Mensajes del formulario /contact: 24 meses; los metadatos técnicos (IP / user-agent del envío) máx 90 días o hasta que se archive el mensaje, lo que ocurra primero.",
       ],
@@ -474,7 +503,7 @@ const ES: LocalisedMarketingContent = {
       body: [
         "Acceso (Art. 15): descargate todos tus datos en JSON desde Configuración → Tu información y cuenta.",
         "Portabilidad (Art. 20): el JSON anterior es estructurado y machine-readable.",
-        "Supresión / derecho al olvido (Art. 17): borrá tu cuenta desde Configuración. Es irreversible y borra todo en cascada en el momento. Las donaciones quedan en Stripe por obligaciones fiscales.",
+        "Supresión / derecho al olvido (Art. 17): borrá tu cuenta desde Configuración. Queda en cola por 30 días en los que podés revertirla iniciando sesión y tocando \"Restaurar mi cuenta\"; pasado ese plazo, el borrado es definitivo y en cascada. Las donaciones quedan en Stripe por obligaciones fiscales.",
         "Rectificación (Art. 16), restricción (Art. 18), oposición (Art. 21) y retiro de consentimiento (Art. 7(3)): mandanos un mensaje desde /contact eligiendo \"Privacidad / GDPR\". Respondemos en un máximo de 30 días.",
       ],
     },
@@ -485,7 +514,16 @@ const ES: LocalisedMarketingContent = {
       ],
     },
     {
-      heading: "9. Cookies estrictamente necesarias",
+      heading: "9. Visibilidad dentro de un viaje compartido",
+      body: [
+        "Cuando aceptás un share-link de un viaje, los demás participantes (incluido el organizador) ven tu nombre de pantalla y, por cada gasto que cargues dentro del viaje, los datos de esa línea (fecha, descripción, monto en la moneda del organizador y categoría). No ven nada del resto de tu cuenta: ni tus otros gastos, ni tu balance, ni tu identidad real más allá del nombre que vos elegiste al sumarte.",
+        "Si te invitaron solo por Telegram (cuenta GUEST), tu identidad de Telegram (id de usuario) queda vinculada a esa cuenta para que el bot sepa que sos vos. Esa identidad NO se le muestra a los demás participantes — ellos ven solo tu nombre de pantalla.",
+        "El organizador puede quitarte del viaje en cualquier momento. Tus líneas ya cargadas quedan en el viaje (si las borrás, las borrás vos antes de que te quite); a partir del retiro no podés cargar más.",
+        "Si borrás tu cuenta GUEST, los gastos que cargaste para el viaje siguen viviendo en la billetera del organizador (las cargaste en su libro contable como parte del viaje compartido); deja de aparecer tu nombre y el reparto se recalcula sin vos.",
+      ],
+    },
+    {
+      heading: "10. Cookies estrictamente necesarias",
       body: [
         "Sólo usamos dos cookies, ambas necesarias para el funcionamiento de Clara y exentas de consentimiento previo según la directiva ePrivacy:",
         "`next-auth.session-token` (JWT firmado, 30 días, HttpOnly Secure SameSite=Lax) — mantiene tu sesión iniciada.",
@@ -494,25 +532,25 @@ const ES: LocalisedMarketingContent = {
       ],
     },
     {
-      heading: "10. Edad mínima",
+      heading: "11. Edad mínima",
       body: [
         "Clara está pensada para personas de 16 años o más. En la Unión Europea Art. 8 GDPR fija ese umbral por defecto; en jurisdicciones donde el umbral aplicable sea menor, hace falta consentimiento parental verificable. Si descubrimos que abrimos una cuenta de un menor de edad sin ese consentimiento, la borramos.",
       ],
     },
     {
-      heading: "11. Notificación de brechas de seguridad",
+      heading: "12. Notificación de brechas de seguridad",
       body: [
         "Si una brecha afecta a tus datos personales con riesgo razonable, te avisamos por email lo antes posible y siempre dentro de las 72 horas que exige el Art. 33-34 GDPR, y reportamos a la autoridad de control cuando aplica.",
       ],
     },
     {
-      heading: "12. Cambios a esta política",
+      heading: "13. Cambios a esta política",
       body: [
         "Cuando cambiamos esta política de forma material, bumpeamos `CURRENT_PRIVACY_VERSION` y te pedimos que aceptes la nueva versión la próxima vez que entres. Cambios menores (correcciones de redacción, links rotos) no fuerzan re-aceptación.",
       ],
     },
     {
-      heading: "13. Contacto",
+      heading: "14. Contacto",
       body: [
         "Para cualquier consulta o ejercicio de derechos: usá el formulario en /contact, motivo \"Privacidad / GDPR\". El controlador es persona física, no hay DPO formal.",
       ],
@@ -540,6 +578,7 @@ const ES: LocalisedMarketingContent = {
         "No usar Clara para actividades ilegales, fraude, lavado de dinero, evasión fiscal o suplantación.",
         "No automatizar la app más allá de las herramientas que ofrecemos (MCP per-user con tu PAT, API documentada). En particular, prohibido el scraping del bot de Telegram, el reverse engineering de los endpoints internos y el bypass de los rate-limits.",
         "No usar Clara para almacenar datos sensibles de terceros sin su consentimiento (datos de salud ajenos, etc.).",
+        "Si compartís un viaje vía share-link, sos responsable de invitar solo a personas que estén de acuerdo en participar y de mostrarles, antes de aceptar, los términos públicos del viaje (de qué se trata y por qué necesitás su nombre y, opcionalmente, su Telegram).",
       ],
     },
     {
@@ -757,6 +796,32 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.11.0",
+      date: "2026-05-02",
+      title: "Share a trip and split the bill at close",
+      highlights: [
+        "Event wallets are now shareable: from the trip detail you mint a link and send it to whoever's coming. You can revoke any link at any time and, for safety, the plaintext link is only shown once at mint time.",
+        "Anyone opening the link joins in one of two ways: with their existing Clara account (one click and the trip appears in their dashboard) or as a Telegram-only guest with no account at all. In the second case we send them straight to the bot and onboard them inside the chat.",
+        "Every shared expense remembers who paid. When the trip has more than one participant Clara asks \"did you pay or did Marina cover it?\" before logging, so nothing ends up orphaned at split time.",
+        "Live settlement preview on the trip screen: total, fair share per head, what you paid, your balance (owed to you / owed by you) and the suggested transfers. Updates with every expense logged.",
+        "When the trip closes, every participant gets a Telegram summary spelling out: per-head share, what you paid, who you transfer to and how much (or who transfers to you). The organiser absorbs the rounding cent so debtor amounts stay clean two-decimal numbers.",
+        "If a guest later wants a full Clara account, there's a one-page upgrade at `/upgrade-guest` that takes email + password and keeps everything you already logged on the trip.",
+      ],
+    },
+    {
+      version: "0.10.0",
+      date: "2026-05-02",
+      title: "Delete account with a 30-day undo window",
+      highlights: [
+        "When you delete your account from Settings, it now goes into a 30-day queue: nothing is lost in the meantime and, if you change your mind, you sign back in and tap \"Restore my account\".",
+        "While queued: chat, APIs and the Telegram daily nudge are paused, and your MCP PAT stops working so no AI client keeps touching data you asked to remove.",
+        "If you have an active Supporter subscription, we cancel it the moment you press delete — we don't wait for the 30 days, so you're not charged another month you won't use.",
+        "We email you at T-7 days and again the day before the purge so the grace window doesn't slip past you. If you've changed your mind, the email button takes you straight to the recovery screen.",
+        "Want it gone immediately? There's an explicit \"Skip the grace window\" checkbox: tick it and we wipe everything at once instead of waiting 30 days.",
+        "After 30 days, a daily sweep wipes everything in cascade: banks, templates, expenses, messages, savings, MCP tokens and passkeys. Privacy and Terms move to version 1.1 with this change.",
+      ],
+    },
     {
       version: "0.9.0",
       date: "2026-05-02",
@@ -999,7 +1064,9 @@ const EN: LocalisedMarketingContent = {
       heading: "2. What we collect",
       body: [
         "Account and authentication: email, hashed password (bcrypt), optional name and avatar synced from Google if you sign in with Google, email-verified flag, passkeys (WebAuthn) you register, preferred language, country declared during onboarding.",
-        "Financial data: banks you register, expense and income templates, monthly lines (amount, description, category, date, currency, frozen FX rate), the global savings pile and its movement ledger, agent instructions.",
+        "Account kind (`User.kind`): REGULAR by default. If you joined Clara by accepting a shared-trip invite without creating an account, your account is a GUEST: it only holds your display name, the linked Telegram chat, and access to that one trip. It has no password, no required email, and no access to the dashboard or to your own months; you can convert it to REGULAR at any time at /upgrade-guest.",
+        "Financial data: banks you register, expense and income templates, monthly lines (amount, description, category, date, currency, frozen FX rate) and, for expenses logged inside a shared event wallet, which participant paid that line (`paidByUserId`); the global savings pile and its movement ledger, agent instructions.",
+        "Shared event wallets: if you invite someone to a trip via a share-link, we store per participant their event-scoped display name, their role (organiser or guest) and, for fresh Telegram-only invitees, a single-use code to bind the bot. Share-links are stored as a sha256 hash — never the plaintext link — and you can revoke them from the trip screen at any time; revocation, expiration and last-use timestamps are visible to you.",
         "Conversations: web chat messages (text + structured attachments as JSON), Telegram messages if you link the bot, agent usage counters and per-day model usage.",
         "Telegram reminder preference and the timestamp of the last reminder we sent (only applies if you linked Telegram; used to avoid more than one outbound message per day and so you can turn reminders off whenever you want from Settings).",
         "Payments (only if you subscribe or donate): a Stripe customer id, subscription status and current period end, a record of each donation (Stripe id, amount, date).",
@@ -1043,12 +1110,13 @@ const EN: LocalisedMarketingContent = {
     {
       heading: "6. Retention periods",
       body: [
-        "Account and financial data: until you delete the account. Deletion is immediate and cascades.",
+        "Account and financial data: until you delete the account. When you ask for deletion the account is queued for 30 days during which you can recover it with one click; after 30 days the deletion is permanent and cascades.",
         "TTS audio on Vercel Blob: up to 7 days.",
         "Application logs (Vercel/Sentry): 30 days.",
         "Stripe webhook idempotency: 18 months.",
         "Donation and subscription receipts: 7 years (EU tax obligation).",
         "MCP tokens: until you revoke them; revoked tokens are purged after 30 days.",
+        "Shared-event share-link tokens: until expiration or revocation; revoked or expired ones are purged after 30 days. Guest accounts (User.kind = GUEST) created from one of those links follow the general rules: they live until you delete them, or are purged in cascade when the trip's organiser deletes the event or their own account.",
         "Chat messages (web and Telegram): until you delete the account or ask the agent to purge them.",
         "Contact form messages: 24 months; technical metadata (IP / user-agent of the submission) max 90 days or until the message is archived, whichever comes first.",
       ],
@@ -1058,7 +1126,7 @@ const EN: LocalisedMarketingContent = {
       body: [
         "Access (Art. 15): download all your data in JSON from Settings → Your data and account.",
         "Portability (Art. 20): the JSON above is structured and machine-readable.",
-        "Erasure / right to be forgotten (Art. 17): delete your account from Settings. It's irreversible and cascades immediately. Donations remain on Stripe for tax obligations.",
+        "Erasure / right to be forgotten (Art. 17): delete your account from Settings. It's queued for 30 days during which you can reverse it by signing in and tapping \"Restore my account\"; after that window the deletion is permanent and cascades. Donations remain on Stripe for tax obligations.",
         "Rectification (Art. 16), restriction (Art. 18), objection (Art. 21) and withdrawal of consent (Art. 7(3)): send us a message via /contact picking \"Privacy / GDPR\". We respond within 30 days.",
       ],
     },
@@ -1069,7 +1137,16 @@ const EN: LocalisedMarketingContent = {
       ],
     },
     {
-      heading: "9. Strictly necessary cookies",
+      heading: "9. Visibility inside a shared trip",
+      body: [
+        "When you accept a share-link to a trip, the other participants (including the organiser) see your display name and, for every expense you log inside the trip, the line's data (date, description, amount in the organiser's currency and category). They don't see anything else from your account: not your other expenses, not your balance, not your real identity beyond the name you picked when joining.",
+        "If you were invited via Telegram only (GUEST account), your Telegram identity (user id) is bound to that account so the bot knows it's you. That identity is NOT shown to the other participants — they only see your display name.",
+        "The organiser can remove you from the trip at any time. The lines you already logged stay in the trip (if you want to delete them, do so before being removed); from removal onwards you cannot log more.",
+        "If you delete your GUEST account, the expenses you logged for the trip stay in the organiser's books (you logged them inside their book as part of the shared trip); your name stops appearing and the settlement is recomputed without you.",
+      ],
+    },
+    {
+      heading: "10. Strictly necessary cookies",
       body: [
         "We only use two cookies, both necessary for Clara to work and exempt from prior consent under the ePrivacy directive:",
         "`next-auth.session-token` (signed JWT, 30 days, HttpOnly Secure SameSite=Lax) — keeps you signed in.",
@@ -1078,25 +1155,25 @@ const EN: LocalisedMarketingContent = {
       ],
     },
     {
-      heading: "10. Minimum age",
+      heading: "11. Minimum age",
       body: [
         "Clara is intended for people aged 16 or older. In the European Union Art. 8 GDPR sets that threshold by default; in jurisdictions where the applicable threshold is lower, verifiable parental consent is required. If we discover an account from a minor without that consent, we delete it.",
       ],
     },
     {
-      heading: "11. Data breach notifications",
+      heading: "12. Data breach notifications",
       body: [
         "If a breach affects your personal data with reasonable risk, we notify you by email as soon as possible and always within the 72 hours required by Art. 33-34 GDPR, and report to the supervisory authority where applicable.",
       ],
     },
     {
-      heading: "12. Changes to this policy",
+      heading: "13. Changes to this policy",
       body: [
         "When we change this policy in a material way, we bump `CURRENT_PRIVACY_VERSION` and ask you to accept the new version on your next visit. Minor changes (typos, broken links) do not force re-acceptance.",
       ],
     },
     {
-      heading: "13. Contact",
+      heading: "14. Contact",
       body: [
         "For any question or right exercise: use the form at /contact, reason \"Privacy / GDPR\". The controller is a natural person; there is no formal DPO.",
       ],
@@ -1124,6 +1201,7 @@ const EN: LocalisedMarketingContent = {
         "Do not use Clara for illegal activities, fraud, money laundering, tax evasion or impersonation.",
         "Do not automate the app beyond the tools we offer (per-user MCP with your PAT, documented API). In particular, scraping the Telegram bot, reverse engineering internal endpoints and bypassing rate-limits are forbidden.",
         "Do not use Clara to store sensitive third-party data without their consent (someone else's health data, etc.).",
+        "If you share a trip via a share-link, you are responsible for inviting only people who agreed to participate and for telling them, before they accept, the public terms of the trip (what it's about and why you need their name and, optionally, their Telegram).",
       ],
     },
     {

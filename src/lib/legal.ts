@@ -26,10 +26,10 @@
  * the data we collect. Patch-level wording fixes (typos, link updates) do
  * NOT require a bump — they would force every user to re-accept for nothing.
  */
-export const CURRENT_TERMS_VERSION = "1.0";
-export const CURRENT_PRIVACY_VERSION = "1.0";
-export const TERMS_LAST_UPDATED = "2026-05-01";
-export const PRIVACY_LAST_UPDATED = "2026-05-01";
+export const CURRENT_TERMS_VERSION = "1.2";
+export const CURRENT_PRIVACY_VERSION = "1.2";
+export const TERMS_LAST_UPDATED = "2026-05-02";
+export const PRIVACY_LAST_UPDATED = "2026-05-02";
 
 export interface LegalController {
   /** Display name shown on /privacy and /terms. */

@@ -2,15 +2,22 @@ import bcrypt from "bcrypt";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import {
+  ACCOUNT_DELETION_GRACE_DAYS,
+  getDeletionScheduledFor,
+} from "@/lib/account-deletion";
+import {
+  cancelStripeSubscriptionForUser,
+  purgeUserNow,
+} from "@/lib/account-deletion-server";
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
 import { LOCALE_COOKIE } from "@/lib/i18n/locale";
 import { log } from "@/lib/log";
 import { requireUserId } from "@/lib/session";
-import { getStripe, isBillingEnabled } from "@/lib/billing/stripe";
 
 /**
- * GDPR Art. 17 (right to erasure).
+ * GDPR Art. 17 (right to erasure) — soft-delete with a 30-day grace window.
  *
  * Behaviour:
  *  1. Re-auth — credentials accounts must supply `currentPassword`; OAuth-
@@ -21,16 +28,19 @@ import { getStripe, isBillingEnabled } from "@/lib/billing/stripe";
  *     immediately if billing is enabled and the user has an active row.
  *     Donations remain on the Stripe side per their terms (non-refundable);
  *     we keep the Stripe customer record there so receipts stay valid.
- *  3. `db.user.delete()` — every model with a `userId` FK uses
- *     `onDelete: Cascade` (or `SetNull` for `ContactMessage` so the audit
- *     trail outlives the account). One transactional delete drops every
- *     financial row, chat history, MCP tokens and passkeys.
+ *     Cancelling now (rather than at purge time) means the user is not
+ *     charged for a 30-day grace window they cannot use.
+ *  3. `User.deletedAt = now()` — the row stays in place. The (app) layout
+ *     redirects users with `deletedAt` set to `/account/restore`, the
+ *     per-user MCP refuses their PATs, the agent quota refuses chat, and
+ *     the daily nudge cron skips them. The `/api/cron/account-purge` cron
+ *     hard-deletes anything past `ACCOUNT_DELETION_GRACE_DAYS`.
  *  4. Cookie scrub — the response wipes the NextAuth session token and the
  *     locale cookie so the next page load lands on `/`.
  *
- * Stripe failure does NOT block the delete: we log a warning and proceed.
- * The alternative (refusing to delete because Stripe is unreachable) would
- * be a worse compliance posture.
+ * Stripe failure does NOT block the soft-delete: we log a warning and
+ * proceed. The alternative (refusing to delete because Stripe is
+ * unreachable) would be a worse compliance posture.
  */
 
 const deleteSchema = z.object({
@@ -43,6 +53,19 @@ const deleteSchema = z.object({
    * via a stale browser session.
    */
   confirmPhrase: z.string().optional(),
+  /**
+   * If `true`, the user is explicitly waiving the 30-day grace window:
+   * the row is hard-deleted on the spot (and Stripe subscriptions
+   * cancelled). We still require the same re-auth (password or
+   * confirmation phrase) — `force` only changes what we do AFTER the
+   * re-auth succeeds, not whether it's required.
+   *
+   * Surfaced from a separate "Borrar definitivamente y ya" button in
+   * settings; not the default path because the soft-delete + grace UX
+   * has a much better recovery story for the typical "I clicked the
+   * wrong button" case.
+   */
+  force: z.boolean().optional(),
 });
 
 const NEXTAUTH_COOKIE_NAMES = [
@@ -64,12 +87,16 @@ export async function DELETE(request: Request) {
         passwordHash: true,
         stripeCustomerId: true,
         subscriptionStatus: true,
+        deletedAt: true,
       },
     });
     if (!user) {
       throw new Error("USER_NOT_FOUND");
     }
-
+    // ── Re-auth (always required, even on `force`) ────────────────────
+    // We deliberately validate credentials *before* checking the
+    // pending-deletion state so an attacker with a stale cookie cannot
+    // confirm whether a soft-deleted row still exists by polling DELETE.
     if (user.passwordHash) {
       if (!payload.currentPassword) {
         return jsonError(
@@ -90,29 +117,81 @@ export async function DELETE(request: Request) {
       }
     }
 
-    await maybeCancelStripeSubscription(user.id, user.stripeCustomerId, user.subscriptionStatus);
-
-    await db.user.delete({ where: { id: userId } });
-    log.info("account_deleted", { userId });
-
-    const response = NextResponse.json({ ok: true }, { status: 200 });
-    for (const name of NEXTAUTH_COOKIE_NAMES) {
-      response.cookies.set(name, "", {
-        path: "/",
-        expires: new Date(0),
-        maxAge: 0,
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
+    // ── Force path: hard-delete on the spot (no grace) ────────────────
+    if (payload.force) {
+      await purgeUserNow(userId, "force_user");
+      return buildSignedOutResponse({
+        ok: true,
+        purgedNow: true,
+        graceDays: 0,
       });
     }
-    response.cookies.set(LOCALE_COOKIE, "", {
+
+    // ── Soft-delete path ──────────────────────────────────────────────
+    if (user.deletedAt) {
+      // Idempotent: the account is already pending deletion. Surface the
+      // scheduled-for date so the client can route to the public
+      // confirmation page without a second round-trip.
+      const scheduledFor = getDeletionScheduledFor(user.deletedAt);
+      return buildSignedOutResponse({
+        ok: true,
+        alreadyPending: true,
+        scheduledFor: scheduledFor.toISOString(),
+        graceDays: ACCOUNT_DELETION_GRACE_DAYS,
+      });
+    }
+
+    await cancelStripeSubscriptionForUser(
+      user.id,
+      user.stripeCustomerId,
+      user.subscriptionStatus,
+    );
+
+    const deletedAt = new Date();
+    await db.user.update({
+      where: { id: userId },
+      data: { deletedAt, deletionRemindersSent: 0 },
+    });
+    log.info("account_soft_deleted", {
+      userId,
+      scheduledFor: getDeletionScheduledFor(deletedAt).toISOString(),
+    });
+
+    return buildSignedOutResponse({
+      ok: true,
+      alreadyPending: false,
+      scheduledFor: getDeletionScheduledFor(deletedAt).toISOString(),
+      graceDays: ACCOUNT_DELETION_GRACE_DAYS,
+    });
+  });
+}
+
+/**
+ * Wraps the JSON payload in a 200 response that wipes the NextAuth session
+ * cookie and the locale cookie so the next page load lands on `/`. Used by
+ * both the "freshly soft-deleted" and the idempotent "already pending"
+ * branches of DELETE.
+ */
+function buildSignedOutResponse(
+  payload: Record<string, unknown>,
+): NextResponse {
+  const response = NextResponse.json(payload, { status: 200 });
+  for (const name of NEXTAUTH_COOKIE_NAMES) {
+    response.cookies.set(name, "", {
       path: "/",
       expires: new Date(0),
       maxAge: 0,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
     });
-    return response;
+  }
+  response.cookies.set(LOCALE_COOKIE, "", {
+    path: "/",
+    expires: new Date(0),
+    maxAge: 0,
   });
+  return response;
 }
 
 function isValidConfirmPhrase(input: string | undefined, email: string): boolean {
@@ -125,42 +204,3 @@ function isValidConfirmPhrase(input: string | undefined, email: string): boolean
   );
 }
 
-async function maybeCancelStripeSubscription(
-  userId: string,
-  customerId: string | null,
-  subscriptionStatus: string | null,
-): Promise<void> {
-  if (!customerId) return;
-  if (!isBillingEnabled()) return;
-  if (
-    subscriptionStatus !== "active" &&
-    subscriptionStatus !== "trialing" &&
-    subscriptionStatus !== "past_due"
-  ) {
-    return;
-  }
-  const stripe = getStripe();
-  if (!stripe) return;
-  try {
-    const subs = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "all",
-      limit: 5,
-    });
-    for (const sub of subs.data) {
-      if (sub.status === "canceled") continue;
-      await stripe.subscriptions.cancel(sub.id, {
-        invoice_now: false,
-        prorate: false,
-      });
-    }
-    log.info("account_delete_stripe_cancelled", { userId, customerId });
-  } catch (err) {
-    // Best-effort: don't block the GDPR delete on Stripe API errors.
-    log.warn("account_delete_stripe_cancel_failed", {
-      userId,
-      customerId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-}

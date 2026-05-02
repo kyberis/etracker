@@ -32,6 +32,10 @@ vi.mock("@/lib/db", () => ({
     },
     event: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
+    },
+    eventParticipant: {
+      findUnique: vi.fn(),
     },
     income: {
       findFirst: vi.fn(),
@@ -524,12 +528,19 @@ describe("addMonthLine — eventId validation", () => {
   });
 
   it("rejects when occurredOn falls outside the event date range", async () => {
-    vi.mocked(db.event.findFirst).mockResolvedValue({
+    // The shared-event refactor switched to findUnique + a participant
+    // check. The owner is implicitly an active participant via the
+    // backfilled OWNER row, so the mock returns `{ removedAt: null }`.
+    vi.mocked(db.event.findUnique).mockResolvedValue({
       id: "event_1",
       name: "Trip to Mendoza",
       status: "OPEN",
       startDate: new Date(Date.UTC(2026, 3, 15)),
       endDate: new Date(Date.UTC(2026, 3, 25)),
+      userId: USER_ID,
+    } as never);
+    vi.mocked(db.eventParticipant.findUnique).mockResolvedValue({
+      removedAt: null,
     } as never);
 
     const result = (await tools().addMonthLine.execute!(
@@ -553,12 +564,16 @@ describe("addMonthLine — eventId validation", () => {
   });
 
   it("rejects when the event is closed", async () => {
-    vi.mocked(db.event.findFirst).mockResolvedValue({
+    vi.mocked(db.event.findUnique).mockResolvedValue({
       id: "event_1",
       name: "Trip",
       status: "CLOSED",
       startDate: new Date(Date.UTC(2026, 3, 15)),
       endDate: new Date(Date.UTC(2026, 3, 25)),
+      userId: USER_ID,
+    } as never);
+    vi.mocked(db.eventParticipant.findUnique).mockResolvedValue({
+      removedAt: null,
     } as never);
 
     const result = (await tools().addMonthLine.execute!(
@@ -580,12 +595,16 @@ describe("addMonthLine — eventId validation", () => {
   });
 
   it("attaches the line to the event when occurredOn is inside the range", async () => {
-    vi.mocked(db.event.findFirst).mockResolvedValue({
+    vi.mocked(db.event.findUnique).mockResolvedValue({
       id: "event_1",
       name: "Trip to Mendoza",
       status: "OPEN",
       startDate: new Date(Date.UTC(2026, 3, 15)),
       endDate: new Date(Date.UTC(2026, 3, 25)),
+      userId: USER_ID,
+    } as never);
+    vi.mocked(db.eventParticipant.findUnique).mockResolvedValue({
+      removedAt: null,
     } as never);
     vi.mocked(db.monthExpenseLine.create).mockResolvedValue({
       id: "line_1",
@@ -628,7 +647,19 @@ describe("addMonthLine — eventId validation", () => {
   });
 
   it("rejects when the event id does not belong to the user", async () => {
-    vi.mocked(db.event.findFirst).mockResolvedValue(null);
+    // The event exists but belongs to ANOTHER user (post-shared-event
+    // refactor we no longer scope the lookup by userId — we use
+    // `findUnique` and then check ownership/participation explicitly).
+    vi.mocked(db.event.findUnique).mockResolvedValue({
+      id: "event_other",
+      name: "Stranger's Trip",
+      status: "OPEN",
+      startDate: new Date(Date.UTC(2026, 3, 15)),
+      endDate: new Date(Date.UTC(2026, 3, 25)),
+      userId: "stranger",
+    } as never);
+    // Caller is not a participant either.
+    vi.mocked(db.eventParticipant.findUnique).mockResolvedValue(null);
 
     const result = (await tools().addMonthLine.execute!(
       {
@@ -643,7 +674,7 @@ describe("addMonthLine — eventId validation", () => {
       execOpts,
     )) as { error?: string };
 
-    expect(result.error).toMatch(/doesn't exist/i);
+    expect(result.error).toMatch(/not a participant/i);
     expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
   });
 });

@@ -4,7 +4,12 @@ import { notFound } from "next/navigation";
 import { EventDetail } from "@/components/event-detail";
 import { PageContainer } from "@/components/page-container";
 import { db } from "@/lib/db";
-import { getEvent } from "@/lib/events";
+import {
+  computeSettlement,
+  getEvent,
+  isEventOwner,
+  listParticipants,
+} from "@/lib/events";
 import { formatMonthKey } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
 
@@ -21,6 +26,16 @@ export default async function EventDetailPage({
   const { id } = await params;
   const event = await getEvent(userId, id);
   if (!event) notFound();
+  // Visibility check + role: getEvent already accepts the participant
+  // case; here we additionally surface "am I the owner?" so the UI can
+  // gate the share / remove-participant controls.
+  const isOwner = await isEventOwner({ userId, eventId: event.id });
+  const participants = await listParticipants({ eventId: event.id });
+  // Only compute settlement when there's something to settle. Single-
+  // participant events show nothing in the preview card (handled in the
+  // UI, but skipping the query keeps the page fast).
+  const settlement =
+    participants.length >= 2 ? await computeSettlement(event.id) : null;
 
   // Para sugerir candidatos a "sumar al evento" usamos una ventana relajada
   // alrededor del rango. Si el evento no tiene fin, padding 0 al final
@@ -31,20 +46,25 @@ export default async function EventDetailPage({
     ? addDays(event.endDate, CANDIDATE_PADDING_DAYS)
     : new Date();
 
-  const [user, lines, candidatesNear, candidatesAll] = await Promise.all([
+  // Read lines from the OWNER's books (lines are always stored under
+  // the event owner regardless of who logged them via shared event).
+  // The candidate-attach lists stay scoped to `userId` because only
+  // the owner can attach loose lines to their books.
+  const ownerId = event.userId;
+  const [ownerUser, lines, candidatesNear, candidatesAll] = await Promise.all([
     db.user.findUnique({
-      where: { id: userId },
+      where: { id: ownerId },
       select: { primaryCurrency: true },
     }),
     db.monthExpenseLine.findMany({
-      where: { eventId: event.id, userId },
+      where: { eventId: event.id },
       orderBy: { occurredOn: "desc" },
       include: {
         bank: { select: { name: true } },
         monthRecord: { select: { month: true } },
       },
     }),
-    event.status === "OPEN"
+    isOwner && event.status === "OPEN"
       ? db.monthExpenseLine.findMany({
           where: {
             userId,
@@ -59,7 +79,7 @@ export default async function EventDetailPage({
           },
         })
       : Promise.resolve([] as never[]),
-    event.status === "OPEN"
+    isOwner && event.status === "OPEN"
       ? db.monthExpenseLine.findMany({
           where: { userId, eventId: null },
           orderBy: { occurredOn: "desc" },
@@ -84,6 +104,7 @@ export default async function EventDetailPage({
       bankName: line.bank.name,
       category: line.category,
       paid: line.paid,
+      paidByUserId: line.paidByUserId ?? null,
     };
   }
 
@@ -98,7 +119,11 @@ export default async function EventDetailPage({
         lines={linePayloads}
         candidatesInRange={candidatesNearPayloads}
         candidatesAll={candidatesAllPayloads}
-        primaryCurrency={user?.primaryCurrency ?? "USD"}
+        primaryCurrency={ownerUser?.primaryCurrency ?? "USD"}
+        currentUserId={userId}
+        isOwner={isOwner}
+        participants={participants}
+        settlement={settlement}
       />
     </PageContainer>
   );

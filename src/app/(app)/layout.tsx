@@ -25,10 +25,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         onboardingCompletedAt: true,
         acceptedTermsAt: true,
         acceptedTermsVersion: true,
+        deletedAt: true,
       },
     }),
     getLocale(),
   ]);
+
+  // Soft-delete gate runs before every other guard so a user who clicks
+  // "Borrar mi cuenta" but later changes their mind can recover the
+  // account without bouncing through onboarding/accept-terms first.
+  if (user?.deletedAt) {
+    redirect("/account/restore");
+  }
 
   // GDPR Art. 7(1) — block the app until the user has accepted the live
   // Terms version. Covers Google sign-ins (no consent stamped at signup),

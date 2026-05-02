@@ -27,6 +27,10 @@ import {
 } from "@/lib/telegram/client";
 import { verifyLinkToken } from "@/lib/telegram/link";
 import {
+  existingUserSharedEventWelcome,
+  guestWelcomeMessage,
+} from "@/lib/telegram/event-share-strings";
+import {
   lowQuotaHint,
   pdfExtractedMarkdownHeading,
   pdfScanOnlyMarkdownNote,
@@ -36,6 +40,7 @@ import {
   loadTelegramSetupHint,
   type TelegramSetupHint,
 } from "@/lib/telegram/setup-state";
+import { loadGuestEventScope } from "@/lib/telegram/event-guest-state";
 
 // AI tool loops can run a long time. We `await` the full handler before
 // returning 200 (see below) so the heavy work must stay under this cap.
@@ -401,6 +406,100 @@ async function completeTelegramLink(
   });
 }
 
+/**
+ * Complete a Telegram link for a user who joined a shared event via the
+ * web landing. Differs from `completeTelegramLink` in two ways:
+ *   1. The welcome message is event-aware ("Marcos te invitó a Mendoza
+ *      Trip") and skips the regular onboarding kickoff (those tools
+ *      aren't available to GUESTs anyway).
+ *   2. We clear the EventParticipant.telegramLinkCode (single-use) and
+ *      do NOT touch User.telegramLinkCode (might be set for an unrelated
+ *      regular-link flow on the same account).
+ *
+ * For REGULAR users who accepted via "logged-in" branch, this also
+ * runs but uses the existing-user welcome string.
+ */
+async function completeEventParticipantLink(
+  participant: {
+    userId: string;
+    eventId: string;
+    displayName: string;
+    event: {
+      name: string;
+      user: { name: string | null; email: string };
+    };
+  },
+  message: TelegramMessageObject,
+) {
+  const fromId = message.from?.id;
+  if (!fromId) {
+    log.error("telegram.event_participant_no_from", { chatId: message.chat.id });
+    return;
+  }
+
+  // Update the User's Telegram identity AND clear the participant's
+  // single-use link code in one transaction. We don't read User.kind
+  // here because either flavor (REGULAR re-confirming, or GUEST first
+  // ever Telegram contact) needs identity bound to the chat.
+  await db.$transaction([
+    db.user.update({
+      where: { id: participant.userId },
+      data: {
+        telegramUserId: BigInt(fromId),
+        telegramUsername: message.from?.username ?? null,
+        telegramChatId: BigInt(message.chat.id),
+        telegramVerifiedAt: new Date(),
+      },
+    }),
+    db.eventParticipant.update({
+      where: {
+        eventId_userId: {
+          eventId: participant.eventId,
+          userId: participant.userId,
+        },
+      },
+      data: { telegramLinkCode: null },
+    }),
+  ]);
+
+  log.info("telegram.event_participant_linked", {
+    userId: participant.userId,
+    eventId: participant.eventId,
+    telegramUserId: fromId,
+  });
+
+  const locale = await getUserLocale(participant.userId);
+  const ownerName = pickOwnerNameForChat(participant.event.user);
+
+  // GUEST → tailored guest welcome (sets expectations: only this event,
+  //         we'll ask "who paid", upgrade later).
+  // REGULAR → "you joined X" reminder so they know the bot scope just
+  //           expanded to include this trip.
+  const user = await db.user.findUnique({
+    where: { id: participant.userId },
+    select: { kind: true },
+  });
+  const text =
+    user?.kind === "GUEST"
+      ? guestWelcomeMessage(locale, {
+          ownerDisplayName: ownerName,
+          eventName: participant.event.name,
+        })
+      : existingUserSharedEventWelcome(locale, {
+          ownerDisplayName: ownerName,
+          eventName: participant.event.name,
+        });
+
+  await sendTelegramMessage(message.chat.id, text);
+}
+
+function pickOwnerNameForChat(
+  user: { name: string | null; email: string },
+): string {
+  if (user.name && user.name.trim().length > 0) return user.name.trim();
+  return user.email.split("@")[0] || "tu organizador";
+}
+
 async function handleStart(message: TelegramMessageObject, text: string) {
   const tokenPart = text.replace(/^\/start(?:@\w+)?\s*/i, "").trim();
 
@@ -423,6 +522,36 @@ async function handleStart(message: TelegramMessageObject, text: string) {
   }
 
   const localeHint = await chatLocaleHint(message);
+
+  // ---- Shared event wallets: GUEST link codes -------------------------
+  //
+  // The share-link landing creates `EventParticipant` rows with a
+  // `telegramLinkCode`. When the freshly-minted GUEST taps the t.me
+  // deep link with that code, we look it up here, attach Telegram
+  // identity to the User the participant points at, and send the
+  // event-aware welcome instead of the regular onboarding kickoff.
+  const participantByCode = await db.eventParticipant.findUnique({
+    where: { telegramLinkCode: tokenPart },
+    select: {
+      userId: true,
+      eventId: true,
+      displayName: true,
+      removedAt: true,
+      event: {
+        select: {
+          name: true,
+          user: { select: { name: true, email: true } },
+        },
+      },
+    },
+  });
+  if (participantByCode && !participantByCode.removedAt) {
+    await completeEventParticipantLink(
+      participantByCode,
+      message,
+    );
+    return;
+  }
 
   const linkedByCode = await db.user.findFirst({
     where: {
@@ -715,12 +844,29 @@ async function respondToLinkedUserText(
     }
   }
 
+  // Shared event scope (only set for `User.kind = GUEST`). When present,
+  // the agent gets a tightly scoped system prompt and a filtered toolset
+  // that locks every operation to the single event the guest was invited
+  // to. `loadGuestEventScope` returns null for REGULAR users so this is
+  // a free no-op outside the shared-events flow.
+  let guestEventScope = undefined;
+  try {
+    const scope = await loadGuestEventScope(userId);
+    if (scope) guestEventScope = scope;
+  } catch (error) {
+    log.error("telegram.guest_scope_error", {
+      error: serializeError(error),
+      userId,
+    });
+  }
+
   log.info("telegram.agent_start", {
     userId,
     historyTurns: history.length,
     imageCount: images?.length ?? 0,
     textPreview: previewText(text, 80),
     needsSetup: Boolean(setupHint?.needsSetup),
+    guestScope: guestEventScope ? guestEventScope.eventId : null,
   });
 
   const userMessage: ModelMessage =
@@ -755,6 +901,7 @@ async function respondToLinkedUserText(
       messages: [...history, userMessage],
       source: "telegram",
       setupHint,
+      guestEventScope,
     });
     reply = result.text;
     chartImageUrls = result.chartImageUrls;
@@ -929,6 +1076,10 @@ async function findUserByTelegramId(
   telegramUserId: number | undefined,
 ): Promise<{ id: string } | null> {
   if (!telegramUserId) return null;
+  // We don't filter by `isActive`/`deletedAt` here on purpose: those are
+  // re-checked inside `consumeAgentQuota` which fails closed with the
+  // `accountDisabled` reply, so soft-deleted accounts never get a model
+  // call but the bot still has the chance to react to a known link.
   return db.user.findUnique({
     where: { telegramUserId: BigInt(telegramUserId) },
     select: { id: true },
