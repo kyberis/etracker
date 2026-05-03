@@ -174,6 +174,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.11.3",
+      date: "2026-05-03",
+      title: "Cada gasto guarda el día — y desde una captura, también",
+      highlights: [
+        "Antes, si le mandabas una captura del banco, Clara podía cargar los movimientos con la fecha de hoy aunque la transacción fuera de hace una semana. Ahora lee la fecha real de cada línea (con día, mes y año) y la guarda como corresponde.",
+        "Si en la captura la fecha no se ve, está cortada o es ambigua (\"abr\", \"ayer\", sin año), te pregunta antes de cargar en vez de inventar el día.",
+        "Lo mismo aplica a tickets, PDFs y CSVs: la fecha que aparece en el comprobante es la que queda en tu mes, no la del momento en que la cargás.",
+      ],
+    },
+    {
       version: "0.11.2",
       date: "2026-05-03",
       title: "Si Clara se confunde el id del evento, igual te carga el gasto",
@@ -815,6 +825,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.11.3",
+      date: "2026-05-03",
+      title: "Every expense keeps its day — even from a screenshot",
+      highlights: [
+        "Before, when you dropped a bank screenshot, Clara could log transactions with today's date even if they happened a week ago. She now reads the actual date of each line (day, month and year) off the source and saves it correctly.",
+        "If the date in the screenshot is missing, cropped or ambiguous (\"Apr\", \"yesterday\", no year), she asks you before logging instead of guessing the day.",
+        "Same for receipts, PDFs and CSVs: the date that appears in the document is the one that lands in your month, not the moment you uploaded it.",
+      ],
+    },
     {
       version: "0.11.2",
       date: "2026-05-03",

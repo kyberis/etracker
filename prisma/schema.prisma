@@ -566,12 +566,16 @@ model MonthExpenseLine {
   templateId      String?
   bankId          String
   name            String
-  /// Fecha real del gasto (no la del bucket). Para imports CSV: la fecha
-  /// que venga en la fila (booking/value date); cuando no haya, HOY (UTC).
-  /// Para entradas manuales por chat / foto / formulario: HOY (UTC) salvo
-  /// que el usuario indique otra fecha. Solo guardamos la parte de fecha
-  /// (sin hora) para que la deduplicación sea determinística entre zonas
-  /// horarias.
+  /// Fecha real del gasto (no la del bucket). SIEMPRE incluye el día.
+  /// Para imports CSV: la fecha que venga en la fila (booking/value date);
+  /// cuando no haya, HOY (UTC). Para entradas manuales por chat sin
+  /// fecha explícita: HOY (UTC). Para fotos / capturas / PDFs / tickets:
+  /// el agente debe leer la fecha (con día) de cada movimiento del
+  /// material y pasarla acá; si no es legible o es ambigua, debe
+  /// preguntarle al usuario antes de cargar (ver `addMonthLine` /
+  /// `addIncomeLine` y el system prompt en `src/lib/ai/run-expense-agent.ts`).
+  /// Solo guardamos la parte de fecha (sin hora) para que la
+  /// deduplicación sea determinística entre zonas horarias.
   occurredOn      DateTime        @db.Date
   /// Monto en la moneda original de la línea (`currency`).
   amount          Decimal         @db.Decimal(12, 2)
@@ -667,10 +671,14 @@ model MonthIncomeLine {
   /// elegir banco para registrar un cobro rápido.
   bankId          String?
   name            String
-  /// Fecha real del cobro (no la del bucket). Para entradas manuales por chat
-  /// / formulario: HOY (UTC) salvo que el usuario indique otra. Solo
-  /// guardamos la parte de fecha (sin hora) para que la deduplicación sea
-  /// determinística entre zonas horarias.
+  /// Fecha real del cobro (no la del bucket). SIEMPRE incluye el día.
+  /// Para entradas manuales por chat sin fecha explícita: HOY (UTC).
+  /// Para fotos / capturas / PDFs: el agente debe leer la fecha (con día)
+  /// de cada cobro del material y pasarla acá; si no es legible o es
+  /// ambigua, debe preguntarle al usuario antes de cargar (ver
+  /// `addIncomeLine` y el system prompt en `src/lib/ai/run-expense-agent.ts`).
+  /// Solo guardamos la parte de fecha (sin hora) para que la deduplicación
+  /// sea determinística entre zonas horarias.
   occurredOn      DateTime       @db.Date
   /// Monto en la moneda original de la línea (`currency`).
   amount          Decimal        @db.Decimal(12, 2)

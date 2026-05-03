@@ -565,7 +565,9 @@ export function buildExpenseTools(
           .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
           .optional()
           .describe(
-            "Actual date of the expense (yyyy-MM-dd). Default = today. Pass it if the user indicates a different date (e.g. 'last week', a dated receipt).",
+            "Actual date of the expense (yyyy-MM-dd, with day). Default = today only when the user is typing in chat and does NOT mention a date. " +
+            "When the line comes from a bank screenshot, photo, receipt, PDF or CSV, you MUST pass the date you read off the source for THAT specific transaction (not today). " +
+            "If the date in the source is missing, cropped, ambiguous or has no year, ask the user before calling this tool — do not silently default to today.",
           ),
         eventId: cuidIdSchema
           .optional()
@@ -1311,7 +1313,9 @@ export function buildExpenseTools(
           .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
           .optional()
           .describe(
-            "Actual date of the payment (yyyy-MM-dd). Default = today. Pass it if the user indicates a different date.",
+            "Actual date of the payment (yyyy-MM-dd, with day). Default = today only when the user is typing in chat and does NOT mention a date. " +
+            "When the income comes from a bank screenshot, photo, receipt, PDF or CSV, you MUST pass the date you read off the source for THAT specific entry (not today). " +
+            "If the date in the source is missing, cropped, ambiguous or has no year, ask the user before calling this tool — do not silently default to today.",
           ),
       }),
       execute: async (input) => {
