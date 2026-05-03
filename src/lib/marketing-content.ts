@@ -174,6 +174,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.11.1",
+      date: "2026-05-03",
+      title: "Cargar gastos por Telegram dejó de fallar por eventos fantasma",
+      highlights: [
+        "Si pasabas una captura del banco por Telegram y le decías \"sí, cargá\", a veces Clara intentaba pegar cada gasto a un evento inventado (un slash, una coma, el nombre del último viaje) y todo fallaba con \"el evento no existe\".",
+        "Ahora el agente solo puede pasar `eventId` y `paidByUserId` reales — el id que devuelve la propia herramienta — y le dijimos en el prompt que si no hay viaje activo, omita el campo en vez de inventar uno.",
+      ],
+    },
+    {
       version: "0.11.0",
       date: "2026-05-02",
       title: "Compartí un viaje y repartan los gastos al cierre",
@@ -796,6 +805,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.11.1",
+      date: "2026-05-03",
+      title: "Telegram expense logging no longer fails on phantom events",
+      highlights: [
+        "When you sent a bank screenshot via Telegram and confirmed \"yes, log it\", Clara would sometimes attach each expense to an invented event (a slash, a comma, the name of the last trip) and the whole batch failed with \"event doesn't exist\".",
+        "The agent can now only pass real CUID ids for `eventId` / `paidByUserId` — the ones the tool itself returns — and the prompt explicitly tells it to omit the field when no active trip matches instead of guessing.",
+      ],
+    },
     {
       version: "0.11.0",
       date: "2026-05-02",

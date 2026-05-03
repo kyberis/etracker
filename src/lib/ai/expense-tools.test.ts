@@ -677,6 +677,60 @@ describe("addMonthLine — eventId validation", () => {
     expect(result.error).toMatch(/not a participant/i);
     expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
   });
+
+  // Guard against a recurring telegram bug: the model would call addMonthLine
+  // with hallucinated eventId/paidByUserId values like "/", ".", "MISSING",
+  // or even the trip's name. The DB lookup then fails with "doesn't exist"
+  // and the agent never self-corrects. The schema regex must reject anything
+  // that doesn't look like a CUID so the tool input fails fast and the model
+  // gets a structured validation error it can react to.
+  it("schema rejects placeholder strings for eventId and paidByUserId", () => {
+    const schema = (
+      tools().addMonthLine as unknown as {
+        inputSchema: import("zod").ZodTypeAny;
+      }
+    ).inputSchema;
+
+    const baseInput = {
+      name: "Hotel",
+      amount: 200,
+      bankId: "bank_1",
+      category: "OTROS" as const,
+      paid: true,
+      currency: "USD",
+      occurredOn: "2026-04-20",
+    };
+
+    for (const placeholder of [
+      "/",
+      ".",
+      ",",
+      "MISSING",
+      "none",
+      "Málaga",
+      "trip-name",
+      "1",
+      "abc",
+    ]) {
+      expect(
+        schema.safeParse({ ...baseInput, eventId: placeholder }).success,
+        `eventId=${placeholder} should be rejected`,
+      ).toBe(false);
+      expect(
+        schema.safeParse({ ...baseInput, paidByUserId: placeholder }).success,
+        `paidByUserId=${placeholder} should be rejected`,
+      ).toBe(false);
+    }
+
+    expect(schema.safeParse(baseInput).success).toBe(true);
+    expect(
+      schema.safeParse({
+        ...baseInput,
+        eventId: "cmofvkulj0004njis6x1voyzw",
+        paidByUserId: "cmofve37y0000njis0lc0sdye",
+      }).success,
+    ).toBe(true);
+  });
 });
 
 // ── deleteMonthLine ─────────────────────────────────────────────────────────

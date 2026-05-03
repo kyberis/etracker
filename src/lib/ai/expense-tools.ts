@@ -85,6 +85,27 @@ const optionalMonthKey = monthKey.optional();
 const categoryEnum = z.enum(expenseCategoryOptions);
 const incomeCategoryEnum = z.enum(incomeCategoryOptions);
 
+/**
+ * Prisma `@default(cuid())` ids are CUID v1: a leading `c` plus 24 lowercase
+ * alphanumeric characters (25 total). We validate this shape on tool inputs
+ * that take a foreign-key id so the model can't slip placeholder garbage like
+ * "/", ".", "MISSING" or a literal trip name (e.g. "Málaga") into the
+ * database lookup. Without this guard the tool falls through to a generic
+ * "X doesn't exist" error and the agent cannot self-correct: it just keeps
+ * passing the same hallucinated value on every turn.
+ *
+ * The regex is intentionally permissive on length (24-32 alnum chars) to
+ * accommodate any future cuid2 / id-format change without rejecting valid
+ * ids. Anything outside that shape is, in practice, never a real id.
+ */
+const cuidIdSchema = z
+  .string()
+  .regex(
+    /^c[a-z0-9]{24,32}$/u,
+    "Must be a real id from a previous tool result (e.g. 'cmofvkulj0004njis6x1voyzw'). " +
+      "If you don't have one, OMIT this field entirely — never invent placeholders, names, or single characters.",
+  );
+
 /** Matches DB practical limit; avoids oversized prompts. */
 const MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS = 12_000;
 
@@ -546,25 +567,25 @@ export function buildExpenseTools(
           .describe(
             "Actual date of the expense (yyyy-MM-dd). Default = today. Pass it if the user indicates a different date (e.g. 'last week', a dated receipt).",
           ),
-        eventId: z
-          .string()
-          .min(1)
+        eventId: cuidIdSchema
           .optional()
           .describe(
-            "Optional event wallet id to attach the line to. The event must be OPEN. " +
-            "If `occurredOn` is outside the event's [startDate, endDate], the tool errors out " +
-            "so you can confirm with the user before tagging.",
+            "Optional event wallet id (CUID, e.g. 'cmofvkulj0004njis6x1voyzw') to attach the line to. " +
+            "The event must be OPEN. " +
+            "ONLY pass this when you have a real id from a prior `getActiveEvents` / `listEvents` / `getEvent` " +
+            "call that matched. If `getActiveEvents` returned an empty list, OMIT this field entirely — " +
+            "do not invent placeholders ('/', '.', ',', 'MISSING'), do not pass the event name, and do not " +
+            "guess. If `occurredOn` is outside the event's [startDate, endDate], the tool errors out so you " +
+            "can confirm with the user before tagging.",
           ),
-        paidByUserId: z
-          .string()
-          .min(1)
+        paidByUserId: cuidIdSchema
           .optional()
           .describe(
-            "Required when the event has more than one active participant: who actually " +
-            "paid for this line. Pass the userId returned by `listEventParticipants`. " +
-            "If the user said 'I paid' / 'me' / 'yo', use the current user's id (look it up " +
-            "in `listEventParticipants` -> `currentUserId`). Ignored when the line is not " +
-            "tied to a shared event.",
+            "Required ONLY when the event has more than one active participant: who actually " +
+            "paid for this line. Pass the userId (CUID) returned by `listEventParticipants`. " +
+            "If the user said 'I paid' / 'me' / 'yo', use the current user's id from " +
+            "`listEventParticipants` -> `currentUserId`. OMIT this field if there is no event in scope " +
+            "or if you only have one participant — never invent it.",
           ),
       }),
       execute: async (input) => {
