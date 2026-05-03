@@ -608,6 +608,14 @@ export function buildExpenseTools(
           endDate: Date | null;
           userId: string;
         } | null = null;
+        // Hint surfaced back to the agent when we silently dropped a bad
+        // eventId / paidByUserId. The model needs a structured note so it
+        // stops re-using the wrong id on follow-up turns. We never error
+        // out of the line creation because of an invalid event reference
+        // for REGULAR users — the user explicitly asked for the line and
+        // it must land in their month, just untagged. GUEST users are the
+        // exception: they have no concept of "standalone" lines.
+        let droppedEventNote: string | null = null;
 
         if (requestedEventId) {
           // Look up the event without restricting on userId so participants
@@ -624,31 +632,45 @@ export function buildExpenseTools(
             },
           });
           if (!event) {
-            return { error: "The specified event doesn't exist." };
-          }
-          // Authorization: owner OR active participant.
-          if (event.userId !== userId) {
+            if (isGuest) {
+              return { error: "The specified event doesn't exist." };
+            }
+            droppedEventNote =
+              `eventId "${requestedEventId}" did not match any event. Created the line as a standalone expense (no event tag). ` +
+              "Do NOT pass eventId on follow-up calls unless you have a real event id from getActiveEvents/listEvents/getEvent. " +
+              "Bank ids and user ids are NOT event ids — even if they look like CUIDs.";
+          } else if (event.userId !== userId) {
+            // Authorization: owner OR active participant.
             const part = await db.eventParticipant.findUnique({
               where: {
-                eventId_userId: {
-                  eventId: event.id,
-                  userId,
-                },
+                eventId_userId: { eventId: event.id, userId },
               },
               select: { removedAt: true },
             });
             if (!part || part.removedAt) {
-              return { error: "You are not a participant of this event." };
+              if (isGuest) {
+                return { error: "You are not a participant of this event." };
+              }
+              droppedEventNote =
+                `You are not a participant of event "${event.name}" (${event.id}). Created the line as a standalone expense.`;
+              event = null;
             }
           }
-          if (event.status !== EventStatus.OPEN) {
-            return {
-              error:
-                "That event is closed. Reopen it before adding more expenses.",
-            };
+          if (event && event.status !== EventStatus.OPEN) {
+            if (isGuest) {
+              return {
+                error:
+                  "That event is closed. Reopen it before adding more expenses.",
+              };
+            }
+            droppedEventNote =
+              `Event "${event.name}" is closed. Created the line as a standalone expense. Use reopenEvent first if the user wants to add more expenses to that trip.`;
+            event = null;
           }
-          eventOwnerId = event.userId;
-          storageUserId = event.userId; // line lives in the owner's books
+          if (event) {
+            eventOwnerId = event.userId;
+            storageUserId = event.userId; // line lives in the owner's books
+          }
         } else if (isGuest) {
           // Defensive: a GUEST without scopedEventId shouldn't happen
           // (loadGuestEventScope returns null before we get here), but
@@ -718,22 +740,32 @@ export function buildExpenseTools(
           eventName = event.name;
 
           // Validate paidByUserId: must be an active participant of the event.
-          const candidate = input.paidByUserId ?? userId;
-          const payer = await db.eventParticipant.findUnique({
-            where: {
-              eventId_userId: { eventId: event.id, userId: candidate },
-            },
-            select: { removedAt: true },
-          });
-          if (!payer || payer.removedAt) {
-            return {
-              error:
-                input.paidByUserId
-                  ? "paidByUserId is not an active participant of this event. Call listEventParticipants to see the valid options."
-                  : "Couldn't determine who paid; pass paidByUserId after asking the user.",
-            };
+          // Forgiving for the same reason as the event lookup above: the
+          // model frequently passes the wrong CUID here (often a bank id
+          // or its own user id repeated). When the explicit value is
+          // bogus we fall back to the current user, who is guaranteed to
+          // be a participant by the authorization check above. The note
+          // tells the model to fix it next turn.
+          const explicit = input.paidByUserId;
+          if (explicit && explicit !== userId) {
+            const payer = await db.eventParticipant.findUnique({
+              where: {
+                eventId_userId: { eventId: event.id, userId: explicit },
+              },
+              select: { removedAt: true },
+            });
+            if (!payer || payer.removedAt) {
+              droppedEventNote =
+                (droppedEventNote ? droppedEventNote + " " : "") +
+                `paidByUserId "${explicit}" is not an active participant of "${event.name}". ` +
+                "Defaulted to the current user. Call listEventParticipants to get valid userIds before retrying.";
+              paidByUserId = userId;
+            } else {
+              paidByUserId = explicit;
+            }
+          } else {
+            paidByUserId = userId;
           }
-          paidByUserId = candidate;
         }
 
         let line;
@@ -762,7 +794,8 @@ export function buildExpenseTools(
               ok: true as const,
               duplicate: true as const,
               note:
-                "An expense with that date, description, and amount already existed. Did not duplicate it.",
+                "An expense with that date, description, and amount already existed. Did not duplicate it." +
+                (droppedEventNote ? ` Also: ${droppedEventNote}` : ""),
             };
           }
           throw error;
@@ -770,6 +803,7 @@ export function buildExpenseTools(
         return {
           ok: true as const,
           duplicate: false as const,
+          ...(droppedEventNote ? { note: droppedEventNote } : {}),
           line: {
             id: line.id,
             month,

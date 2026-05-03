@@ -174,6 +174,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.11.2",
+      date: "2026-05-03",
+      title: "Si Clara se confunde el id del evento, igual te carga el gasto",
+      highlights: [
+        "Después del fix anterior, el modelo seguía colando el id del banco como si fuera id de evento (un CUID válido pero del namespace equivocado), y volvía a fallar con \"el evento no existe\".",
+        "Ahora si el `eventId` no resuelve a un viaje real tuyo, la línea se carga igual como gasto suelto y el agente recibe una nota explicando el error para que no lo repita en el próximo turno.",
+        "Misma lógica para `paidByUserId`: si lo que pasa el modelo no es un participante real del viaje, fallback a vos como pagador en vez de bloquear la carga.",
+      ],
+    },
+    {
       version: "0.11.1",
       date: "2026-05-03",
       title: "Cargar gastos por Telegram dejó de fallar por eventos fantasma",
@@ -805,6 +815,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.11.2",
+      date: "2026-05-03",
+      title: "If Clara picks the wrong event id, your expense still lands",
+      highlights: [
+        "After the previous fix the model kept slipping a bank id into the event id slot (a real CUID, just from the wrong namespace), and the call failed again with \"event doesn't exist\".",
+        "Now if the `eventId` doesn't resolve to a real trip of yours, the line is created as a standalone expense anyway and the agent gets a note explaining the mistake so it does not repeat it on the next turn.",
+        "Same for `paidByUserId`: if the value the model sends is not an actual participant of the trip, we fall back to you as the payer instead of blocking the line.",
+      ],
+    },
     {
       version: "0.11.1",
       date: "2026-05-03",

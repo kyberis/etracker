@@ -197,7 +197,12 @@ describe("addMonthLine — paidByUserId enforcement on shared events", () => {
     }
   });
 
-  it("rejects when paidByUserId is not an active participant", async () => {
+  it("falls back to the current user when paidByUserId is not an active participant", async () => {
+    // After the v0.11.2 forgiveness fix the tool no longer hard-errors on
+    // a bogus paidByUserId — the model used to pass any CUID it had on
+    // hand (a bank id, the user's own id, etc.) and the user could not
+    // log anything. We now create the line with the caller as payer and
+    // surface a `note` so the agent self-corrects on the next turn.
     setupSharedEvent({
       callerIsOwner: true,
       paidByUserId: "u_stranger",
@@ -219,9 +224,16 @@ describe("addMonthLine — paidByUserId enforcement on shared events", () => {
       },
       execOpts,
     );
-    expect("error" in result).toBe(true);
-    expect((result as { error: string }).error).toMatch(/not an active/);
-    expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ok: true });
+    expect((result as { note?: string }).note).toMatch(/not an active participant/i);
+    expect((result as { line: { paidByUserId: string | null } }).line.paidByUserId).toBe(
+      OWNER,
+    );
+    expect(db.monthExpenseLine.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ paidByUserId: OWNER }),
+      }),
+    );
   });
 
   it("GUEST scope forces eventId, defaults paidByUserId to caller, stores under owner", async () => {

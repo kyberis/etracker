@@ -563,7 +563,7 @@ describe("addMonthLine — eventId validation", () => {
     expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
   });
 
-  it("rejects when the event is closed", async () => {
+  it("falls back to a standalone line when the event is closed (REGULAR)", async () => {
     vi.mocked(db.event.findUnique).mockResolvedValue({
       id: "event_1",
       name: "Trip",
@@ -574,6 +574,16 @@ describe("addMonthLine — eventId validation", () => {
     } as never);
     vi.mocked(db.eventParticipant.findUnique).mockResolvedValue({
       removedAt: null,
+    } as never);
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue({
+      id: "line_1",
+      name: "Hotel",
+      amount: new Prisma.Decimal("200"),
+      currency: "USD",
+      fxRate: new Prisma.Decimal("1"),
+      amountConverted: new Prisma.Decimal("200"),
+      category: "OTROS",
+      paid: true,
     } as never);
 
     const result = (await tools().addMonthLine.execute!(
@@ -588,10 +598,20 @@ describe("addMonthLine — eventId validation", () => {
         paid: true,
       },
       execOpts,
-    )) as { error?: string };
+    )) as {
+      ok?: boolean;
+      note?: string;
+      line?: { eventId?: string | null };
+    };
 
-    expect(result.error).toMatch(/closed/i);
-    expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.note).toMatch(/closed/i);
+    expect(result.line?.eventId).toBeNull();
+    expect(db.monthExpenseLine.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventId: null }),
+      }),
+    );
   });
 
   it("attaches the line to the event when occurredOn is inside the range", async () => {
@@ -646,10 +666,12 @@ describe("addMonthLine — eventId validation", () => {
     );
   });
 
-  it("rejects when the event id does not belong to the user", async () => {
-    // The event exists but belongs to ANOTHER user (post-shared-event
-    // refactor we no longer scope the lookup by userId — we use
-    // `findUnique` and then check ownership/participation explicitly).
+  it("falls back to a standalone line when the event id does not belong to the user (REGULAR)", async () => {
+    // The event exists but belongs to ANOTHER user. For REGULAR users we
+    // create the line as a standalone expense (with a `note` so the agent
+    // self-corrects on the next turn) instead of erroring out — see the
+    // telegram bug report where the model kept passing wrong CUIDs and the
+    // user could not log anything.
     vi.mocked(db.event.findUnique).mockResolvedValue({
       id: "event_other",
       name: "Stranger's Trip",
@@ -660,6 +682,16 @@ describe("addMonthLine — eventId validation", () => {
     } as never);
     // Caller is not a participant either.
     vi.mocked(db.eventParticipant.findUnique).mockResolvedValue(null);
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue({
+      id: "line_1",
+      name: "Hotel",
+      amount: new Prisma.Decimal("200"),
+      currency: "USD",
+      fxRate: new Prisma.Decimal("1"),
+      amountConverted: new Prisma.Decimal("200"),
+      category: "OTROS",
+      paid: true,
+    } as never);
 
     const result = (await tools().addMonthLine.execute!(
       {
@@ -672,10 +704,69 @@ describe("addMonthLine — eventId validation", () => {
         paid: true,
       },
       execOpts,
-    )) as { error?: string };
+    )) as {
+      ok?: boolean;
+      note?: string;
+      line?: { eventId?: string | null; eventName?: string | null };
+    };
 
-    expect(result.error).toMatch(/not a participant/i);
-    expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.note).toMatch(/not a participant/i);
+    expect(result.line?.eventId).toBeNull();
+    expect(result.line?.eventName).toBeNull();
+    expect(db.monthExpenseLine.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventId: null }),
+      }),
+    );
+  });
+
+  it("falls back to a standalone line when the event id does not exist (REGULAR)", async () => {
+    // Real production failure: the model passed a bank id (or any other
+    // CUID-shaped value) as eventId. The lookup misses, but the line must
+    // still be created so the user gets what they asked for.
+    vi.mocked(db.event.findUnique).mockResolvedValue(null);
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue({
+      id: "line_1",
+      name: "Aldi",
+      amount: new Prisma.Decimal("29.67"),
+      currency: "EUR",
+      fxRate: new Prisma.Decimal("1"),
+      amountConverted: new Prisma.Decimal("29.67"),
+      category: "ALIMENTACION",
+      paid: true,
+    } as never);
+
+    const result = (await tools().addMonthLine.execute!(
+      {
+        name: "Aldi",
+        amount: 29.67,
+        bankId: "cmofvk9u50001njisb24ukyud",
+        eventId: "cmofvk9u50001njisb24ukyud", // bank id passed as event id
+        paidByUserId: "cmofvk9u50001njisb24ukyud", // same
+        category: "ALIMENTACION",
+        currency: "USD", // mock primary currency, avoids FX lookup
+        paid: true,
+      },
+      execOpts,
+    )) as {
+      ok?: boolean;
+      note?: string;
+      line?: { eventId?: string | null };
+    };
+
+    expect(result.ok).toBe(true);
+    expect(result.note).toMatch(/did not match any event/i);
+    expect(result.note).toMatch(/bank ids and user ids are not event ids/i);
+    expect(result.line?.eventId).toBeNull();
+    expect(db.monthExpenseLine.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventId: null,
+          paidByUserId: null,
+        }),
+      }),
+    );
   });
 
   // Guard against a recurring telegram bug: the model would call addMonthLine
