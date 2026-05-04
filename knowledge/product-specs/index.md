@@ -12,6 +12,13 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`account-soft-delete`](account-soft-delete.md) — self-service "Borrar mi cuenta"
   with a 30-day grace queue and one-click restore. Daily cron hard-deletes past
   the window; chat, MCP and Telegram nudge are paused while pending.
+- [`ai-agent`](ai-agent.md) — chat-first AI agent: one tool registry (~45 tools),
+  three entrypoints (web stream, Telegram one-shot, system-initiated tool-less
+  reply), Spanish + English, 8-step budget, per-user-bound tools, guest-event
+  scope variant.
+- [`banks`](banks.md) — per-user banks/wallets/cards used to route every
+  expense and (optionally) income. Restrict-on-delete, Runtime-cached `listBanks`,
+  agent + REST + MCP coverage.
 - [`billing-and-quota-upsell`](billing-and-quota-upsell.md) — optional Stripe-backed
   Supporter plan + one-time donations gated behind the `quota_upsell` feature flag.
   Surfaces in chat 429, settings, public `/upgrade`.
@@ -28,9 +35,24 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
   export/delete endpoints, sub-processor registry, retention windows,
   self-host controller resolution, public `/contact` form + `/admin/contact`
   bandeja.
+- [`import-pdf-image`](import-pdf-image.md) — PDF / image / CSV / voice
+  ingest pipeline. Whisper for voice, vision for images, agent prompt rules
+  enforce real transaction dates and confirmation before write. Partial unique
+  index dedupes silent re-imports.
 - [`income`](income.md) — multi-source monthly income via recurring `Income`
   templates and per-month `MonthIncomeLine` lines. Mirrors the expense data
   model; deprecates the old single `MonthRecord.income` field.
+- [`mcp-per-user`](mcp-per-user.md) — authenticated MCP server at
+  `/api/mcp/user`. PAT bearer (`clara_pat_…`) hashed with SHA-256, ~30 tools
+  bound to the resolved user, per-user (240/min) and per-IP (60/min)
+  rate-limit envelope.
+- [`mcp-public`](mcp-public.md) — public no-auth MCP server at `/api/mcp`.
+  Read-only marketing surface (`getOverview`, `getFeatures`, `getFaq`,
+  `getChangelog`, `searchContent`) in Spanish + English.
+- [`months-and-templates`](months-and-templates.md) — core data model:
+  `Expense` template + `MonthRecord` + `MonthExpenseLine`. `amountConverted`
+  in primary currency, frozen `fxRate`, partial-unique dedupe on imports,
+  carryover semantics.
 - [`savings`](savings.md) — global savings pile backed by an immutable ledger
   (`SavingsMovement`). Monthly informational contribution, carry-over deposits,
   debt coverage on negative months, manual deposits/withdrawals. REST + agent
@@ -45,14 +67,8 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 
 ## Suggested first specs (high signal, write when touching)
 
-- **ai-agent** — chat loop, tool registry, prompt structure, approval flow.
-- **months-and-templates** — recurring expense templates and per-month copies
-  (the core data model).
-- **expense-lines** — paid/unpaid state, edits, deletes, partial payments.
-- **banks** — multi-bank routing, default bank, Runtime Cache invalidation.
-- **import-pdf-image** — PDF / image / CSV extraction pipeline + AI classifier.
-- **mcp-public** — `/api/mcp` resources/tools/prompts, no auth.
-- **mcp-per-user** — `/api/mcp/user`, PAT auth, tool catalog, rate limits.
+- **expense-lines** — paid/unpaid state, edits, deletes, partial payments
+  (mostly covered by `months-and-templates`; split out if it grows).
 - **changelog** — how `marketing-content.ts` CHANGELOG flows to `/changelog`
   and JSON-LD.
 - **landing-and-marketing** — `(marketing)/[lang]/` routes, single-source copy.
