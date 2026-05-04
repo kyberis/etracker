@@ -33,6 +33,14 @@ const IGNORED_FILES = new Set<string>([
   "src/app/offline/page.tsx",
   // Upgrade / donation copy is authored inline per locale (structured metadata).
   "src/app/(marketing)/[lang]/upgrade/page.tsx",
+  // Shared-event landing & GUEST→REGULAR upgrade pages: copy lives inline
+  // in a `COPY: Record<Locale, …>` table next to the form so the strings
+  // stay in lockstep with the discriminated union of error states. Same
+  // pattern as `upgrade/page.tsx`.
+  "src/app/(marketing)/[lang]/events/share/[token]/page.tsx",
+  "src/app/(marketing)/[lang]/events/share/[token]/share-accept-form.tsx",
+  "src/app/(marketing)/[lang]/upgrade-guest/page.tsx",
+  "src/app/(marketing)/[lang]/upgrade-guest/guest-upgrade-form.tsx",
 ]);
 
 function listTsxFiles(): string[] {

@@ -403,13 +403,15 @@ function ShareLinkDialog({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!open) {
-      // Reset transient state so the next opening is clean.
+    if (!open) return;
+    void loadTokens();
+    // Reset transient state when the dialog closes (or `eventId` switches)
+    // so the next opening starts clean. Lives in the cleanup function so
+    // we don't trip `react-hooks/set-state-in-effect`.
+    return () => {
       setFreshUrl(null);
       setCopied(false);
-      return;
-    }
-    void loadTokens();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, eventId]);
 

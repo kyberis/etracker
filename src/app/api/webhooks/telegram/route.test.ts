@@ -25,6 +25,14 @@ const lazyClient = vi.hoisted(() => ({
   sendTelegramMessage: vi.fn(async () => {}),
   sendChatAction: vi.fn(async () => {}),
   sendTelegramChartsThenHtmlMessage: vi.fn(async () => {}),
+  // v0.12.0 added a "live tool progress" status message: webhook posts a
+  // small status, edits it as each tool runs, then deletes it before the
+  // final reply. The mocks return undefined for the status (route is
+  // permissive about a missing status message — it just skips the edit /
+  // delete branches).
+  sendTelegramStatusMessage: vi.fn(async () => undefined),
+  editTelegramMessage: vi.fn(async () => {}),
+  deleteTelegramMessage: vi.fn(async () => {}),
   getTelegramFileUrl: vi.fn(async () => null),
   downloadTelegramFile: vi.fn(async () => null),
   verifyTelegramWebhookRequest: vi.fn(() => true),

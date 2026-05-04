@@ -39,7 +39,7 @@ summary listing exactly who pays whom and how much.
 | Token primitives | `src/lib/events-share.ts` (`mintShareToken`, `verifyShareToken`, `markShareTokenUsed`, `revokeShareToken`, `listShareTokens`, `buildShareUrl`) |
 | Service | `src/lib/events.ts` (`addParticipant`, `removeParticipant`, `listParticipants`, `isEventOwner`, `isEventParticipant`, `computeSettlement`, `pickOwnerDisplayName`) |
 | API routes | `src/app/api/events/[id]/share/route.ts` (POST mint / GET list), `…/share/[tokenId]/route.ts` (DELETE revoke), `src/app/api/events/share/[token]/route.ts` (preview), `…/share/[token]/accept/route.ts` (accept guest+registered), `…/[id]/participants/route.ts` (list), `…/[id]/participants/[userId]/route.ts` (remove), `…/[id]/settlement/route.ts` (preview), `src/app/api/auth/upgrade-guest/route.ts` (GUEST → REGULAR) |
-| Agent tools | `src/lib/ai/expense-tools.ts` (`addMonthLine` extended with `paidByUserId`; `listEventParticipants` new; GUEST scope filters the catalogue to event-only tools) |
+| Agent tools | `src/lib/ai/expense-tools.ts` (`addMonthLine` extended with `paidByUserId`; `listEventParticipants`; `createEventShareLink` mints a share-link from the chat; GUEST scope filters the catalogue to event-only tools) |
 | Agent prompt | `src/lib/ai/run-expense-agent.ts` (passes `guestEventScope` and shared-event guidance to the LLM) |
 | Telegram | `src/app/api/webhooks/telegram/route.ts` (`/start <code>` recognises participant link codes), `src/lib/telegram/event-share-strings.ts` (welcomes + settlement summaries), `src/lib/telegram/event-guest-state.ts` (loads GUEST scope) |
 | UI | `src/app/(marketing)/[lang]/events/share/[token]/page.tsx` + `share-accept-form.tsx` (public landing), `src/app/(marketing)/[lang]/upgrade-guest/page.tsx` + `guest-upgrade-form.tsx` (GUEST → REGULAR), `src/components/event-share-panel.tsx` (Compartir dialog + participants list + settlement card), `src/components/event-detail.tsx` (renders `EventSharePanel`, "Pagó X" badge per line, OWNER-only detach) |
@@ -120,6 +120,7 @@ Agent tools:
 
 - `addMonthLine` accepts `paidByUserId` (required when the event has ≥ 2 active participants; falls back to the caller's userId otherwise).
 - `listEventParticipants` returns the active roster + `currentUserId`. Under GUEST scope `eventId` is optional and defaults to the scoped event.
+- `createEventShareLink` mints a fresh 30-day share-token from the chat. OWNER-only — refuses with an error when the caller does not own the event, and is filtered out of the GUEST catalogue. The agent paste the returned `url` verbatim back to the user so they can forward it via WhatsApp / Telegram. Internally calls the same `mintShareToken` + `buildShareUrl` pair as `POST /api/events/[id]/share`, so web-minted and chat-minted links are interchangeable.
 - For `User.kind = GUEST`, the catalogue is filtered to: `addMonthLine`, `listEventParticipants`, `getEvent`, `listEvents`, `renderChart`, `setUserLocale`. All `addMonthLine` calls force `eventId` to the scoped event and route the line to the OWNER's books.
 
 ## Invariants

@@ -174,6 +174,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.1",
+      date: "2026-05-04",
+      title: "Compartir un viaje vuelve a funcionar de punta a punta",
+      highlights: [
+        "Si mandabas el link de un viaje compartido a una amiga, al apretar \"Sumarme por Telegram\" se cortaba con \"No pudimos procesar tu pedido\". El proxy nos estaba pisando el endpoint público y mandando el formulario al login. Ya pasa de largo y la invitación termina como toca: en una conversación nueva con Clara en Telegram.",
+        "Y ahora también podés pedirle a Clara que comparta el viaje sin abrir la web: decile \"compartí Málaga con Cyn\" o \"mandame un link del cumple\" y ella mintea uno fresco y te lo pega en el chat para que lo reenvíes. El link vence a los 30 días, igual que el de la web.",
+      ],
+    },
+    {
       version: "0.12.0",
       date: "2026-05-04",
       title: "Clara te cuenta qué está haciendo en Telegram",
@@ -835,6 +844,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.1",
+      date: "2026-05-04",
+      title: "Sharing a trip works end-to-end again",
+      highlights: [
+        "When a friend opened your shared-trip link and tapped \"Join via Telegram\", they used to hit a generic \"We couldn't process your request\" error. The auth proxy was intercepting the public accept endpoint and bouncing it to the login page. The path is now exempt and the invite lands where it should: a fresh conversation with Clara on Telegram.",
+        "You can also ask Clara to mint a share-link without opening the web — say \"share Málaga with Cyn\" or \"send me a link to the birthday\" and she'll generate a fresh URL and paste it back in chat for you to forward. Same 30-day expiry as the web link.",
+      ],
+    },
     {
       version: "0.12.0",
       date: "2026-05-04",

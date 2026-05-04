@@ -22,10 +22,12 @@ import {
   getActiveEventsAt,
   getEvent as getEventService,
   isDateInEventRange,
+  isEventOwner,
   listEvents as listEventsService,
   reopenEvent as reopenEventService,
   updateEvent as updateEventService,
 } from "@/lib/events";
+import { buildShareUrl, mintShareToken } from "@/lib/events-share";
 import {
   isUniqueViolation,
   parseIsoDate,
@@ -2394,6 +2396,43 @@ export function buildExpenseTools(
         return {
           ok: true as const,
           detachedLineCount: result.detachedLineCount,
+        };
+      },
+    }),
+
+    createEventShareLink: tool({
+      description:
+        "Mints a fresh share-link for an event wallet so the user can invite friends to load expenses together. " +
+        "Use this when the user says things like 'compartí Málaga con Cyn', 'mandá un link a mi viaje', 'invitame gente al cumple', 'share this trip'. " +
+        "OWNER-only: returns an error if the caller does not own the event. The returned `url` lands on the public " +
+        "share page where the friend can join via Telegram (no Clara account needed) or with their existing account. " +
+        "Token expires in 30 days; the user can mint another with the same call. After this resolves, paste the " +
+        "`url` back to the user verbatim so they can forward it (do NOT shorten or wrap it in markdown that hides the link).",
+      inputSchema: z.object({
+        eventId: cuidIdSchema,
+      }),
+      execute: async ({ eventId }) => {
+        if (isGuest) {
+          return {
+            error:
+              "Guests cannot share an event. Ask the trip's organiser to send a fresh invite.",
+          };
+        }
+        const owner = await isEventOwner({ userId, eventId });
+        if (!owner) {
+          return {
+            error:
+              "Only the event's owner can mint a share-link. If this is your trip and you don't see it, the eventId may be wrong — call `listEvents` first.",
+          };
+        }
+        const minted = await mintShareToken({
+          eventId,
+          createdById: userId,
+        });
+        return {
+          ok: true as const,
+          url: buildShareUrl(minted.token),
+          expiresAt: minted.expiresAt.toISOString(),
         };
       },
     }),

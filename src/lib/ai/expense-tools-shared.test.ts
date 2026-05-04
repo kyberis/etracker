@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Focused tests for the GUEST scope + paidByUserId enforcement on
@@ -25,6 +25,7 @@ vi.mock("@/lib/db", () => ({
     user: { findUnique: vi.fn() },
     event: { findUnique: vi.fn() },
     eventParticipant: { findUnique: vi.fn(), findMany: vi.fn() },
+    eventShareToken: { create: vi.fn() },
   },
 }));
 
@@ -282,6 +283,82 @@ describe("addMonthLine — paidByUserId enforcement on shared events", () => {
     expect("error" in result).toBe(true);
     expect((result as { outOfRange?: boolean }).outOfRange).toBe(true);
     expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("createEventShareLink", () => {
+  const ORIGINAL_NEXTAUTH_URL = process.env.NEXTAUTH_URL;
+
+  beforeEach(() => {
+    // `buildShareUrl` reads `NEXTAUTH_URL` to compose the public URL.
+    // Pin it so the assertion below doesn't depend on the test machine.
+    process.env.NEXTAUTH_URL = "https://clara.example.com";
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_NEXTAUTH_URL === undefined) {
+      delete process.env.NEXTAUTH_URL;
+    } else {
+      process.env.NEXTAUTH_URL = ORIGINAL_NEXTAUTH_URL;
+    }
+  });
+
+  // CUID-shaped id so `cuidIdSchema` accepts it.
+  const VALID_EVENT_ID = "cmofvkulj0004njis6x1voyzw";
+
+  it("mints a fresh share-link when the caller owns the event", async () => {
+    vi.mocked(db.event.findUnique).mockResolvedValue({
+      userId: OWNER,
+    } as never);
+    const expiresAt = new Date("2026-06-01T00:00:00.000Z");
+    vi.mocked(db.eventShareToken.create).mockResolvedValue({
+      id: "tok_1",
+      expiresAt,
+    } as never);
+
+    const t = buildExpenseTools(OWNER);
+    const result = await t.createEventShareLink!.execute!(
+      { eventId: VALID_EVENT_ID },
+      execOpts,
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    const r = result as { url: string; expiresAt: string };
+    // Token plaintext is random, so we assert on shape: base URL + locale + path + 43-char base64url token.
+    expect(r.url).toMatch(
+      /^https:\/\/clara\.example\.com\/es\/events\/share\/[A-Za-z0-9_-]{43}$/u,
+    );
+    expect(r.expiresAt).toBe(expiresAt.toISOString());
+    expect(db.eventShareToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventId: VALID_EVENT_ID,
+          createdById: OWNER,
+        }),
+      }),
+    );
+  });
+
+  it("refuses to mint when the caller does NOT own the event", async () => {
+    vi.mocked(db.event.findUnique).mockResolvedValue({
+      userId: "u_someone_else",
+    } as never);
+    const t = buildExpenseTools(OWNER);
+    const result = await t.createEventShareLink!.execute!(
+      { eventId: VALID_EVENT_ID },
+      execOpts,
+    );
+    expect("error" in result).toBe(true);
+    expect((result as { error: string }).error).toMatch(/owner/i);
+    expect(db.eventShareToken.create).not.toHaveBeenCalled();
+  });
+
+  it("is not exposed in the GUEST tool catalogue", () => {
+    const t = buildExpenseTools(GUEST, {
+      userKind: UserKind.GUEST,
+      scopedEventId: EVENT,
+    });
+    expect((t as Record<string, unknown>).createEventShareLink).toBeUndefined();
   });
 });
 
