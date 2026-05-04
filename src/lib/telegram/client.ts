@@ -130,6 +130,61 @@ export async function sendChatAction(
 }
 
 /**
+ * Send a single short status message and return the Telegram `message_id`
+ * so the webhook can edit it as the agent runs (e.g. "Anotando el gasto…").
+ * Plain text — no parse mode — so we never have to escape Markdown for a
+ * cosmetic line. Returns `null` on failure so callers can degrade silently
+ * to the typing dot only.
+ */
+export async function sendTelegramStatusMessage(
+  chatId: number | bigint,
+  text: string,
+): Promise<{ messageId: number } | null> {
+  const result = await callTelegram<{ message_id: number }>("sendMessage", {
+    chat_id: chatId.toString(),
+    text,
+    disable_web_page_preview: true,
+  });
+  if (!result.ok || typeof result.result?.message_id !== "number") {
+    return null;
+  }
+  return { messageId: result.result.message_id };
+}
+
+/**
+ * Edit a previously sent message's text. Best-effort: returns `false` (and
+ * logs a warn) on the common "message is not modified" or transport
+ * failures, since progress copy is a UX nicety, not a correctness path.
+ */
+export async function editTelegramMessage(
+  chatId: number | bigint,
+  messageId: number,
+  text: string,
+): Promise<{ ok: boolean }> {
+  const result = await callTelegram<unknown>("editMessageText", {
+    chat_id: chatId.toString(),
+    message_id: messageId,
+    text,
+    disable_web_page_preview: true,
+  }).catch(() => ({ ok: false }) as TelegramApiResponse<unknown>);
+  return { ok: result.ok };
+}
+
+/**
+ * Delete a message. Best-effort; failures are swallowed (already deleted,
+ * too old, permissions, network).
+ */
+export async function deleteTelegramMessage(
+  chatId: number | bigint,
+  messageId: number,
+): Promise<void> {
+  await callTelegram<unknown>("deleteMessage", {
+    chat_id: chatId.toString(),
+    message_id: messageId,
+  }).catch(() => undefined);
+}
+
+/**
  * Resolve a `file_id` from an inbound update to a downloadable HTTPS URL.
  * Returns `null` when the API fails so callers can fall back to a friendly
  * "couldn't read the file" reply.

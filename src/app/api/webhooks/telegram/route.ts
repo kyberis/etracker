@@ -18,13 +18,20 @@ import {
   getTelegramStrings,
 } from "@/lib/telegram/menu";
 import {
+  deleteTelegramMessage,
   downloadTelegramFile,
+  editTelegramMessage,
   getTelegramFileUrl,
   sendChatAction,
   sendTelegramChartsThenHtmlMessage,
   sendTelegramMessage,
+  sendTelegramStatusMessage,
   verifyTelegramWebhookRequest,
 } from "@/lib/telegram/client";
+import {
+  initialThinkingLabel,
+  toolProgressLabel,
+} from "@/lib/telegram/tool-progress";
 import { verifyLinkToken } from "@/lib/telegram/link";
 import {
   existingUserSharedEventWelcome,
@@ -822,8 +829,16 @@ async function respondToLinkedUserText(
     return;
   }
 
-  // Show the typing indicator so the chat feels live while the AI runs.
+  // Show the typing indicator so the chat feels live while the AI runs,
+  // then post a single short "status" message we can edit in place as the
+  // agent calls each tool. If the send fails we fall back to typing only —
+  // the agent still runs to completion.
   await sendChatAction(chatId, "typing");
+  const status = await sendTelegramStatusMessage(
+    chatId,
+    initialThinkingLabel(locale),
+  );
+  let lastStatusText = initialThinkingLabel(locale);
 
   const history = await loadHistory(userId);
 
@@ -902,6 +917,18 @@ async function respondToLinkedUserText(
       source: "telegram",
       setupHint,
       guestEventScope,
+      onStep: status
+        ? async ({ toolNames }) => {
+            if (toolNames.length === 0) return;
+            // Show the most recently invoked tool. If the same tool ran
+            // twice in a row Telegram returns "message is not modified",
+            // which `editTelegramMessage` swallows.
+            const next = toolProgressLabel(toolNames[toolNames.length - 1]!, locale);
+            if (next === lastStatusText) return;
+            lastStatusText = next;
+            await editTelegramMessage(chatId, status.messageId, next);
+          }
+        : undefined,
     });
     reply = result.text;
     chartImageUrls = result.chartImageUrls;
@@ -928,6 +955,12 @@ async function respondToLinkedUserText(
 
   await persistMessage(userId, "assistant", reply, chatId);
 
+  // Replace the status message with the final reply. Delete-then-send
+  // (vs editing in place) keeps chart photos, HTML formatting and inline
+  // keyboards working uniformly through `sendTelegramChartsThenHtmlMessage`.
+  if (status) {
+    await deleteTelegramMessage(chatId, status.messageId);
+  }
   await sendTelegramChartsThenHtmlMessage(chatId, {
     text: reply,
     chartImageUrls,

@@ -174,6 +174,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.0",
+      date: "2026-05-04",
+      title: "Clara te cuenta qué está haciendo en Telegram",
+      highlights: [
+        "Mientras Clara piensa, ahora ves un mensaje cortito que se va actualizando con cada paso: \"Anotando el gasto…\", \"Buscando tus bancos…\", \"Preparando gráfico…\". Sentís que pasa algo en vez de mirar los tres puntitos.",
+        "El mensaje desaparece apenas llega la respuesta final, así no te queda ruido en el chat.",
+        "Misma idea que ya teníamos en el chat web: ahora Telegram también muestra cada acción a medida que ocurre.",
+      ],
+    },
+    {
       version: "0.11.3",
       date: "2026-05-03",
       title: "Cada gasto guarda el día — y desde una captura, también",
@@ -825,6 +835,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.0",
+      date: "2026-05-04",
+      title: "Clara now tells you what she's doing on Telegram",
+      highlights: [
+        "While Clara thinks, you now see a small status line that updates with each step — \"Logging the expense…\", \"Looking up your banks…\", \"Preparing chart…\". Forward motion instead of three silent dots.",
+        "The status disappears the moment the final reply arrives, so the chat stays tidy.",
+        "Same idea you already had in the web chat: every action is now visible on Telegram too.",
+      ],
+    },
     {
       version: "0.11.3",
       date: "2026-05-03",

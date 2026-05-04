@@ -544,6 +544,7 @@ export async function generateExpenseAgentReply({
   responseStyle = "concise",
   setupHint,
   guestEventScope,
+  onStep,
 }: {
   userId: string;
   messages: ExpenseAgentMessages;
@@ -557,6 +558,17 @@ export async function generateExpenseAgentReply({
    * filtered to event-related tools only.
    */
   guestEventScope?: GuestEventScope;
+  /**
+   * Fired after each agent step completes, with the tool names that ran
+   * during that step. Used by the Telegram webhook to edit a "status"
+   * message in place ("Anotando el gasto…", "Buscando tus bancos…")
+   * so the user perceives forward motion. Errors thrown by the
+   * callback are swallowed — progress UI must never break the loop.
+   */
+  onStep?: (event: {
+    toolNames: string[];
+    stepNumber: number;
+  }) => void | Promise<void>;
 }): Promise<{
   text: string;
   /** HTTPS PNG URLs for messaging channels (Telegram photo). */
@@ -607,7 +619,7 @@ export async function generateExpenseAgentReply({
       scopedEventId: guestEventScope?.eventId,
     }),
     stopWhen: stepCountIs(8),
-    onStepFinish: (step) => {
+    onStepFinish: async (step) => {
       logAIStep({
         traceId,
         source,
@@ -620,6 +632,16 @@ export async function generateExpenseAgentReply({
         finishReason: step.finishReason,
         usage: step.usage,
       });
+      if (onStep) {
+        const toolNames = (step.toolCalls ?? [])
+          .map((c) => (c as { toolName?: unknown }).toolName)
+          .filter((n): n is string => typeof n === "string");
+        try {
+          await onStep({ toolNames, stepNumber: step.stepNumber ?? 0 });
+        } catch {
+          // Progress callbacks must never break the agent loop.
+        }
+      }
     },
   });
 
