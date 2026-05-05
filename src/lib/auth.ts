@@ -16,6 +16,7 @@ import {
 } from "@/lib/webauthn";
 
 import { isGoogleAuthConfigured } from "./auth-providers";
+import { getIdpBaseUrl } from "./idp-base";
 
 /**
  * `strategy: "jwt"` means NextAuth never reads/writes the `Session` /
@@ -24,7 +25,9 @@ import { isGoogleAuthConfigured } from "./auth-providers";
  * because it's still responsible for persisting the `User` and `Account`
  * rows on first Google sign-in (auto-linking by email is enabled below).
  */
-export const authOptions: NextAuthOptions = {
+export const authOptions = {
+  // Behind Caddy/Vercel, use X-Forwarded-Host so OAuth redirect_uri matches the browser URL.
+  trustHost: true,
   adapter: PrismaAdapter(db),
   session: {
     strategy: "jwt",
@@ -188,6 +191,39 @@ export const authOptions: NextAuthOptions = {
           }),
         ]
       : []),
+    ...(getIdpBaseUrl() &&
+    process.env.IDP_CLIENT_ID &&
+    process.env.IDP_CLIENT_SECRET
+      ? [
+          {
+            id: "trefolio-id",
+            name: "Trefolio Account",
+            type: "oauth" as const,
+            wellKnown: `${getIdpBaseUrl()}/.well-known/openid-configuration`,
+            authorization: {
+              params: { scope: "openid email profile entitlements" },
+            },
+            clientId: process.env.IDP_CLIENT_ID,
+            clientSecret: process.env.IDP_CLIENT_SECRET,
+            idToken: true,
+            checks: ["pkce", "state"] as Array<"pkce" | "state">,
+            profile(profile: Record<string, unknown>) {
+              const email =
+                typeof profile.email === "string"
+                  ? profile.email.toLowerCase()
+                  : "";
+              return {
+                id:
+                  typeof profile.sub === "string" ? profile.sub : email,
+                name:
+                  typeof profile.name === "string" ? profile.name : null,
+                email,
+                image: null,
+              };
+            },
+          },
+        ]
+      : []),
   ],
   callbacks: {
     async signIn({ account, profile, user }) {
@@ -209,6 +245,34 @@ export const authOptions: NextAuthOptions = {
             return "/login?error=AccountDisabled";
           }
         }
+      } else if (account?.provider === "trefolio-id") {
+        const p = profile as
+          | {
+              email?: string;
+              name?: string;
+              entitlements?: { clara_daily_limit?: number };
+            }
+          | undefined;
+        const email = p?.email?.toLowerCase() ?? user.email?.toLowerCase();
+        if (!email) {
+          return "/login?error=AccessDenied";
+        }
+        const existing = await db.user.findUnique({
+          where: { email },
+          select: { id: true, isActive: true },
+        });
+        if (existing && !existing.isActive) {
+          return "/login?error=AccountDisabled";
+        }
+        // Keep local quota in sync with IdP entitlements.
+        const dailyLimit = Number(p?.entitlements?.clara_daily_limit) || 30;
+        await db.user.updateMany({
+          where: { email },
+          data: {
+            dailyAgentMessageLimit: dailyLimit,
+            ...(p?.name ? { name: p.name } : {}),
+          },
+        });
       } else if (user?.id) {
         // Credentials path: we already filtered in `authorize`, but double-check.
         const dbUser = await db.user.findUnique({
@@ -223,10 +287,20 @@ export const authOptions: NextAuthOptions = {
     },
     async jwt({ token, user, trigger }) {
       if (user) {
-        token.sub = user.id;
-        // Fresh sign-in: mark the user as active today even if they land on
-        // a route that bypasses the (app) layout (e.g. /onboarding).
-        void touchActivity(user.id);
+        let uid = user.id as string | undefined;
+        if (!uid && user.email) {
+          const row = await db.user.findUnique({
+            where: { email: user.email.toLowerCase() },
+            select: { id: true },
+          });
+          uid = row?.id;
+        }
+        if (uid) {
+          token.sub = uid;
+          // Fresh sign-in: mark the user as active today even if they land on
+          // a route that bypasses the (app) layout (e.g. /onboarding).
+          void touchActivity(uid);
+        }
       }
       // Refresh admin/active flags from DB on first JWT issuance and whenever
       // the client requests a session update (e.g. after admin self-service
@@ -271,7 +345,7 @@ export const authOptions: NextAuthOptions = {
       });
     },
   },
-};
+} as NextAuthOptions;
 
 export function getAuthSession() {
   return getServerSession(authOptions);

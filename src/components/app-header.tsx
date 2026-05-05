@@ -20,8 +20,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { signOut } from "next-auth/react";
-
 import { useBalance } from "@/components/balance-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useMonthDrawer } from "@/components/month-drawer";
@@ -365,7 +363,11 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                     className="w-full justify-center rounded-2xl"
                     onClick={() => {
                       setMenuOpen(false);
-                      void signOut({ callbackUrl: "/login" });
+                      // Single sign-out across trefolio, Clara and Will:
+                      // /api/auth/idp-signout clears NextAuth cookies and
+                      // redirects to the IdP's end_session, which then
+                      // front-channel-clears every registered client.
+                      window.location.href = "/api/auth/idp-signout?back=/login";
                     }}
                   >
                     <LogOut className="size-4" /> {t.header.signOut}

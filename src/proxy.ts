@@ -39,7 +39,14 @@ const APP_PUBLIC_ROUTES = ["/login", "/register"];
  *   at `/api/events/[id]/share` and is a different path, so it stays
  *   gated by the session check below.
  */
-const PUBLIC_PREFIXES = ["/api/mcp", "/api/events/share"];
+const PUBLIC_PREFIXES = [
+  "/api/mcp",
+  "/api/events/share",
+  // IdP service-plane: the trefolio-accounts admin UI calls
+  // `/api/v1/users/by-sub/<sub>` with a service token. The route handler
+  // validates the Bearer header itself, so we skip the NextAuth check.
+  "/api/v1/users/by-sub",
+];
 
 /**
  * File extensions for assets that must never be auth-gated. Hitting the

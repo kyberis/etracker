@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  /** Local HTTPS hostname (see repo root `dev/Caddyfile`) — allows dev HMR when the browser uses `clara.trefolio-dev.com`. */
+  allowedDevOrigins: ["clara.trefolio-dev.com"],
   async headers() {
     return [
       {
