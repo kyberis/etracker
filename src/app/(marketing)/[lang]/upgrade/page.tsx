@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { isUpsellActive } from "@/lib/billing/stripe";
+import { getIdpBaseUrl, shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
 import {
   SUPPORTER_DAILY_LIMIT,
   SUPPORTER_PRICE_EUR_CENTS,
@@ -109,6 +110,9 @@ export default async function UpgradePage({ params }: PageProps) {
 
   // Global gate (no userId): both Stripe envs and the global flag must be
   // on. Per-user overrides don't apply to a public marketing page.
+  if (shouldSendUsersToUnifiedIdp()) {
+    redirect(`${getIdpBaseUrl()}/upgrade?from=clara`);
+  }
   const active = await isUpsellActive();
   if (!active) {
     redirect(`/${locale}/faq#supporter`);

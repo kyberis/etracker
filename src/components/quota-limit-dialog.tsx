@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Loader2, Zap } from "lucide-react";
+import { ExternalLink, Heart, Loader2, Zap } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ export type QuotaUpsellPayload = {
   upsell: {
     subscription: boolean;
     donation: boolean;
+    /** Trefolio Pro checkout on user.trefolio.com when unified IdP billing is on. */
+    idpUrl?: string;
   };
 };
 
@@ -70,6 +72,7 @@ export function QuotaLimitDialog({ payload, onClose }: Props) {
 
   const showDonation = payload.upsell.donation;
   const showSubscription = payload.upsell.subscription;
+  const idpUrl = payload.upsell.idpUrl;
   const showCtas = showDonation || showSubscription;
 
   const resetAt = new Date(payload.resetAtUtc);
@@ -173,7 +176,7 @@ export function QuotaLimitDialog({ payload, onClose }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        {!showCtas ? (
+        {!showCtas && !idpUrl ? (
           <p className="text-muted-foreground text-sm">
             {tx({
               es: "Volvé mañana y seguimos.",
@@ -182,12 +185,34 @@ export function QuotaLimitDialog({ payload, onClose }: Props) {
           </p>
         ) : (
           <div className="space-y-4">
-            <p className="text-muted-foreground text-sm">
-              {tx({
-                es: "Si Clara te está sirviendo, tenés dos formas de seguir hoy y de ayudar a mantenerla viva:",
-                en: "If Clara is helping you, here are two ways to keep going today and help keep her alive:",
-              })}
-            </p>
+            {idpUrl ? (
+              <div className="ring-foreground/10 space-y-2 rounded-xl ring-1 p-3">
+                <p className="text-muted-foreground text-sm">
+                  {tx({
+                    es: "Pasá a Trefolio Pro (€7,99/mes) para 200 consultas diarias en Clara, Will y el panel Warren.",
+                    en: "Upgrade to Trefolio Pro (€7.99/mo) for 200 daily queries on Clara, Will, and the Warren dashboard.",
+                  })}
+                </p>
+                <a
+                  href={idpUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-primary text-primary-foreground ring-offset-background focus-visible:ring-ring inline-flex h-10 w-full items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                >
+                  <ExternalLink className="mr-2 size-4" aria-hidden />
+                  {tx({ es: "Ver planes en trefolio.com", en: "View plans on trefolio.com" })}
+                </a>
+              </div>
+            ) : null}
+
+            {showCtas ? (
+              <>
+                <p className="text-muted-foreground text-sm">
+                  {tx({
+                    es: "Si Clara te está sirviendo, tenés dos formas de seguir hoy y de ayudar a mantenerla viva:",
+                    en: "If Clara is helping you, here are two ways to keep going today and help keep her alive:",
+                  })}
+                </p>
 
             {showSubscription ? (
               <div className="ring-foreground/10 space-y-2 rounded-xl ring-1 p-3">
@@ -270,6 +295,8 @@ export function QuotaLimitDialog({ payload, onClose }: Props) {
                   </Button>
                 </div>
               </div>
+            ) : null}
+              </>
             ) : null}
           </div>
         )}

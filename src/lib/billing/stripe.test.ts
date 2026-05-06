@@ -16,7 +16,12 @@ beforeEach(() => {
   delete process.env.STRIPE_SECRET_KEY;
   delete process.env.STRIPE_WEBHOOK_SECRET;
   delete process.env.STRIPE_PRICE_ID_SUPPORTER;
+  delete process.env.IDP_BASE_URL;
+  delete process.env.IDP_CLIENT_ID;
+  delete process.env.IDP_CLIENT_SECRET;
+  delete process.env.USE_LEGACY_AUTH;
   vi.clearAllMocks();
+  mockedIsFeatureEnabled.mockReset();
 });
 
 afterEach(() => {
@@ -43,6 +48,20 @@ describe("billing/stripe gates", () => {
 
   describe("isUpsellActive", () => {
     it("false when billing envs are missing — never asks the flag", async () => {
+      const result = await isUpsellActive("user-1");
+      expect(result).toBe(false);
+      expect(mockedIsFeatureEnabled).not.toHaveBeenCalled();
+    });
+
+    it("returns false when unified IdP is configured — Stripe upsell disabled", async () => {
+      process.env.IDP_BASE_URL = "https://user.trefolio.com";
+      process.env.IDP_CLIENT_ID = "clara";
+      process.env.IDP_CLIENT_SECRET = "secret";
+      process.env.STRIPE_SECRET_KEY = "sk_test_x";
+      process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
+      process.env.STRIPE_PRICE_ID_SUPPORTER = "price_x";
+      mockedIsFeatureEnabled.mockResolvedValueOnce(true);
+
       const result = await isUpsellActive("user-1");
       expect(result).toBe(false);
       expect(mockedIsFeatureEnabled).not.toHaveBeenCalled();

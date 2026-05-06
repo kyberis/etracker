@@ -111,6 +111,10 @@ async function main() {
         const res = await importUser(baseUrl, token, payload);
         if (res.created) created++;
         else linked++;
+        await db.user.updateMany({
+          where: { email },
+          data: { idpSub: res.sub },
+        });
         console.log(`OK  ${email} -> sub=${res.sub} (${res.created ? "created" : "linked"})`);
       } catch (err) {
         failed++;

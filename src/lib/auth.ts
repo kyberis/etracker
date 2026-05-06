@@ -201,7 +201,10 @@ export const authOptions = {
             type: "oauth" as const,
             wellKnown: `${getIdpBaseUrl()}/.well-known/openid-configuration`,
             authorization: {
-              params: { scope: "openid email profile entitlements" },
+              params: {
+                scope: "openid email profile entitlements",
+                app_hint: "clara",
+              },
             },
             clientId: process.env.IDP_CLIENT_ID,
             clientSecret: process.env.IDP_CLIENT_SECRET,
@@ -264,15 +267,6 @@ export const authOptions = {
         if (existing && !existing.isActive) {
           return "/login?error=AccountDisabled";
         }
-        // Keep local quota in sync with IdP entitlements.
-        const dailyLimit = Number(p?.entitlements?.clara_daily_limit) || 30;
-        await db.user.updateMany({
-          where: { email },
-          data: {
-            dailyAgentMessageLimit: dailyLimit,
-            ...(p?.name ? { name: p.name } : {}),
-          },
-        });
       } else if (user?.id) {
         // Credentials path: we already filtered in `authorize`, but double-check.
         const dbUser = await db.user.findUnique({
@@ -331,17 +325,42 @@ export const authOptions = {
   },
   events: {
     /**
-     * Fires once per user, only when the adapter (PrismaAdapter) creates the
-     * row. The email/password path bypasses the adapter and notifies from
-     * `POST /api/auth/register` instead, so this hook covers Google sign-ins
-     * exclusively. Best-effort: failures are swallowed inside the helper.
+     * Fires once per user when the adapter creates the row (Google or IdP OAuth).
+     * Credentials registration notifies from `POST /api/auth/register` instead.
      */
     async createUser({ user }) {
       if (!user?.id || !user.email) return;
       void notifyAdminOfNewUser({
         userId: user.id,
         email: user.email,
-        source: "google",
+        source: "oauth",
+      });
+    },
+    /**
+     * Runs after a successful sign-in. IdP entitlements are applied here so
+     * brand-new OAuth users exist in the DB before we touch quotas (the
+     * `signIn` callback can run too early for first-time adapter inserts).
+     */
+    async signIn(message) {
+      const { user, account, profile } = message;
+      if (account?.provider !== "trefolio-id" || !user?.email) return;
+      const p = profile as
+        | {
+            sub?: string;
+            entitlements?: { clara_daily_limit?: number };
+            name?: string;
+          }
+        | undefined;
+      const email = user.email.toLowerCase();
+      const dailyLimit = Number(p?.entitlements?.clara_daily_limit) || 30;
+      const idpSub = typeof p?.sub === "string" && p.sub.length > 0 ? p.sub : undefined;
+      await db.user.updateMany({
+        where: { email },
+        data: {
+          dailyAgentMessageLimit: dailyLimit,
+          ...(p?.name ? { name: p.name } : {}),
+          ...(idpSub ? { idpSub } : {}),
+        },
       });
     },
   },

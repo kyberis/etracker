@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
 
 /**
  * Singleton Stripe client. Returns null when `STRIPE_SECRET_KEY` is not
@@ -49,6 +50,8 @@ export function isBillingEnabled(): boolean {
  *  - the `quota_upsell` feature flag is on for this user (or globally)
  */
 export async function isUpsellActive(userId?: string): Promise<boolean> {
+  // Hosted Trefolio Pro billing lives on the IdP — hide legacy Stripe CTAs.
+  if (shouldSendUsersToUnifiedIdp()) return false;
   if (!isBillingEnabled()) return false;
   return isFeatureEnabled("quota_upsell", userId);
 }

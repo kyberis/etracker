@@ -6,10 +6,15 @@ import type { Locale } from "@/lib/i18n/locale";
  * `locale === "es"` without tripping the EN leak guard on `route.ts` files.
  */
 
-export function quotaLimitMessage(locale: Locale, limit: number): string {
+export function quotaLimitMessage(
+  locale: Locale,
+  limit: number,
+  opts?: { idpUpgradeUrl?: string },
+): string {
+  const tail = opts?.idpUpgradeUrl ? `\n\n👉 ${opts.idpUpgradeUrl}` : "";
   return locale === "en"
-    ? `You've reached the daily limit of ${limit} assistant messages. It resets at 00:00 UTC.`
-    : `Llegaste al límite diario de ${limit} mensajes con el asistente. Se reinicia a las 00:00 UTC.`;
+    ? `You've reached the daily limit of ${limit} assistant messages. It resets at 00:00 UTC.${tail}`
+    : `Llegaste al límite diario de ${limit} mensajes con el asistente. Se reinicia a las 00:00 UTC.${tail}`;
 }
 
 export function lowQuotaHint(locale: Locale, remaining: number): string {

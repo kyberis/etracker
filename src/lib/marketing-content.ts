@@ -174,6 +174,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.2",
+      date: "2026-05-06",
+      title: "Cuenta unificada de trefolio: Telegram y el tope diario",
+      highlights: [
+        "Si entrás con la cuenta de user.trefolio.com, guardamos el identificador del IdP y lo usamos para enlazar Telegram también ahí, así el mismo usuario queda mapeado entre productos.",
+        "Cuando tocás el tope de mensajes, el modal y Telegram te mandan al upgrade de Trefolio Pro en el IdP; el upsell viejo de Stripe Supporter queda apagado mientras el IdP unificado esté configurado.",
+      ],
+    },
+    {
       version: "0.12.1",
       date: "2026-05-04",
       title: "Compartir un viaje vuelve a funcionar de punta a punta",
@@ -844,6 +853,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.2",
+      date: "2026-05-06",
+      title: "Unified trefolio account: Telegram and the daily cap",
+      highlights: [
+        "When you sign in with user.trefolio.com, we persist your IdP subject and register Telegram with the IdP too so the same identity maps across apps.",
+        "At the daily message cap, the web modal and Telegram now point to Trefolio Pro checkout on the IdP; the legacy Stripe Supporter upsell stays off while unified IdP billing is configured.",
+      ],
+    },
     {
       version: "0.12.1",
       date: "2026-05-04",

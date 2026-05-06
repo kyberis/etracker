@@ -47,6 +47,8 @@ import {
   loadTelegramSetupHint,
   type TelegramSetupHint,
 } from "@/lib/telegram/setup-state";
+import { buildIdpUpgradeUrlForClara, shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
+import { idpRegisterTelegramUser, idpResolveSubForTelegramUser } from "@/lib/idp-telegram";
 import { loadGuestEventScope } from "@/lib/telegram/event-guest-state";
 
 // AI tool loops can run a long time. We `await` the full handler before
@@ -357,6 +359,13 @@ async function completeTelegramLink(
       telegramLinkCodeExpires: null,
     },
   });
+  const withSub = await db.user.findUnique({
+    where: { id: userId },
+    select: { idpSub: true },
+  });
+  if (withSub?.idpSub) {
+    await idpRegisterTelegramUser(fromId, withSub.idpSub);
+  }
   log.info("telegram.link_ok", {
     userId,
     telegramUserId: fromId,
@@ -468,6 +477,14 @@ async function completeEventParticipantLink(
       data: { telegramLinkCode: null },
     }),
   ]);
+
+  const subRow = await db.user.findUnique({
+    where: { id: participant.userId },
+    select: { idpSub: true },
+  });
+  if (subRow?.idpSub) {
+    await idpRegisterTelegramUser(fromId, subRow.idpSub);
+  }
 
   log.info("telegram.event_participant_linked", {
     userId: participant.userId,
@@ -821,7 +838,18 @@ async function respondToLinkedUserText(
       });
       return;
     }
-    await sendTelegramMessage(chatId, quotaLimitMessage(locale, quota.limit));
+    let idpUpgradeUrl: string | undefined;
+    if (shouldSendUsersToUnifiedIdp()) {
+      const row = await db.user.findUnique({
+        where: { id: userId },
+        select: { idpSub: true },
+      });
+      idpUpgradeUrl = buildIdpUpgradeUrlForClara(row?.idpSub ?? null);
+    }
+    await sendTelegramMessage(
+      chatId,
+      quotaLimitMessage(locale, quota.limit, { idpUpgradeUrl }),
+    );
     log.info("telegram.outbound_sent", {
       kind: "quota_exhausted",
       chatId: String(chatId),
@@ -1113,8 +1141,16 @@ async function findUserByTelegramId(
   // re-checked inside `consumeAgentQuota` which fails closed with the
   // `accountDisabled` reply, so soft-deleted accounts never get a model
   // call but the bot still has the chance to react to a known link.
-  return db.user.findUnique({
+  const local = await db.user.findUnique({
     where: { telegramUserId: BigInt(telegramUserId) },
+    select: { id: true },
+  });
+  if (local) return local;
+
+  const idpSub = await idpResolveSubForTelegramUser(telegramUserId);
+  if (!idpSub) return null;
+  return db.user.findFirst({
+    where: { idpSub },
     select: { id: true },
   });
 }

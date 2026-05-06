@@ -12,7 +12,9 @@ import {
   recordAgentTokens,
 } from "@/lib/agent-quota";
 import { isUpsellActive } from "@/lib/billing/stripe";
+import { buildIdpUpgradeUrlForClara, shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
 import { persistWebChatMessage } from "@/lib/chat/web-history";
+import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
 import { limitByUser } from "@/lib/rate-limit";
 import { requireUserId } from "@/lib/session";
@@ -90,6 +92,16 @@ export async function POST(request: Request) {
       // so self-hosters / users without the flag still see the plain
       // text-only path the modal renders.
       const upsellOn = await isUpsellActive(userId);
+      const idpRow = shouldSendUsersToUnifiedIdp()
+        ? await db.user.findUnique({
+            where: { id: userId },
+            select: { idpSub: true },
+          })
+        : null;
+      const idpUpgradeUrl =
+        shouldSendUsersToUnifiedIdp() ?
+          buildIdpUpgradeUrlForClara(idpRow?.idpSub ?? null)
+        : undefined;
       const res = NextResponse.json(
         {
           error: `Daily assistant message limit reached (${quota.limit}). Resets at 00:00 UTC.`,
@@ -101,6 +113,7 @@ export async function POST(request: Request) {
           upsell: {
             subscription: upsellOn,
             donation: upsellOn,
+            ...(idpUpgradeUrl ? { idpUrl: idpUpgradeUrl } : {}),
           },
         },
         { status: 429 },

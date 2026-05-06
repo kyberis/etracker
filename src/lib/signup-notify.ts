@@ -25,7 +25,7 @@ import { getSignupNotifyEmail, legalController } from "@/lib/legal";
 import { log } from "@/lib/log";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
 
-export type SignupSource = "credentials" | "google" | "passkey" | "other";
+export type SignupSource = "credentials" | "google" | "oauth" | "passkey" | "other";
 
 export interface SignupNotifyArgs {
   userId: string;

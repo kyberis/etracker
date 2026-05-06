@@ -109,6 +109,9 @@ enum IncomeCategory {
 
 model User {
   id                           String                 @id @default(cuid())
+  /// OIDC subject from user.trefolio.com. Set on IdP sign-in and backfill;
+  /// used for IdP Telegram map and service lookups.
+  idpSub                       String?                @unique
   /// Tipo de cuenta. `REGULAR` es el default para todos los signups normales.
   /// `GUEST` se asigna automáticamente a usuarios creados a partir de un
   /// share-link de evento que aceptan unirse sin tener cuenta previa: solo

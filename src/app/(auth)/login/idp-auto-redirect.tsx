@@ -20,6 +20,11 @@ interface Props {
  */
 export default function IdpAutoRedirect({ callbackUrl }: Props) {
   useEffect(() => {
+    // Defense in depth: if `?error=` is present (e.g. OAuth failed), never
+    // auto-retry signIn — avoids a redirect loop when the server page mis-read
+    // searchParams or the client hydrates before the URL updates.
+    const err = new URLSearchParams(window.location.search).get("error");
+    if (err) return;
     void signIn("trefolio-id", { callbackUrl: callbackUrl || "/app" });
   }, [callbackUrl]);
 

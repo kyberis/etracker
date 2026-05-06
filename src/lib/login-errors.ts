@@ -15,7 +15,7 @@ export function loginErrorMessage(
       case "OAuthCallback":
       case "OAuthCreateAccount":
       case "Callback":
-        return "Could not sign in with Google. Try again or use email and password.";
+        return "Could not complete sign-in with your trefolio account. Try again, or clear site cookies for this app and the login page if it keeps failing.";
       case "OAuthAccountNotLinked":
         return "This Google account is not linked. Sign in with email and password first, or use the same email on Google.";
       case "EmailCreateAccount":
@@ -43,7 +43,7 @@ export function loginErrorMessage(
     case "OAuthCallback":
     case "OAuthCreateAccount":
     case "Callback":
-      return "No se pudo iniciar sesión con Google. Probá de nuevo o usá correo y contraseña.";
+      return "No se pudo completar el inicio de sesión con tu cuenta trefolio. Probá de nuevo o borrá las cookies de este sitio y de la página de login si sigue fallando.";
     case "OAuthAccountNotLinked":
       return "Esta cuenta de Google no está vinculada. Iniciá sesión con correo y contraseña primero, o usá el mismo correo en Google.";
     case "EmailCreateAccount":
