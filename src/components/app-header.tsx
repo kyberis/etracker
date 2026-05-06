@@ -367,7 +367,9 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                       // /api/auth/idp-signout clears NextAuth cookies and
                       // redirects to the IdP's end_session, which then
                       // front-channel-clears every registered client.
-                      window.location.href = "/api/auth/idp-signout?back=/login";
+                      // Same as Will: land on site root after IdP end_session, not
+                      // /login (which immediately continues to the IdP again).
+                      window.location.href = "/api/auth/idp-signout?back=/";
                     }}
                   >
                     <LogOut className="size-4" /> {t.header.signOut}
