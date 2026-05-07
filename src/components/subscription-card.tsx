@@ -3,7 +3,7 @@
 import { ExternalLink, Loader2 } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useTx } from "@/lib/i18n/client";
+import { cn } from "@/lib/utils";
 
 export type SubscriptionCardProps = {
   /** "active" | "trialing" | "past_due" | "canceled" | null */
@@ -26,6 +27,10 @@ export type SubscriptionCardProps = {
   hasStripeCustomer: boolean;
   /** Daily message cap currently applied to this user. */
   dailyAgentMessageLimit: number;
+  /** Hosted Trefolio Pro billing on user.trefolio.com (unified IdP). */
+  unifiedIdpBilling?: boolean;
+  idpUpgradeUrl?: string | null;
+  idpPortalUrl?: string | null;
 };
 
 /**
@@ -41,6 +46,9 @@ export function SubscriptionCard({
   upsellActive,
   hasStripeCustomer,
   dailyAgentMessageLimit,
+  unifiedIdpBilling = false,
+  idpUpgradeUrl = null,
+  idpPortalUrl = null,
 }: SubscriptionCardProps) {
   const tx = useTx();
   const [pending, setPending] = useState<"checkout" | "portal" | null>(null);
@@ -121,6 +129,14 @@ export function SubscriptionCard({
     }
   }
 
+  const isProCap = dailyAgentMessageLimit >= 200;
+  const showIdpUpgrade =
+    unifiedIdpBilling && Boolean(idpUpgradeUrl) && !isActive && !isProCap;
+  const showIdpPortal =
+    unifiedIdpBilling &&
+    Boolean(idpPortalUrl) &&
+    (isActive || hasStripeCustomer || isProCap);
+
   return (
     <Card>
       <CardHeader>
@@ -158,6 +174,12 @@ export function SubscriptionCard({
         ) : null}
 
         <div className="flex flex-wrap gap-2">
+          {showIdpUpgrade ? (
+            <a href={idpUpgradeUrl!} className={cn(buttonVariants({ variant: "default" }))}>
+              {tx({ es: "Pasá a Trefolio Pro", en: "Upgrade to Trefolio Pro" })}
+            </a>
+          ) : null}
+
           {upsellActive && !isActive ? (
             <Button
               type="button"
@@ -171,7 +193,20 @@ export function SubscriptionCard({
             </Button>
           ) : null}
 
-          {hasStripeCustomer ? (
+          {showIdpPortal ? (
+            <a
+              href={idpPortalUrl!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "outline" }), "inline-flex gap-1.5")}
+            >
+              <ExternalLink className="size-4" aria-hidden />
+              {tx({
+                es: "Gestionar facturación (cuenta trefolio)",
+                en: "Manage billing (trefolio account)",
+              })}
+            </a>
+          ) : hasStripeCustomer ? (
             <Button
               type="button"
               variant="outline"

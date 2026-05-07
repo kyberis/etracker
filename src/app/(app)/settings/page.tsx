@@ -3,6 +3,11 @@ import { SettingsManager } from "@/components/settings-manager";
 import { SubscriptionCard } from "@/components/subscription-card";
 import { isUpsellActive } from "@/lib/billing/stripe";
 import { isGoogleAuthConfigured } from "@/lib/auth-providers";
+import {
+  buildIdpBillingPortalUrlForClara,
+  buildIdpUpgradeUrlForClara,
+  shouldSendUsersToUnifiedIdp,
+} from "@/lib/idp-base";
 import { db } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
 import { isLocale } from "@/lib/i18n/locale";
@@ -33,6 +38,7 @@ async function loadSettingsData() {
         subscriptionStatus: true,
         subscriptionCurrentPeriodEnd: true,
         dailyAgentMessageLimit: true,
+        idpSub: true,
         accounts: { select: { provider: true } },
       },
     }),
@@ -68,6 +74,12 @@ async function loadSettingsData() {
   if (!user) {
     throw new Error("User not found.");
   }
+
+  const unifiedIdpBilling = shouldSendUsersToUnifiedIdp();
+  const idpUpgradeUrl = unifiedIdpBilling
+    ? buildIdpUpgradeUrlForClara(user.idpSub)
+    : null;
+  const idpPortalUrl = unifiedIdpBilling ? buildIdpBillingPortalUrlForClara() : null;
 
   const tgPending =
     user.telegramLinkCode &&
@@ -126,6 +138,9 @@ async function loadSettingsData() {
       upsellActive: upsellOn,
       hasStripeCustomer: Boolean(user.stripeCustomerId),
       dailyAgentMessageLimit: user.dailyAgentMessageLimit,
+      unifiedIdpBilling,
+      idpUpgradeUrl,
+      idpPortalUrl,
     },
   } as const;
 }
@@ -141,7 +156,9 @@ export default async function SettingsPage() {
     data.subscription.upsellActive ||
     data.subscription.hasStripeCustomer ||
     data.subscription.status === "active" ||
-    data.subscription.status === "trialing";
+    data.subscription.status === "trialing" ||
+    (data.subscription.unifiedIdpBilling &&
+      (Boolean(data.subscription.idpUpgradeUrl) || Boolean(data.subscription.idpPortalUrl)));
 
   return (
     <PageContainer className="space-y-6">
@@ -157,6 +174,9 @@ export default async function SettingsPage() {
           upsellActive={data.subscription.upsellActive}
           hasStripeCustomer={data.subscription.hasStripeCustomer}
           dailyAgentMessageLimit={data.subscription.dailyAgentMessageLimit}
+          unifiedIdpBilling={data.subscription.unifiedIdpBilling}
+          idpUpgradeUrl={data.subscription.idpUpgradeUrl}
+          idpPortalUrl={data.subscription.idpPortalUrl}
         />
       ) : null}
       <SettingsManager

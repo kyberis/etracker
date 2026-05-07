@@ -79,6 +79,16 @@ export function shouldSendUsersToUnifiedIdp(): boolean {
 }
 
 /**
+ * Browser-facing IdP origin for links (upgrade, portal). Prefer `IDP_ISSUER`
+ * when set so production never advertises `http://localhost:3300`.
+ */
+export function getIdpBrowserOrigin(): string {
+  const iss = process.env.IDP_ISSUER?.trim().replace(/\/+$/g, "");
+  if (iss) return iss;
+  return getIdpBaseUrl();
+}
+
+/**
  * Public upgrade URL on the IdP (Trefolio Pro). `sub` is optional but
  * recommended so the IdP can pre-select the account.
  */
@@ -86,10 +96,21 @@ export function buildIdpUpgradeUrlForClara(
   idpSub: string | null | undefined,
   opts?: { interval?: "monthly" | "annual" },
 ): string {
-  const base = getIdpBaseUrl();
+  const base = getIdpBrowserOrigin() || getIdpBaseUrl();
   const u = new URL(`${base}/upgrade`);
   u.searchParams.set("from", "clara");
   if (idpSub) u.searchParams.set("sub", idpSub);
   if (opts?.interval) u.searchParams.set("interval", opts.interval);
   return u.toString();
+}
+
+/**
+ * Stripe Customer Portal on the IdP (GET, session cookie on user host).
+ * Only when unified IdP auth is active for this deployment.
+ */
+export function buildIdpBillingPortalUrlForClara(): string | null {
+  if (!shouldSendUsersToUnifiedIdp()) return null;
+  const origin = getIdpBrowserOrigin();
+  if (!origin) return null;
+  return `${origin.replace(/\/+$/, "")}/api/billing/portal?from=clara`;
 }

@@ -200,7 +200,10 @@ export function QuotaLimitDialog({ payload, onClose }: Props) {
                   className="bg-primary text-primary-foreground ring-offset-background focus-visible:ring-ring inline-flex h-10 w-full items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
                   <ExternalLink className="mr-2 size-4" aria-hidden />
-                  {tx({ es: "Ver planes en trefolio.com", en: "View plans on trefolio.com" })}
+                  {tx({
+                    es: "Ver planes en user.trefolio.com",
+                    en: "View plans on user.trefolio.com",
+                  })}
                 </a>
               </div>
             ) : null}

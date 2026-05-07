@@ -174,6 +174,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.3",
+      date: "2026-05-08",
+      title: "Ajustes: Pro y facturación en user.trefolio.com",
+      highlights: [
+        "Con la cuenta unificada del IdP, la tarjeta de Suscripción en Configuración ofrece «Pasá a Trefolio Pro» y «Gestionar facturación» apuntando a user.trefolio.com (upgrade y portal de Stripe) en lugar de quedar vacía cuando el upsell viejo de Supporter está apagado.",
+        "El modal del tope diario ahora dice explícitamente «Ver planes en user.trefolio.com» en el botón del enlace al IdP.",
+      ],
+    },
+    {
       version: "0.12.2",
       date: "2026-05-06",
       title: "Cuenta unificada de trefolio: Telegram y el tope diario",
@@ -853,6 +862,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.3",
+      date: "2026-05-08",
+      title: "Settings: Pro and billing on user.trefolio.com",
+      highlights: [
+        "With the unified IdP account, the Settings subscription card now offers “Upgrade to Trefolio Pro” and “Manage billing” links to user.trefolio.com (upgrade + Stripe portal) instead of disappearing when the legacy Supporter upsell is off.",
+        "The daily-cap modal button label now explicitly reads “View plans on user.trefolio.com”.",
+      ],
+    },
     {
       version: "0.12.2",
       date: "2026-05-06",
