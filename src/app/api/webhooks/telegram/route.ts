@@ -364,7 +364,11 @@ async function completeTelegramLink(
     select: { idpSub: true },
   });
   if (withSub?.idpSub) {
-    await idpRegisterTelegramUser(fromId, withSub.idpSub);
+    void idpRegisterTelegramUser(fromId, withSub.idpSub).catch((err) =>
+      log.warn("idp.telegram_link_deferred_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
   }
   log.info("telegram.link_ok", {
     userId,
@@ -483,7 +487,11 @@ async function completeEventParticipantLink(
     select: { idpSub: true },
   });
   if (subRow?.idpSub) {
-    await idpRegisterTelegramUser(fromId, subRow.idpSub);
+    void idpRegisterTelegramUser(fromId, subRow.idpSub).catch((err) =>
+      log.warn("idp.telegram_link_deferred_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
   }
 
   log.info("telegram.event_participant_linked", {

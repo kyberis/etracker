@@ -1,6 +1,9 @@
 import { getIdpBaseUrl } from "@/lib/idp-base";
 import { log } from "@/lib/log";
 
+const IDP_REGISTER_TIMEOUT_MS = 8_000;
+const IDP_RESOLVE_TIMEOUT_MS = 2_500;
+
 /**
  * Registers the Telegram user id ↔ IdP `sub` mapping on user.trefolio.com.
  * No-op when IdP service credentials are missing.
@@ -15,6 +18,7 @@ export async function idpRegisterTelegramUser(
 
   const res = await fetch(`${base}/api/v1/telegram/link`, {
     method: "POST",
+    signal: AbortSignal.timeout(IDP_REGISTER_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -39,6 +43,7 @@ export async function idpResolveSubForTelegramUser(
   if (!base || !token) return null;
   try {
     const res = await fetch(`${base}/api/v1/telegram/by-id/${tgUserId}`, {
+      signal: AbortSignal.timeout(IDP_RESOLVE_TIMEOUT_MS),
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
