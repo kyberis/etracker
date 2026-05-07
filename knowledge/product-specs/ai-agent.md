@@ -14,7 +14,13 @@ When the user chats with Clara (web `/app/chat` or Telegram), Clara:
    `expenseImportInstructions`, `kind`).
 2. Builds a per-locale system prompt with product rules (months,
    templates, banks, savings, events, FX, response style, default
-   "paid" semantics).
+   "paid" semantics). **Saved import/categorisation hints**
+   (`expenseImportInstructions`) are **not** embedded in the system string;
+   they are sent as a separate synthetic `user` message delimited by
+   `<<<USER_SAVED_IMPORT_PREFERENCES>>>` / `<<<END_USER_SAVED_IMPORT_PREFERENCES>>>`
+   so they cannot override the canonical system instructions. The system
+   prompt includes an explicit prompt-safety block for adversarial pasted
+   imports and screenshots.
 3. Streams or generates a reply, allowing up to 8 tool-calling steps.
 4. Logs every step (request, per-step tool calls + results, finish)
    with a `traceId` for cost / behaviour analysis.
