@@ -82,10 +82,14 @@ export function shouldSendUsersToUnifiedIdp(): boolean {
  * Public upgrade URL on the IdP (Trefolio Pro). `sub` is optional but
  * recommended so the IdP can pre-select the account.
  */
-export function buildIdpUpgradeUrlForClara(idpSub: string | null | undefined): string {
+export function buildIdpUpgradeUrlForClara(
+  idpSub: string | null | undefined,
+  opts?: { interval?: "monthly" | "annual" },
+): string {
   const base = getIdpBaseUrl();
   const u = new URL(`${base}/upgrade`);
   u.searchParams.set("from", "clara");
   if (idpSub) u.searchParams.set("sub", idpSub);
+  if (opts?.interval) u.searchParams.set("interval", opts.interval);
   return u.toString();
 }
