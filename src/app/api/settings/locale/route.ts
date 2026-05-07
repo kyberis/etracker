@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
 import { LOCALE_COOKIE, LOCALES } from "@/lib/i18n/locale";
+import { persistTrefolioEcosystemUiLocaleCookie } from "@/lib/i18n/trefolio-ecosystem-locale-cookie";
 import { requireUserId } from "@/lib/session";
 
 const localeSchema = z.object({
@@ -39,6 +40,8 @@ export async function PATCH(request: Request) {
       // 1 year — recreated on every successful PATCH.
       maxAge: 60 * 60 * 24 * 365,
     });
+
+    await persistTrefolioEcosystemUiLocaleCookie(locale);
 
     return { ok: true, locale };
   });

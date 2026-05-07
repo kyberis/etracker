@@ -10,6 +10,7 @@ import {
   normalizeLocale,
   pickFromAcceptLanguage,
 } from "@/lib/i18n/locale";
+import { appendTrefolioEcosystemUiLocaleCookie } from "@/lib/i18n/trefolio-ecosystem-locale-cookie";
 
 /**
  * Marketing paths that have a localised version under `(marketing)/[lang]`.
@@ -148,6 +149,7 @@ export async function proxy(request: NextRequest) {
         maxAge: 60 * 60 * 24 * 365,
       });
     }
+    appendTrefolioEcosystemUiLocaleCookie(request, response, detectedLocale);
     return response;
   }
 
@@ -173,6 +175,7 @@ export async function proxy(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 365,
     });
   }
+  appendTrefolioEcosystemUiLocaleCookie(request, response, detectedLocale);
   return response;
 }
 
