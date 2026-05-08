@@ -174,6 +174,14 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.5",
+      date: "2026-05-08",
+      title: "Login unificado: vincular cuenta existente",
+      highlights: [
+        "Si ya tenías usuario en Clara con Google o correo y entrabas por user.trefolio.com, NextAuth cortaba con «cuenta de Google no vinculada». Ahora enlazamos el proveedor trefolio-id al mismo usuario por email, igual que en Will.",
+      ],
+    },
+    {
       version: "0.12.4",
       date: "2026-05-08",
       title: "Login unificado: mismo idioma en user.trefolio.com",
@@ -870,6 +878,14 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.5",
+      date: "2026-05-08",
+      title: "Unified login: link existing Clara accounts",
+      highlights: [
+        "If you already had a Clara user via Google or email/password and signed in through user.trefolio.com, NextAuth failed with a misleading “Google account not linked” error. We now allow linking the `trefolio-id` provider to the same user by verified email, matching Will’s IdP setup.",
+      ],
+    },
     {
       version: "0.12.4",
       date: "2026-05-08",

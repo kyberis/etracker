@@ -226,6 +226,13 @@ export const authOptions = {
             id: "trefolio-id",
             name: "Trefolio Account",
             type: "oauth" as const,
+            /**
+             * Required when the user already has a Clara row (legacy Google or
+             * email/password) and signs in through user.trefolio.com for the
+             * first time — NextAuth must link `trefolio-id` to that user by
+             * email instead of throwing OAuthAccountNotLinked.
+             */
+            allowDangerousEmailAccountLinking: true,
             wellKnown: `${getIdpBaseUrl()}/.well-known/openid-configuration`,
             authorization: {
               params: {
