@@ -5,6 +5,8 @@ import { signIn } from "next-auth/react";
 
 interface Props {
   callbackUrl?: string;
+  /** OIDC `ui_locales` tag for user.trefolio.com (e.g. `es`, `en`). */
+  uiLocales: string;
 }
 
 /**
@@ -12,16 +14,16 @@ interface Props {
  * starts OIDC with `screen_hint=signup` so user.trefolio.com opens in
  * create-account mode.
  */
-export default function IdpSignupRedirect({ callbackUrl }: Props) {
+export default function IdpSignupRedirect({ callbackUrl, uiLocales }: Props) {
   useEffect(() => {
     const err = new URLSearchParams(window.location.search).get("error");
     if (err) return;
     void signIn(
       "trefolio-id",
       { callbackUrl: callbackUrl || "/onboarding" },
-      { app_hint: "clara", screen_hint: "signup" },
+      { app_hint: "clara", screen_hint: "signup", ui_locales: uiLocales },
     );
-  }, [callbackUrl]);
+  }, [callbackUrl, uiLocales]);
 
   return (
     <div style={{ padding: "2rem", textAlign: "center", color: "#94a3b8" }}>

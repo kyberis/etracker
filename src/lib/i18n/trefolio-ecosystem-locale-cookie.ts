@@ -1,7 +1,12 @@
 import type { NextRequest, NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
 
-import type { Locale } from "@/lib/i18n/locale";
+import {
+  LOCALE_COOKIE,
+  normalizeLocale,
+  pickFromAcceptLanguage,
+  type Locale,
+} from "@/lib/i18n/locale";
 
 export const TREFOLIO_UI_LOCALE_COOKIE = "trefolio_ui_locale";
 
@@ -56,4 +61,19 @@ export async function persistTrefolioEcosystemUiLocaleCookie(locale: Locale): Pr
     httpOnly: false,
     ...(domain ? { domain } : {}),
   });
+}
+
+/**
+ * Server-only: Clara UI language as OIDC `ui_locales` for user.trefolio.com.
+ * Matches proxy locale resolution so the IdP does not fall back to the
+ * browser's Accept-Language (e.g. French) when Clara is in Spanish.
+ */
+export async function resolveClaraUiLocalesForIdpAuthorize(): Promise<string> {
+  const jar = await cookies();
+  const hdrs = await headers();
+  const fromCookie = jar.get(LOCALE_COOKIE)?.value;
+  const locale = fromCookie
+    ? normalizeLocale(fromCookie)
+    : pickFromAcceptLanguage(hdrs.get("accept-language"));
+  return claraLocaleToIdpUiTag(locale);
 }

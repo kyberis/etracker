@@ -174,6 +174,14 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.4",
+      date: "2026-05-08",
+      title: "Login unificado: mismo idioma en user.trefolio.com",
+      highlights: [
+        "Si Clara estaba en castellano pero el navegador prefería otro idioma, la pantalla de acceso del IdP a veces abría en francés u otro idioma. Ahora mandamos el idioma de la UI de Clara en el parámetro OIDC `ui_locales`, así user.trefolio.com te recibe en el mismo idioma que venías usando.",
+      ],
+    },
+    {
       version: "0.12.3",
       date: "2026-05-08",
       title: "Ajustes: Pro y facturación en user.trefolio.com",
@@ -862,6 +870,14 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.4",
+      date: "2026-05-08",
+      title: "Unified login: IdP UI matches Clara’s language",
+      highlights: [
+        "If Clara was in Spanish but your browser preferred another language, the IdP sign-in page sometimes opened in French or another locale. We now send Clara’s UI language via the OIDC `ui_locales` parameter so user.trefolio.com matches the language you were using in Clara.",
+      ],
+    },
     {
       version: "0.12.3",
       date: "2026-05-08",

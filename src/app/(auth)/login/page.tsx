@@ -2,6 +2,7 @@ import { LoginForm } from "./login-form";
 import IdpAutoRedirect from "./idp-auto-redirect";
 import { isGoogleAuthConfigured } from "@/lib/auth-providers";
 import { shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
+import { resolveClaraUiLocalesForIdpAuthorize } from "@/lib/i18n/trefolio-ecosystem-locale-cookie";
 
 type LoginSearchParams = {
   callbackUrl?: string | string[];
@@ -19,7 +20,8 @@ export default async function LoginPage({
   if (shouldSendUsersToUnifiedIdp() && !oauthError) {
     const raw = sp?.callbackUrl;
     const callback = Array.isArray(raw) ? raw[0] : raw;
-    return <IdpAutoRedirect callbackUrl={callback} />;
+    const uiLocales = await resolveClaraUiLocalesForIdpAuthorize();
+    return <IdpAutoRedirect callbackUrl={callback} uiLocales={uiLocales} />;
   }
   return <LoginForm googleEnabled={isGoogleAuthConfigured()} />;
 }
