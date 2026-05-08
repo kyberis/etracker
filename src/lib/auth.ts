@@ -17,6 +17,7 @@ import {
 
 import { isGoogleAuthConfigured } from "./auth-providers";
 import { getIdpBaseUrl } from "./idp-base";
+import { log } from "@/lib/log";
 
 /**
  * `strategy: "jwt"` means NextAuth never reads/writes the `Session` /
@@ -46,8 +47,14 @@ export const authOptions = {
       async authorize(credentials, req) {
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password;
+        const emailDomain =
+          email && email.includes("@") ? email.slice(email.indexOf("@") + 1) : undefined;
 
         if (!email || !password) {
+          log.info("credentials_signin_missing_fields", {
+            hasEmail: Boolean(email),
+            hasPassword: Boolean(password),
+          });
           return null;
         }
 
@@ -64,18 +71,31 @@ export const authOptions = {
           headers.get("host"),
         );
         if (!captchaOk) {
+          log.info("credentials_signin_turnstile_failed", {
+            emailDomain,
+          });
           return null;
         }
 
         const user = await db.user.findUnique({ where: { email } });
         if (!user?.passwordHash) {
+          log.info("credentials_signin_unknown_or_no_password", {
+            emailDomain,
+          });
           return null;
         }
         if (!user.isActive) {
+          log.info("credentials_signin_inactive_user", {
+            emailDomain,
+            userIdTail: user.id.length > 8 ? `…${user.id.slice(-8)}` : "***",
+          });
           // Default-deny: disabled accounts can't get a session.
           return null;
         }
         if (!user.emailVerified) {
+          log.info("credentials_signin_unverified_email", {
+            emailDomain,
+          });
           // We surface this through `?error=EmailNotVerified` from the form
           // when `signIn` returns `error: "CredentialsSignin"` and we know
           // the user exists but isn't verified yet — but not from here, to
@@ -85,9 +105,16 @@ export const authOptions = {
 
         const validPassword = await bcrypt.compare(password, user.passwordHash);
         if (!validPassword) {
+          log.info("credentials_signin_bad_password", {
+            emailDomain,
+          });
           return null;
         }
 
+        log.info("credentials_signin_ok", {
+          emailDomain,
+          userIdTail: user.id.length > 8 ? `…${user.id.slice(-8)}` : "***",
+        });
         return { id: user.id, email: user.email };
       },
     }),
@@ -234,6 +261,7 @@ export const authOptions = {
         const verified = (profile as { email_verified?: boolean }).email_verified;
         // Default-deny: only proceed when Google explicitly says the email is verified.
         if (verified !== true) {
+          log.info("google_signin_blocked_unverified_email", {});
           return "/login?error=AccessDenied";
         }
         const email = profile?.email?.toLowerCase();
@@ -245,6 +273,9 @@ export const authOptions = {
           // First-ever Google login: row doesn't exist yet (the adapter creates
           // it after this hook returns true), so we let it through.
           if (existing && !existing.isActive) {
+            log.info("google_signin_blocked_disabled_account", {
+              emailDomain: email ? email.slice(email.indexOf("@") + 1) : undefined,
+            });
             return "/login?error=AccountDisabled";
           }
         }
@@ -257,7 +288,12 @@ export const authOptions = {
             }
           | undefined;
         const email = p?.email?.toLowerCase() ?? user.email?.toLowerCase();
+        log.info("clara.idp_oauth_signin_attempt", {
+          emailDomainHint:
+            email && email.includes("@") ? email.slice(email.indexOf("@") + 1) : undefined,
+        });
         if (!email) {
+          log.info("clara.idp_oauth_signin_blocked_no_email", {});
           return "/login?error=AccessDenied";
         }
         const existing = await db.user.findUnique({
@@ -265,8 +301,15 @@ export const authOptions = {
           select: { id: true, isActive: true },
         });
         if (existing && !existing.isActive) {
+          log.info("clara.idp_oauth_signin_blocked_inactive_user", {
+            emailDomainHint:
+              email.includes("@") ? email.slice(email.indexOf("@") + 1) : undefined,
+          });
           return "/login?error=AccountDisabled";
         }
+        log.info("clara.idp_oauth_signin_allowed", {
+          emailDomainHint: email.includes("@") ? email.slice(email.indexOf("@") + 1) : undefined,
+        });
       } else if (user?.id) {
         // Credentials path: we already filtered in `authorize`, but double-check.
         const dbUser = await db.user.findUnique({
@@ -274,6 +317,9 @@ export const authOptions = {
           select: { isActive: true },
         });
         if (dbUser && !dbUser.isActive) {
+          log.info("credentials_signin_callback_blocked_inactive", {
+            userIdTail: user.id.length > 8 ? `…${user.id.slice(-8)}` : "***",
+          });
           return "/login?error=AccountDisabled";
         }
       }
