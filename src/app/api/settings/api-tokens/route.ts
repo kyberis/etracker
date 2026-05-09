@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { generateToken } from "@/lib/api-token";
 import { db } from "@/lib/db";
+import { getIdpBaseUrl, getIdpBrowserOrigin, shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
 import { withApi } from "@/lib/http";
 import { requireUserId } from "@/lib/session";
 
@@ -37,6 +38,20 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   return withApi(async () => {
+    if (shouldSendUsersToUnifiedIdp()) {
+      const base = (getIdpBrowserOrigin() || getIdpBaseUrl()).replace(/\/+$/, "");
+      const manageUrl = `${base}/account/developer`;
+      return NextResponse.json(
+        {
+          error: "mcp_token_on_idp",
+          manageUrl,
+          message:
+            "MCP tokens are issued on your trefolio account. Open the link below to create or revoke a token (it works for Clara, Will, and trefolio).",
+        },
+        { status: 410 },
+      );
+    }
+
     const userId = await requireUserId();
     const json = await request.json().catch(() => ({}));
     const { name, expiresInDays } = createSchema.parse(json);

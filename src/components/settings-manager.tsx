@@ -68,6 +68,8 @@ type SettingsManagerProps = {
   initialApiTokens: ApiTokenItem[];
   initialPasskeys: PasskeyItem[];
   googleAuthConfigured: boolean;
+  /** When set, MCP PATs are minted on trefolio Accounts (same token for Clara / Will / trefolio). */
+  ecosystemPatManageUrl?: string | null;
 };
 
 /** Inline feedback for forms — consistent success/error/info styling. */
@@ -121,6 +123,7 @@ export function SettingsManager({
   initialApiTokens,
   initialPasskeys,
   googleAuthConfigured,
+  ecosystemPatManageUrl = null,
 }: SettingsManagerProps) {
   const t = useT();
   const tx = useTx();
@@ -458,7 +461,10 @@ export function SettingsManager({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
           <TelegramLinkCard initial={initialTelegram} />
         </div>
-        <ApiTokensCard initialTokens={initialApiTokens} />
+        <ApiTokensCard
+          initialTokens={initialApiTokens}
+          ecosystemPatManageUrl={ecosystemPatManageUrl}
+        />
       </section>
 
       {/* SECTION 4 — Tu información y cuenta (GDPR Art. 15, 17, 20) */}

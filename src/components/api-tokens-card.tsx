@@ -37,7 +37,14 @@ function formatTokenDate(value: string | null, locale: Locale): string {
   }
 }
 
-export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
+export function ApiTokensCard({
+  initialTokens,
+  ecosystemPatManageUrl = null,
+}: {
+  initialTokens: Token[];
+  /** IdP URL to `/account/developer` — when set, new PATs are created there (not in Clara). */
+  ecosystemPatManageUrl?: string | null;
+}) {
   const locale = useLocale();
   const tr = useTx();
   const [tokens, setTokens] = useState<Token[]>(initialTokens);
@@ -115,6 +122,11 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
   const activeTokens = tokens.filter((t) => !t.revokedAt);
   const revokedTokens = tokens.filter((t) => t.revokedAt);
 
+  const legacyActive = activeTokens.filter(
+    (t) => t.prefix.startsWith("clara_pat_") || t.prefix.startsWith("ada_pat_"),
+  );
+  const showLegacyList = legacyActive.length > 0;
+
   return (
     <Card>
       <CardHeader>
@@ -126,10 +138,15 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
       <CardContent className="space-y-5">
         <div className="text-muted-foreground space-y-2 text-sm leading-relaxed">
           <p>
-            {tr({
-              es: "Generá un token para que tu propio AI assistant (Claude Desktop, Cursor, ChatGPT custom GPT, cualquier cliente MCP) pueda consultar y modificar tus finanzas en Clara con tu permiso.",
-              en: "Create a token so your own AI assistant (Claude Desktop, Cursor, a custom ChatGPT GPT, any MCP client) can read and update your finances in Clara with your permission.",
-            })}
+            {ecosystemPatManageUrl
+              ? tr({
+                  es: "Creá o revocá un token en tu cuenta trefolio (user.trefolio.com). El mismo token sirve para Clara, Will y trefolio en clientes MCP (Claude Desktop, Cursor, etc.).",
+                  en: "Create or revoke your token on your trefolio account (user.trefolio.com). The same token works for Clara, Will, and trefolio in MCP clients (Claude Desktop, Cursor, etc.).",
+                })
+              : tr({
+                  es: "Generá un token para que tu propio AI assistant (Claude Desktop, Cursor, ChatGPT custom GPT, cualquier cliente MCP) pueda consultar y modificar tus finanzas en Clara con tu permiso.",
+                  en: "Create a token so your own AI assistant (Claude Desktop, Cursor, a custom ChatGPT GPT, any MCP client) can read and update your finances in Clara with your permission.",
+                })}
           </p>
           <p>
             {tr({ es: "El servidor MCP autenticado vive en", en: "The authenticated MCP server lives at" })}{" "}
@@ -138,12 +155,27 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
             </code>
             . {tr({ es: "Usá el token como header", en: "Use the token as header" })}{" "}
             <code className="bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-xs">
-              Authorization: Bearer clara_pat_…
+              {ecosystemPatManageUrl
+                ? "Authorization: Bearer tfp_pat_…"
+                : "Authorization: Bearer clara_pat_…"}
             </code>
             .
           </p>
+          {ecosystemPatManageUrl ? (
+            <p>
+              <a
+                href={ecosystemPatManageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-medium"
+              >
+                {tr({ es: "Abrir gestión de tokens", en: "Open token management" })}
+              </a>
+            </p>
+          ) : null}
         </div>
 
+        {!ecosystemPatManageUrl ? (
         <form className="flex flex-wrap items-end gap-3" onSubmit={onCreate}>
           <div className="flex-1 space-y-1.5">
             <label htmlFor="tokenName" className="text-sm font-medium">
@@ -166,10 +198,11 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
             {busy ? tr({ es: "Generando…", en: "Generating…" }) : tr({ es: "Crear token", en: "Create token" })}
           </Button>
         </form>
+        ) : null}
 
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
-        {freshToken ? (
+        {!ecosystemPatManageUrl && freshToken ? (
           <div className="border-primary/50 bg-primary/5 space-y-3 rounded-lg border p-4">
             <div className="flex items-start gap-2">
               <ShieldCheck className="text-primary mt-0.5 size-4 shrink-0" />
@@ -229,7 +262,56 @@ export function ApiTokensCard({ initialTokens }: { initialTokens: Token[] }) {
           </div>
         ) : null}
 
-        {activeTokens.length > 0 ? (
+        {ecosystemPatManageUrl ? (
+          showLegacyList ? (
+            <div className="space-y-2">
+              <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                {tr({
+                  es: "Tokens legacy (solo Clara)",
+                  en: "Legacy tokens (Clara-only)",
+                })}{" "}
+                ({legacyActive.length})
+              </p>
+              <ul className="divide-border divide-y rounded-lg border">
+                {legacyActive.map((token) => (
+                  <li key={token.id} className="flex items-center justify-between gap-3 p-3">
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="truncate text-sm font-medium">{token.name}</p>
+                      <p className="text-muted-foreground font-mono text-xs">
+                        {token.prefix}…
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        {tr({ es: "Creado", en: "Created" })}{" "}
+                        {formatTokenDate(token.createdAt, locale)} · {tr({ es: "Último uso", en: "Last used" })}{" "}
+                        {formatTokenDate(token.lastUsedAt, locale)}
+                        {token.expiresAt
+                          ? ` · ${tr({ es: "Expira", en: "Expires" })} ${formatTokenDate(token.expiresAt, locale)}`
+                          : ""}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => revoke(token)}
+                      className="text-destructive hover:text-destructive shrink-0"
+                    >
+                      <Trash2 className="size-4" />
+                      <span className="sr-only">{tr({ es: "Revocar", en: "Revoke" })}</span>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-xs">
+              {tr({
+                es: "No tenés tokens legacy creados en Clara. Usá el botón de arriba para el token unificado.",
+                en: "You have no legacy Clara-only tokens. Use the button above for the unified token.",
+              })}
+            </p>
+          )
+        ) : activeTokens.length > 0 ? (
           <div className="space-y-2">
             <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
               {tr({ es: "Tokens activos", en: "Active tokens" })} ({activeTokens.length})

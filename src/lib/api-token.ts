@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { introspectTfpPat, isTfpPatToken } from "@/lib/accounts-pat-introspect";
 import { db } from "@/lib/db";
 
 /**
@@ -72,6 +73,20 @@ export async function verifyBearerToken(
 ): Promise<AuthenticatedToken | null> {
   if (!bearer) return null;
   const trimmed = bearer.trim();
+
+  /** Unified ecosystem PAT (minted on user.trefolio.com). */
+  if (isTfpPatToken(trimmed)) {
+    const intro = await introspectTfpPat(trimmed);
+    if (!intro) return null;
+    const user = await db.user.findFirst({
+      where: { idpSub: intro.sub },
+      select: { id: true, isActive: true, deletedAt: true },
+    });
+    if (!user || !user.isActive || user.deletedAt) return null;
+    const tokenId = intro.tokenId ? `acc:${intro.tokenId}` : "acc:unknown";
+    return { userId: user.id, tokenId };
+  }
+
   if (!ACCEPTED_TOKEN_PREFIXES.some((p) => trimmed.startsWith(p))) return null;
 
   const tokenHash = hashToken(trimmed);

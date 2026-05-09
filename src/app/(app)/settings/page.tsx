@@ -6,6 +6,8 @@ import { isGoogleAuthConfigured } from "@/lib/auth-providers";
 import {
   buildIdpBillingPortalUrlForClara,
   buildIdpUpgradeUrlForClara,
+  getIdpBaseUrl,
+  getIdpBrowserOrigin,
   shouldSendUsersToUnifiedIdp,
 } from "@/lib/idp-base";
 import { db } from "@/lib/db";
@@ -80,6 +82,9 @@ async function loadSettingsData() {
     ? buildIdpUpgradeUrlForClara(user.idpSub)
     : null;
   const idpPortalUrl = unifiedIdpBilling ? buildIdpBillingPortalUrlForClara() : null;
+  const ecosystemPatManageUrl = unifiedIdpBilling
+    ? `${(getIdpBrowserOrigin() || getIdpBaseUrl()).replace(/\/+$/, "")}/account/developer`
+    : null;
 
   const tgPending =
     user.telegramLinkCode &&
@@ -142,6 +147,7 @@ async function loadSettingsData() {
       idpUpgradeUrl,
       idpPortalUrl,
     },
+    ecosystemPatManageUrl,
   } as const;
 }
 
@@ -185,6 +191,7 @@ export default async function SettingsPage() {
         initialApiTokens={data.initialApiTokens}
         initialPasskeys={data.initialPasskeys}
         googleAuthConfigured={isGoogleAuthConfigured()}
+        ecosystemPatManageUrl={data.ecosystemPatManageUrl}
       />
     </PageContainer>
   );

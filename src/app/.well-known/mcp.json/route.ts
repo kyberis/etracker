@@ -42,15 +42,15 @@ export async function GET() {
         id: "clara-user",
         name: `${SITE_NAME} (por usuario)`,
         description:
-          "Acceso autenticado a los datos del usuario en Clara (gastos, meses, balance). Bearer token generado desde Settings → Acceso para AI.",
+          "Acceso autenticado a los datos del usuario en Clara (gastos, meses, balance). Bearer `tfp_pat_…` emitido en user.trefolio.com → Developer / AI & MCP access (mismo token que Will y trefolio).",
         url: `${site}/api/mcp/user`,
         transport: "http",
         protocol: "modelcontextprotocol",
         version: "2025-06-18",
         authentication: {
           type: "bearer",
-          token_format: "clara_pat_<32-hex>",
-          documentation: `${site}/features#mcp`,
+          token_format: "tfp_pat_<64-hex>",
+          documentation: "https://user.trefolio.com/account/developer",
         },
         capabilities: {
           tools: true,
