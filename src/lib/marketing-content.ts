@@ -174,6 +174,14 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.8",
+      date: "2026-05-09",
+      title: "Idioma del IdP alineado con trefolio",
+      highlights: [
+        "Si venías de trefolio con la cookie `trefolio_ui_locale` (por ejemplo alemán o francés), Clara ahora la usa al abrir user.trefolio.com antes que solo el selector ES/EN local.",
+      ],
+    },
+    {
       version: "0.12.7",
       date: "2026-05-09",
       title: "Suscripción solo en user.trefolio.com",
@@ -896,6 +904,14 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.8",
+      date: "2026-05-09",
+      title: "IdP login picks up trefolio’s language cookie",
+      highlights: [
+        "When you arrive from trefolio with the shared `trefolio_ui_locale` cookie (e.g. German or French), Clara forwards it to user.trefolio.com before falling back to Clara’s ES/EN toggle.",
+      ],
+    },
     {
       version: "0.12.7",
       date: "2026-05-09",

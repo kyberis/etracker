@@ -10,6 +10,19 @@ import {
 
 export const TREFOLIO_UI_LOCALE_COOKIE = "trefolio_ui_locale";
 
+const IDP_SUPPORTED = new Set(["en", "de", "es", "fr", "it"]);
+
+/**
+ * Map any app language tag to a single OIDC `ui_locales` value the IdP supports
+ * (aligns with trefolio `mapAppLanguageToIdpUiLocalesTag`).
+ */
+export function mapAppLanguageToIdpUiLocalesTag(lang: string | undefined | null): string {
+  if (!lang?.trim()) return "en";
+  const primary = lang.trim().toLowerCase().split(/[-_]/)[0];
+  if (IDP_SUPPORTED.has(primary)) return primary;
+  return "en";
+}
+
 export function ecosystemCookieDomainFromHost(host: string | null | undefined): string | undefined {
   if (!host) return undefined;
   const h = host.split(",")[0]?.trim().split(":")[0]?.toLowerCase() ?? "";
@@ -64,13 +77,17 @@ export async function persistTrefolioEcosystemUiLocaleCookie(locale: Locale): Pr
 }
 
 /**
- * Server-only: Clara UI language as OIDC `ui_locales` for user.trefolio.com.
- * Matches proxy locale resolution so the IdP does not fall back to the
- * browser's Accept-Language (e.g. French) when Clara is in Spanish.
+ * Server-only: OIDC `ui_locales` for user.trefolio.com.
+ * Order: ecosystem bridge cookie (`trefolio_ui_locale`, shared with trefolio)
+ * → Clara `NEXT_LOCALE` → Accept-Language via `pickFromAcceptLanguage`.
  */
 export async function resolveClaraUiLocalesForIdpAuthorize(): Promise<string> {
   const jar = await cookies();
   const hdrs = await headers();
+  const ecosystem = jar.get(TREFOLIO_UI_LOCALE_COOKIE)?.value?.trim();
+  if (ecosystem) {
+    return mapAppLanguageToIdpUiLocalesTag(ecosystem);
+  }
   const fromCookie = jar.get(LOCALE_COOKIE)?.value;
   const locale = fromCookie
     ? normalizeLocale(fromCookie)
