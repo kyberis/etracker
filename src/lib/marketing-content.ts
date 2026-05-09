@@ -174,6 +174,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.7",
+      date: "2026-05-09",
+      title: "Suscripción solo en user.trefolio.com",
+      highlights: [
+        "Configuración → Suscripción ahora solo enlaza la mejora y la gestión de facturación al IdP; desapareció el checkout Stripe Supporter local.",
+        "Las donaciones únicas siguen por Stripe en Clara; el webhook de Stripe solo registra donaciones.",
+        "El cupo diario se sincroniza desde el IdP en segundo plano (throttle ~60s) para que una baja en Stripe se refleje sin volver a iniciar sesión.",
+      ],
+    },
+    {
       version: "0.12.6",
       date: "2026-05-09",
       title: "Respuestas en el idioma del mensaje",
@@ -886,6 +896,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.7",
+      date: "2026-05-09",
+      title: "Subscription management only on user.trefolio.com",
+      highlights: [
+        "Settings → Subscription now only links upgrade and billing management to the IdP; the local Stripe Supporter checkout is gone.",
+        "One-off donations still use Stripe in Clara; the Stripe webhook only records donations.",
+        "Daily quota syncs from the IdP in the background (~60s throttle) so a Stripe cancellation shows up without signing in again.",
+      ],
+    },
     {
       version: "0.12.6",
       date: "2026-05-09",

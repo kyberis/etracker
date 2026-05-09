@@ -1,7 +1,6 @@
 import { PageContainer } from "@/components/page-container";
 import { SettingsManager } from "@/components/settings-manager";
 import { SubscriptionCard } from "@/components/subscription-card";
-import { isUpsellActive } from "@/lib/billing/stripe";
 import { isGoogleAuthConfigured } from "@/lib/auth-providers";
 import {
   buildIdpBillingPortalUrlForClara,
@@ -19,7 +18,7 @@ import { requireUserId } from "@/lib/session";
 async function loadSettingsData() {
   const userId = await requireUserId();
   const now = new Date();
-  const [user, apiTokens, donationCount, upsellOn, passkeys] =
+  const [user, apiTokens, donationCount, passkeys] =
     await Promise.all([
     db.user.findUnique({
       where: { id: userId },
@@ -58,7 +57,6 @@ async function loadSettingsData() {
       },
     }),
     db.donation.count({ where: { userId } }),
-    isUpsellActive(userId),
     db.passkey.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -140,8 +138,6 @@ async function loadSettingsData() {
       currentPeriodEnd:
         user.subscriptionCurrentPeriodEnd?.toISOString() ?? null,
       hasDonated: donationCount > 0,
-      upsellActive: upsellOn,
-      hasStripeCustomer: Boolean(user.stripeCustomerId),
       dailyAgentMessageLimit: user.dailyAgentMessageLimit,
       unifiedIdpBilling,
       idpUpgradeUrl,
@@ -155,16 +151,10 @@ export default async function SettingsPage() {
   const [data, locale] = await Promise.all([loadSettingsData(), getLocale()]);
   const t = getDict(locale);
 
-  // Card is shown only when there's something to manage: the upsell flag is
-  // on for this user, OR they already have a Stripe customer (so they can
-  // see receipts / cancel even if the flag was flipped off later).
+  // Unified IdP: subscription UI is links to user.trefolio.com. Donations-only
+  // users still see a thank-you line when not on unified billing.
   const showSubscriptionCard =
-    data.subscription.upsellActive ||
-    data.subscription.hasStripeCustomer ||
-    data.subscription.status === "active" ||
-    data.subscription.status === "trialing" ||
-    (data.subscription.unifiedIdpBilling &&
-      (Boolean(data.subscription.idpUpgradeUrl) || Boolean(data.subscription.idpPortalUrl)));
+    data.subscription.unifiedIdpBilling || data.subscription.hasDonated;
 
   return (
     <PageContainer className="space-y-6">
@@ -177,8 +167,6 @@ export default async function SettingsPage() {
           status={data.subscription.status}
           currentPeriodEnd={data.subscription.currentPeriodEnd}
           hasDonated={data.subscription.hasDonated}
-          upsellActive={data.subscription.upsellActive}
-          hasStripeCustomer={data.subscription.hasStripeCustomer}
           dailyAgentMessageLimit={data.subscription.dailyAgentMessageLimit}
           unifiedIdpBilling={data.subscription.unifiedIdpBilling}
           idpUpgradeUrl={data.subscription.idpUpgradeUrl}

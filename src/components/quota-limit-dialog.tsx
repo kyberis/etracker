@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Heart, Loader2, Zap } from "lucide-react";
+import { ExternalLink, Heart, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -17,8 +17,6 @@ import {
   DEFAULT_DONATION_CENTS,
   MAX_DONATION_CENTS,
   MIN_DONATION_CENTS,
-  SUPPORTER_DAILY_LIMIT,
-  SUPPORTER_PRICE_EUR_CENTS,
 } from "@/lib/billing/pricing";
 import { useTx } from "@/lib/i18n/client";
 
@@ -50,30 +48,22 @@ function formatEur(cents: number): string {
 
 /**
  * Modal shown when `/api/chat` returns a 429 with `kind: "quota_limit"`.
- * Two CTAs (only when their flag is true server-side):
- *  - Donar: custom EUR amount, one-time payment via Stripe Checkout.
- *  - Subir a 200/día: monthly subscription via Stripe Checkout.
- *
- * If both `upsell.*` flags are false (self-host or admin flag off) the
- * modal degrades to a plain "you hit the limit" message — no CTAs,
- * no commercial ask.
+ * Optional CTAs: IdP upgrade link and/or donation checkout (when upsell flags allow).
  */
 export function QuotaLimitDialog({ payload, onClose }: Props) {
   const tx = useTx();
   const [donationEur, setDonationEur] = useState<string>(
     String(DEFAULT_DONATION_CENTS / 100),
   );
-  const [pending, setPending] = useState<"subscription" | "donation" | null>(
-    null,
-  );
+  const [pending, setPending] = useState<"donation" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!payload) return null;
 
   const showDonation = payload.upsell.donation;
-  const showSubscription = payload.upsell.subscription;
   const idpUrl = payload.upsell.idpUrl;
-  const showCtas = showDonation || showSubscription;
+  const showCtas = showDonation;
+  const introMulti = Boolean(idpUrl) && showDonation;
 
   const resetAt = new Date(payload.resetAtUtc);
   const resetLabel = resetAt.toLocaleString(undefined, {
@@ -82,7 +72,7 @@ export function QuotaLimitDialog({ payload, onClose }: Props) {
   });
 
   async function startCheckout(
-    body: { mode: "subscription" } | { mode: "donation"; amountCents: number },
+    body: { mode: "donation"; amountCents: number },
   ) {
     setError(null);
     setPending(body.mode);
@@ -211,44 +201,16 @@ export function QuotaLimitDialog({ payload, onClose }: Props) {
             {showCtas ? (
               <>
                 <p className="text-muted-foreground text-sm">
-                  {tx({
-                    es: "Si Clara te está sirviendo, tenés dos formas de seguir hoy y de ayudar a mantenerla viva:",
-                    en: "If Clara is helping you, here are two ways to keep going today and help keep her alive:",
-                  })}
+                  {introMulti
+                    ? tx({
+                        es: "Si Clara te está sirviendo, podés seguir hoy y ayudar a mantenerla viva:",
+                        en: "If Clara is helping you, here are ways to keep going today and help keep her alive:",
+                      })
+                    : tx({
+                        es: "Si Clara te está sirviendo, podés dar una mano:",
+                        en: "If Clara is helping you, you can chip in:",
+                      })}
                 </p>
-
-            {showSubscription ? (
-              <div className="ring-foreground/10 space-y-2 rounded-xl ring-1 p-3">
-                <div className="flex items-start gap-2">
-                  <Zap className="text-lilac mt-0.5 size-4" aria-hidden />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">
-                      {tx({
-                        es: `Subir a ${SUPPORTER_DAILY_LIMIT}/día`,
-                        en: `Upgrade to ${SUPPORTER_DAILY_LIMIT}/day`,
-                      })}
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {tx({
-                        es: `Por ${formatEur(SUPPORTER_PRICE_EUR_CENTS)} al mes. Cancelás cuando quieras desde Configuración.`,
-                        en: `${formatEur(SUPPORTER_PRICE_EUR_CENTS)} per month. Cancel anytime from Settings.`,
-                      })}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  className="w-full"
-                  onClick={() => startCheckout({ mode: "subscription" })}
-                  disabled={pending !== null}
-                >
-                  {pending === "subscription" ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                  ) : null}
-                  {tx({ es: "Suscribirme", en: "Subscribe" })}
-                </Button>
-              </div>
-            ) : null}
 
             {showDonation ? (
               <div className="ring-foreground/10 space-y-2 rounded-xl ring-1 p-3">

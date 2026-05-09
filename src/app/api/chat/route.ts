@@ -111,7 +111,7 @@ export async function POST(request: Request) {
           remaining: 0,
           resetAtUtc: quota.resetAtUtc,
           upsell: {
-            subscription: upsellOn,
+            subscription: upsellOn && !shouldSendUsersToUnifiedIdp(),
             donation: upsellOn,
             ...(idpUpgradeUrl ? { idpUrl: idpUpgradeUrl } : {}),
           },

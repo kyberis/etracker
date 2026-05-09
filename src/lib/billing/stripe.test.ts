@@ -53,18 +53,20 @@ describe("billing/stripe gates", () => {
       expect(mockedIsFeatureEnabled).not.toHaveBeenCalled();
     });
 
-    it("returns false when unified IdP is configured — Stripe upsell disabled", async () => {
+    it("returns true when unified IdP is configured if donation Stripe keys exist", async () => {
       process.env.IDP_BASE_URL = "https://user.trefolio.com";
       process.env.IDP_CLIENT_ID = "clara";
       process.env.IDP_CLIENT_SECRET = "secret";
       process.env.STRIPE_SECRET_KEY = "sk_test_x";
       process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
-      process.env.STRIPE_PRICE_ID_SUPPORTER = "price_x";
       mockedIsFeatureEnabled.mockResolvedValueOnce(true);
 
       const result = await isUpsellActive("user-1");
-      expect(result).toBe(false);
-      expect(mockedIsFeatureEnabled).not.toHaveBeenCalled();
+      expect(result).toBe(true);
+      expect(mockedIsFeatureEnabled).toHaveBeenCalledWith(
+        "quota_upsell",
+        "user-1",
+      );
     });
 
     it("delegates to isFeatureEnabled when billing is enabled", async () => {

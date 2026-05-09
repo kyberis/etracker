@@ -16,7 +16,8 @@ import {
 } from "@/lib/webauthn";
 
 import { isGoogleAuthConfigured } from "./auth-providers";
-import { getIdpBaseUrl } from "./idp-base";
+import { getIdpBaseUrl, shouldSendUsersToUnifiedIdp } from "./idp-base";
+import { syncEntitlementsFromIdpForUser } from "@/lib/idp/sync-entitlements";
 import { log } from "@/lib/log";
 
 /**
@@ -364,6 +365,19 @@ export const authOptions = {
           token.isAdmin = dbUser.isAdmin;
           token.isActive = dbUser.isActive;
         }
+      }
+
+      const ENT_SYNC_MS = 60_000;
+      const syncTok = token as { idpEntitlementSyncAt?: number };
+      const now = Date.now();
+      if (
+        shouldSendUsersToUnifiedIdp() &&
+        token.sub &&
+        (!syncTok.idpEntitlementSyncAt ||
+          now - syncTok.idpEntitlementSyncAt > ENT_SYNC_MS)
+      ) {
+        syncTok.idpEntitlementSyncAt = now;
+        void syncEntitlementsFromIdpForUser(String(token.sub)).catch(() => {});
       }
       return token;
     },

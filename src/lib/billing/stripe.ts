@@ -34,24 +34,30 @@ export function getStripe(): Stripe | null {
  * treat this as a hard precondition; the admin feature flag is a separate
  * gate on top.
  */
+/** Donations + webhook only (no recurring price id required). */
+export function isDonationBillingEnabled(): boolean {
+  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+}
+
+/**
+ * `true` when legacy Supporter subscription Stripe envs exist (unused when
+ * unified IdP billing is on).
+ */
 export function isBillingEnabled(): boolean {
   return Boolean(
-    process.env.STRIPE_SECRET_KEY &&
-      process.env.STRIPE_WEBHOOK_SECRET &&
-      process.env.STRIPE_PRICE_ID_SUPPORTER,
+    isDonationBillingEnabled() && process.env.STRIPE_PRICE_ID_SUPPORTER,
   );
 }
 
 /**
- * Combined gate consumed by every user-facing surface that shows the
- * upsell (chat 429 payload, modal CTAs, settings card, marketing
- * `/upgrade` page). Both must be true:
- *  - billing envs exist (hosted-only invariant)
- *  - the `quota_upsell` feature flag is on for this user (or globally)
+ * Combined gate for upsell surfaces. With unified IdP, subscription CTAs use
+ * user.trefolio.com but **donations** can still use local Stripe when keys exist.
  */
 export async function isUpsellActive(userId?: string): Promise<boolean> {
-  // Hosted Trefolio Pro billing lives on the IdP — hide legacy Stripe CTAs.
-  if (shouldSendUsersToUnifiedIdp()) return false;
+  if (shouldSendUsersToUnifiedIdp()) {
+    if (!isDonationBillingEnabled()) return false;
+    return isFeatureEnabled("quota_upsell", userId);
+  }
   if (!isBillingEnabled()) return false;
   return isFeatureEnabled("quota_upsell", userId);
 }
