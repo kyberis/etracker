@@ -10,17 +10,19 @@ steps per turn. We need:
   `feature:system-nudge`).
 - The ability to A/B a different model (or fall back to a healthier
   provider) without touching feature code.
-- A self-host story: a developer with only an `OPENAI_API_KEY` should
-  get a working agent without signing up for the Vercel AI Gateway.
-- Voice features (Whisper STT, OpenAI TTS) that work even when the
-  Gateway can't proxy them.
+- A self-host story: a developer with only an `OPENAI_API_KEY` or
+  `AI_GATEWAY_API_KEY` should get a working agent (Gateway preferred).
+- Voice features (Whisper STT, OpenAI TTS) routed through the **same**
+  Vercel AI Gateway OpenAI-compatible host (`https://ai-gateway.vercel.sh/v1`).
 
 ## Decision
 
 The agent calls **Vercel AI Gateway** when an `AI_GATEWAY_API_KEY` or
-`VERCEL_OIDC_TOKEN` is set, falling back to direct OpenAI otherwise.
-**Whisper and TTS always hit OpenAI directly** (those endpoints are
-not proxied by the Gateway today).
+`VERCEL_OIDC_TOKEN` is set, falling back to `OPENAI_API_KEY` for direct
+OpenAI-compatible calls through the same SDK paths.
+
+**Whisper and TTS use the Gateway base URL** (`/v1/audio/transcriptions`,
+`/v1/audio/speech`) with the same bearer token order as chat.
 
 Models are **always** referenced as `provider/model` strings — the AI
 SDK detects them and routes via the Gateway transparently. The chat
@@ -35,8 +37,8 @@ Routing matrix:
 | Chat / agent loop (web) | `streamText({ model: gateway(DEFAULT_MODEL) })` | [`src/lib/ai/run-expense-agent.ts`](../../src/lib/ai/run-expense-agent.ts) — `streamExpenseAgent` |
 | Chat / agent loop (Telegram) | `generateText({ model: gateway(DEFAULT_MODEL) })` | same file — `generateExpenseAgentReply` |
 | System-initiated nudges (no tools) | `generateText({ model: gateway(DEFAULT_MODEL), tools: {}, stopWhen: stepCountIs(1) })` | same file — `generateSystemInitiatedReply` |
-| Whisper (audio → text) | Direct OpenAI | [`src/lib/ai/transcribe-audio.ts`](../../src/lib/ai/transcribe-audio.ts) |
-| TTS (text → audio) | Direct OpenAI | [`src/lib/ai/text-to-speech.ts`](../../src/lib/ai/text-to-speech.ts) |
+| Whisper (audio → text) | Vercel AI Gateway (`/v1/audio/transcriptions`) | [`src/lib/ai/transcribe-audio.ts`](../../src/lib/ai/transcribe-audio.ts) |
+| TTS (text → audio) | Vercel AI Gateway (`/v1/audio/speech`) | [`src/lib/ai/text-to-speech.ts`](../../src/lib/ai/text-to-speech.ts) |
 | Vision (extracting transactions from images / PDFs) | Through Gateway as part of the agent (`addMonthLine` path with image content blocks) | agent loop |
 
 Per-call observability tags fed to the Gateway are mandatory:
@@ -56,10 +58,12 @@ Retries: **6** (configurable up to 12 via `AI_CHAT_MAX_RETRIES`).
 cost tracking, automatic retries, and the option to fail over to a
 second model when one provider is degraded.
 
-**Why not "always Gateway"?** Whisper / TTS are not Gateway-proxied at
-the time of writing. Forcing the Gateway here would silently break
-voice ingestion (Telegram voice notes) and TTS reply mode. Also: the
-self-host story without a Gateway account is nice to keep cheap.
+**Why route Whisper/TTS through Gateway as well?** One bearer token and one
+observability surface for chat and voice; requests use the OpenAI-compatible
+`/v1/audio/*` paths on `ai-gateway.vercel.sh`.
+
+**Self-host:** Prefer `AI_GATEWAY_API_KEY`; legacy `OPENAI_API_KEY` still works
+as a fallback (see [`gateway-auth.ts`](../../src/lib/ai/gateway-auth.ts)).
 
 **Why not abstract the provider behind a custom interface?** The
 Vercel AI SDK already does that. Wrapping the wrap is overhead.
@@ -103,11 +107,10 @@ const result = await generateText({
 Always pass `providerOptions.gateway.user = userId` and at least one
 `feature:` tag. They drive the per-feature cost dashboards.
 
-When **adding a new audio / speech / vision call**:
+When **adding a new audio / speech call**:
 
-- Whisper / TTS → call OpenAI directly with the official client.
-  Document in the feature's spec that this is intentionally not
-  Gateway-routed.
+- Use [`resolveGatewayApiKeyFromEnv`](../../src/lib/ai/gateway-auth.ts) +
+  `${VERCEL_AI_GATEWAY_BASE}/audio/...` (see transcribe + TTS modules).
 - Vision (image content blocks inside an agent turn) → goes through
   the Gateway as part of the agent message; no separate code path.
 

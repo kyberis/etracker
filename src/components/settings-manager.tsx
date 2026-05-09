@@ -429,7 +429,7 @@ export function SettingsManager({
               />
               <p className="text-muted-foreground text-xs">
                 {t.settings.instructionsHint}{" "}
-                <code className="text-foreground">OPENAI_API_KEY</code>{" "}
+                <code className="text-foreground">AI_GATEWAY_API_KEY</code>{" "}
                 {t.settings.instructionsHintEnvSuffix}
               </p>
               {instructionsError ? (

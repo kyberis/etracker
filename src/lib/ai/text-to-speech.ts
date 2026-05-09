@@ -1,12 +1,8 @@
 /**
- * OpenAI speech API for Telegram voice-note replies (same API key as chat).
- * Locale-aware voice instructions:
- *  - `es` → rioplatense Spanish accent (Argentina/Uruguay).
- *  - `en` → neutral conversational US English.
- * Uses `gpt-4o-mini-tts` because `tts-1` ignores instructions and tends to
- * sound English-accented even when fed Spanish text.
+ * Speech synthesis for Telegram voice-note replies via Vercel AI Gateway (OpenAI-compatible audio).
  */
 
+import { resolveGatewayApiKeyFromEnv, VERCEL_AI_GATEWAY_BASE } from "@/lib/ai/gateway-auth";
 import type { Locale } from "@/lib/i18n/locale";
 
 const MAX_INPUT_CHARS = 4096;
@@ -30,7 +26,7 @@ export async function synthesizeSpeechMp3(
   const input = text.trim().slice(0, MAX_INPUT_CHARS);
   if (!input) return null;
 
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  const apiKey = resolveGatewayApiKeyFromEnv();
   if (!apiKey) return null;
 
   const model = process.env.OPENAI_TTS_MODEL?.trim() || DEFAULT_MODEL;
@@ -61,7 +57,7 @@ export async function synthesizeSpeechMp3(
       (locale === "en" ? DEFAULT_INSTRUCTIONS_EN : DEFAULT_INSTRUCTIONS_ES);
   }
 
-  const res = await fetch("https://api.openai.com/v1/audio/speech", {
+  const res = await fetch(`${VERCEL_AI_GATEWAY_BASE}/audio/speech`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,

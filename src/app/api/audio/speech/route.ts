@@ -1,4 +1,5 @@
 import { synthesizeSpeechMp3 } from "@/lib/ai/text-to-speech";
+import { resolveGatewayApiKeyFromEnv } from "@/lib/ai/gateway-auth";
 import { uploadTtsAudioToBlob } from "@/lib/blob/tts";
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
@@ -27,9 +28,9 @@ export async function POST(request: Request) {
     );
     if (!limited.ok) return limited.response;
 
-    if (!process.env.OPENAI_API_KEY?.trim()) {
+    if (!resolveGatewayApiKeyFromEnv()) {
       return jsonError(
-        "OPENAI_API_KEY is not configured — chat TTS is unavailable.",
+        "AI Gateway is not configured — chat TTS is unavailable.",
         503,
       );
     }

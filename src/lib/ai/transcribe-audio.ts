@@ -1,7 +1,8 @@
 /**
- * Speech-to-text for Telegram voice notes via OpenAI Whisper (same API key as chat).
+ * Speech-to-text for Telegram voice notes via Whisper (Vercel AI Gateway).
  */
 
+import { resolveGatewayApiKeyFromEnv, VERCEL_AI_GATEWAY_BASE } from "@/lib/ai/gateway-auth";
 import type { Locale } from "@/lib/i18n/locale";
 
 const TRANSCRIPTION_MODEL =
@@ -30,13 +31,13 @@ const TRANSCRIBE_MESSAGES: Record<
   { missingKey: string; failure: string; empty: string }
 > = {
   es: {
-    missingKey: "OPENAI_API_KEY no configurada.",
+    missingKey: "API de IA no configurada (AI Gateway).",
     failure:
       "No pude convertir el audio en texto (formato no soportado o error del servicio). Probá grabar de nuevo más corto o mandá texto.",
     empty: "El audio no tenía contenido reconocible. ¿Podés repetir o escribir el mensaje?",
   },
   en: {
-    missingKey: "OPENAI_API_KEY is not configured.",
+    missingKey: "AI API is not configured (AI Gateway).",
     failure:
       "I couldn't convert the audio to text (unsupported format or service error). Try recording a shorter clip or send text.",
     empty: "The audio had no recognizable content. Can you repeat or type the message?",
@@ -51,8 +52,8 @@ export async function transcribeAudioOpenAI(opts: {
   const locale: Locale = opts.locale ?? "es";
   const messages = TRANSCRIBE_MESSAGES[locale];
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey?.trim()) {
+  const apiKey = resolveGatewayApiKeyFromEnv();
+  if (!apiKey) {
     return { ok: false, message: messages.missingKey };
   }
 
@@ -66,7 +67,7 @@ export async function transcribeAudioOpenAI(opts: {
   form.append("model", TRANSCRIPTION_MODEL);
   form.append("language", locale);
 
-  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+  const res = await fetch(`${VERCEL_AI_GATEWAY_BASE}/audio/transcriptions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
