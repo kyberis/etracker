@@ -30,6 +30,9 @@ const STRINGS = {
     repoLine: "[GitHub (kyberis/etracker)]({repo}): código fuente, MIT.",
     teamLine: "[trefolio.com]({team}): equipo detrás de Clara.",
     optional: "Optional",
+    ecosystemHeading: "Ecosistema Trefolio",
+    willLine:
+      "[Will]({will}): asistente de notas con IA por Telegram; open source (MIT), self-hostable.",
     sitemap: "[Sitemap]({sitemap})",
     robots: "[Robots policy]({robots})",
     summary: "Resumen",
@@ -89,6 +92,9 @@ const STRINGS = {
     repoLine: "[GitHub (kyberis/etracker)]({repo}): source code, MIT.",
     teamLine: "[trefolio.com]({team}): the team behind Clara.",
     optional: "Optional",
+    ecosystemHeading: "Trefolio ecosystem",
+    willLine:
+      "[Will]({will}): Telegram-first open-source AI note-taking assistant (MIT, self-hostable).",
     sitemap: "[Sitemap]({sitemap})",
     robots: "[Robots policy]({robots})",
     summary: "Summary",
@@ -154,6 +160,7 @@ export function renderLlmsIndex(locale: Locale): string {
     llmsFull: locale === "en" ? `${site}/en/llms-full.txt` : `${site}/llms-full.txt`,
     repo: "https://github.com/kyberis/etracker",
     team: "https://trefolio.com",
+    will: "https://will.trefolio.com",
     sitemap: `${site}/sitemap.xml`,
     robots: `${site}/robots.txt`,
   };
@@ -184,6 +191,10 @@ ${content.ELEVATOR_PITCH}
 
 - ${fmt(s.repoLine, urls)}
 - ${fmt(s.teamLine, urls)}
+
+## ${s.ecosystemHeading}
+
+- ${fmt(s.willLine, urls)}
 
 ## ${s.optional}
 
@@ -278,6 +289,10 @@ ${mcpJson}
 ## ${s.techStackHeading}
 
 ${s.techStack.map((line) => `- ${line}`).join("\n")}
+
+## ${s.ecosystemHeading}
+
+- ${fmt(s.willLine, { will: "https://will.trefolio.com" })}
 
 ## ${s.supportHeading}
 
