@@ -174,6 +174,14 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.6",
+      date: "2026-05-09",
+      title: "Respuestas en el idioma del mensaje",
+      highlights: [
+        "El agente infiere el idioma principal de tu último mensaje (incluido texto de adjuntos o voz transcrita) y responde en ese idioma; si no alcanza, usa tu preferencia guardada (es/en).",
+      ],
+    },
+    {
       version: "0.12.5",
       date: "2026-05-08",
       title: "Login unificado: vincular cuenta existente",
@@ -878,6 +886,14 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.6",
+      date: "2026-05-09",
+      title: "Replies match your message language",
+      highlights: [
+        "Clara infers the primary language from your latest message (including attachments or transcribed voice) and replies in that language; when unclear, she falls back to your saved preference (English or Spanish).",
+      ],
+    },
     {
       version: "0.12.5",
       date: "2026-05-08",

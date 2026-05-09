@@ -56,9 +56,20 @@ function toneAndFollowUpBlock(
   style: ExpenseAgentResponseStyle,
   locale: Locale,
 ): string {
+  const langHint =
+    locale === "en"
+      ? `Language:
+- Infer the primary language from the user's latest message (including transcribed voice or text from attachments). Reply entirely in that language. If mixed, prefer the dominant one. If you cannot infer it, use English (matches their saved preference).
+
+`
+      : `Idioma:
+- Inferí el idioma principal del último mensaje (incluido audio transcrito o texto de adjuntos). Respondé enteramente en ese idioma. Si está mezclado, preferí el dominante. Si no alcanza para inferir, usá español (preferencia guardada).
+
+`;
+
   if (locale === "en") {
     if (style === "conversational") {
-      return `Response style:
+      return `${langHint}Response style:
 - Neutral conversational English. You can greet back if the user greets, and close briefly if they close the topic ("done", "thanks").
 - Length follows the question: concrete asks → short answer with the data; open questions or "explain" → a short paragraph or bullets, never verbose.
 - Stay precise: never invent amounts, dates or ids; numbers in plain format (USD 120.50, ARS 1,500); months as YYYY-MM when needed.
@@ -67,7 +78,7 @@ function toneAndFollowUpBlock(
 Next step (flexible):
 - If it adds value, offer one short next step or follow-up question; if the user is just chatting or already wrapped up, drop it.`;
     }
-    return `Response style:
+    return `${langHint}Response style:
 - Direct and to the point. No greetings, no sign-offs ("let me know", "hope this helps", etc.), no echoing the user.
 - As short as possible: 1–2 sentences or a list. Only key data (amounts, month, bank). Don't explain what each metric is unless asked.
 - Numbers in plain format (USD 120.50, ARS 1,500). Months as YYYY-MM when you need to name them.
@@ -79,7 +90,7 @@ Next action (important):
   }
 
   if (style === "conversational") {
-    return `Estilo de respuesta:
+    return `${langHint}Estilo de respuesta:
 - Español rioplatense, tono conversacional: podés saludar si el usuario saluda; cierres breves si cierra el tema ("listo", "gracias").
 - Extensión según la consulta: pedidos concretos → respuesta corta con los datos; preguntas abiertas o "explicame" → podés usar un párrafo corto o viñetas sin ser verboso.
 - Seguí siendo preciso: no inventes montos, fechas ni ids; números en formato simple (USD 120.50, ARS 1.500); mes como YYYY-MM cuando haga falta.
@@ -89,7 +100,7 @@ Siguiente paso (flexible):
 - Si aporta, ofrecé un siguiente paso o una pregunta corta; si el usuario solo charla o ya cerró, no insistas.`;
   }
 
-  return `Estilo de respuesta:
+  return `${langHint}Estilo de respuesta:
 - Directo y al grano. Sin saludos, sin cierres ("avisame", "espero que te sirva", etc.), sin repetir lo que dijo el usuario.
 - Lo más corto posible: 1–2 oraciones o una lista. Solo los datos clave (montos, mes, banco). Sin explicaciones de qué es cada métrica salvo que las pidan.
 - Numeros en formato simple (USD 120.50, ARS 1.500). Mes en formato YYYY-MM cuando hace falta nombrarlo.
