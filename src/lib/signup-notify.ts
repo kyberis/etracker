@@ -1,6 +1,10 @@
 /**
- * Best-effort admin notification when a new user signs up. Mirrors the
- * `notifyAdmin` helper in `src/app/api/contact/route.ts`:
+ * Best-effort admin notification when a new user signs up **without** the
+ * unified IdP (`user.trefolio.com`). When IdP OAuth is configured,
+ * `notifyAdminOfNewUser` is not called — operators get one email from the IdP
+ * on `createUser` there instead.
+ *
+ * Mirrors the `notifyAdmin` helper in `src/app/api/contact/route.ts`:
  *
  *   - Resolves the destination via `getSignupNotifyEmail()` (env override
  *     `SIGNUP_NOTIFY_EMAIL`, defaults to `info@trefolio.com` on the
@@ -12,11 +16,9 @@
  *   - Any failure is logged and swallowed: a flaky Resend call must not
  *     break the signup flow.
  *
- * Wire up from both:
- *   - `POST /api/auth/register` (email + password path; user is created via
- *     `db.user.create` directly, bypassing the NextAuth adapter).
- *   - `authOptions.events.createUser` (Google OAuth path; the
- *     PrismaAdapter creates the row on first sign-in).
+ * Wired from self-hosted / legacy paths only:
+ *   - `POST /api/auth/register` when `!isClaraIdpOAuthConfigured()`.
+ *   - `authOptions.events.createUser` when `!isClaraIdpOAuthConfigured()`.
  */
 
 import { Resend } from "resend";

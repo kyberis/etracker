@@ -7,7 +7,7 @@ import { ApiTokensCard } from "@/components/api-tokens-card";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { PasskeysCard } from "@/components/passkeys-card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CurrencyPicker } from "@/components/ui/currency-picker";
 import { Input } from "@/components/ui/input";
@@ -70,6 +70,8 @@ type SettingsManagerProps = {
   googleAuthConfigured: boolean;
   /** When set, MCP PATs are minted on trefolio Accounts (same token for Clara / Will / trefolio). */
   ecosystemPatManageUrl?: string | null;
+  /** Unified IdP account hub — profile, OAuth, passkeys, password live here. */
+  unifiedIdpAccountUrl?: string | null;
 };
 
 /** Inline feedback for forms — consistent success/error/info styling. */
@@ -124,6 +126,7 @@ export function SettingsManager({
   initialPasskeys,
   googleAuthConfigured,
   ecosystemPatManageUrl = null,
+  unifiedIdpAccountUrl = null,
 }: SettingsManagerProps) {
   const t = useT();
   const tx = useTx();
@@ -252,105 +255,137 @@ export function SettingsManager({
 
   return (
     <div className="space-y-10">
-      {/* SECTION 1 — Perfil & acceso */}
-      <section className="space-y-4">
-        <SectionHeader
-          title={tx({ es: "Perfil y acceso", en: "Profile & access" })}
-          description={tx({
-            es: "Tus datos de cuenta y formas de iniciar sesión.",
-            en: "Your account data and sign-in methods.",
-          })}
-        />
-        <div
-          className={cn(
-            "grid grid-cols-1 gap-4",
-            showAccessCard && "lg:grid-cols-2 lg:gap-6",
-          )}
-        >
+      {unifiedIdpAccountUrl ? (
+        <section className="space-y-4">
+          <SectionHeader
+            title={tx({ es: "Perfil y acceso", en: "Profile & access" })}
+            description={tx({
+              es: "Tu cuenta unificada en user.trefolio.com.",
+              en: "Your unified account at user.trefolio.com.",
+            })}
+          />
           <Card>
             <CardHeader>
-              <CardTitle>{t.settings.profileTitle}</CardTitle>
+              <CardTitle>{tx({ es: "Cuenta trefolio", en: "Trefolio account" })}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={onSubmit}>
-                <div className="space-y-1">
-                  <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                    {t.settings.emailLabel}
-                  </p>
-                  <p className="font-medium">{settings?.email ?? "..."}</p>
-                </div>
-
-                {hasPassword ? (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="currentPassword">
-                      {t.settings.currentPassword}{" "}
-                      <span className="text-muted-foreground text-xs font-normal">
-                        {newPassword
-                          ? t.settings.currentPasswordHintRequired
-                          : t.settings.currentPasswordHintOptional}
-                      </span>
-                    </label>
-                    <PasswordInput
-                      id="currentPassword"
-                      autoComplete="current-password"
-                      value={currentPassword}
-                      onChange={(event) => setCurrentPassword(event.target.value)}
-                      toggleLabel={t.auth.showPassword}
-                    />
-                  </div>
-                ) : null}
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="newPassword">
-                    {hasPassword ? t.settings.newPassword : t.settings.setPassword}
-                  </label>
-                  <PasswordInput
-                    id="newPassword"
-                    autoComplete="new-password"
-                    value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                    minLength={8}
-                    toggleLabel={t.auth.showPassword}
-                  />
-                  {!hasPassword ? (
-                    <p className="text-muted-foreground text-xs">
-                      {t.settings.googleHint}
-                    </p>
-                  ) : null}
-                </div>
-
-                {error ? <FormStatus tone="error">{error}</FormStatus> : null}
-                {message ? <FormStatus tone="success">{message}</FormStatus> : null}
-
-                <Button type="submit">{t.settings.save}</Button>
-              </form>
+            <CardContent className="space-y-3">
+              <p className="text-muted-foreground text-sm">
+                {tx({
+                  es: "Nombre, contraseña, Google, passkeys y más se gestionan en el portal de cuentas (el mismo login que trefolio y Will).",
+                  en: "Your display name, password, Google sign-in, passkeys, and more are managed on the accounts portal (same login as trefolio and Will).",
+                })}
+              </p>
+              <a
+                href={unifiedIdpAccountUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonVariants()}
+              >
+                {tx({ es: "Abrir cuenta unificada", en: "Open unified account" })}
+              </a>
             </CardContent>
           </Card>
-
-          {showAccessCard ? (
+        </section>
+      ) : (
+        <section className="space-y-4">
+          <SectionHeader
+            title={tx({ es: "Perfil y acceso", en: "Profile & access" })}
+            description={tx({
+              es: "Tus datos de cuenta y formas de iniciar sesión.",
+              en: "Your account data and sign-in methods.",
+            })}
+          />
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-4",
+              showAccessCard && "lg:grid-cols-2 lg:gap-6",
+            )}
+          >
             <Card>
               <CardHeader>
-                <CardTitle>{t.settings.accessTitle}</CardTitle>
+                <CardTitle>{t.settings.profileTitle}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-muted-foreground text-sm">
-                  {t.settings.accessDescription}
-                </p>
-                {googleLinked ? (
-                  <FormStatus tone="success">{t.settings.googleLinked}</FormStatus>
-                ) : (
-                  <GoogleSignInButton
-                    callbackUrl="/settings"
-                    label={t.settings.connectGoogle}
-                  />
-                )}
+              <CardContent>
+                <form className="space-y-4" onSubmit={onSubmit}>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                      {t.settings.emailLabel}
+                    </p>
+                    <p className="font-medium">{settings?.email ?? "..."}</p>
+                  </div>
+
+                  {hasPassword ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="currentPassword">
+                        {t.settings.currentPassword}{" "}
+                        <span className="text-muted-foreground text-xs font-normal">
+                          {newPassword
+                            ? t.settings.currentPasswordHintRequired
+                            : t.settings.currentPasswordHintOptional}
+                        </span>
+                      </label>
+                      <PasswordInput
+                        id="currentPassword"
+                        autoComplete="current-password"
+                        value={currentPassword}
+                        onChange={(event) => setCurrentPassword(event.target.value)}
+                        toggleLabel={t.auth.showPassword}
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="newPassword">
+                      {hasPassword ? t.settings.newPassword : t.settings.setPassword}
+                    </label>
+                    <PasswordInput
+                      id="newPassword"
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      minLength={8}
+                      toggleLabel={t.auth.showPassword}
+                    />
+                    {!hasPassword ? (
+                      <p className="text-muted-foreground text-xs">
+                        {t.settings.googleHint}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {error ? <FormStatus tone="error">{error}</FormStatus> : null}
+                  {message ? <FormStatus tone="success">{message}</FormStatus> : null}
+
+                  <Button type="submit">{t.settings.save}</Button>
+                </form>
               </CardContent>
             </Card>
-          ) : null}
 
-          <PasskeysCard initialPasskeys={initialPasskeys} />
-        </div>
-      </section>
+            {showAccessCard ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t.settings.accessTitle}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-muted-foreground text-sm">
+                    {t.settings.accessDescription}
+                  </p>
+                  {googleLinked ? (
+                    <FormStatus tone="success">{t.settings.googleLinked}</FormStatus>
+                  ) : (
+                    <GoogleSignInButton
+                      callbackUrl="/settings"
+                      label={t.settings.connectGoogle}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            <PasskeysCard initialPasskeys={initialPasskeys} />
+          </div>
+        </section>
+      )}
 
       {/* SECTION 2 — Preferencias */}
       <section className="space-y-4">

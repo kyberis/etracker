@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
+import { isClaraIdpOAuthConfigured } from "@/lib/idp-base";
 import { pickFromAcceptLanguage } from "@/lib/i18n/locale";
 import { CURRENT_TERMS_VERSION } from "@/lib/legal";
 import { limitByIp } from "@/lib/rate-limit";
@@ -100,14 +101,14 @@ export async function POST(request: Request) {
       locale,
     );
 
-    // Best-effort admin ping. Failures are swallowed inside the helper so a
-    // flaky Resend call never blocks signup; we don't `await` for the same
-    // reason — the user-facing response shouldn't wait on operator mail.
-    void notifyAdminOfNewUser({
-      userId: user.id,
-      email: user.email,
-      source: "credentials",
-    });
+    // Best-effort admin ping for self-hosted / legacy register only (IdP sends once from user.trefolio.com).
+    if (!isClaraIdpOAuthConfigured()) {
+      void notifyAdminOfNewUser({
+        userId: user.id,
+        email: user.email,
+        source: "credentials",
+      });
+    }
 
     return new Response(
       JSON.stringify({

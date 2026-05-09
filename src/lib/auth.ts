@@ -16,7 +16,7 @@ import {
 } from "@/lib/webauthn";
 
 import { isGoogleAuthConfigured } from "./auth-providers";
-import { getIdpBaseUrl, shouldSendUsersToUnifiedIdp } from "./idp-base";
+import { getIdpBaseUrl, isClaraIdpOAuthConfigured } from "./idp-base";
 import { syncEntitlementsFromIdpForUser } from "@/lib/idp/sync-entitlements";
 import { log } from "@/lib/log";
 
@@ -27,17 +27,7 @@ import { log } from "@/lib/log";
  * because it's still responsible for persisting the `User` and `Account`
  * rows on first Google sign-in (auto-linking by email is enabled below).
  */
-export const authOptions = {
-  // Behind Caddy/Vercel, use X-Forwarded-Host so OAuth redirect_uri matches the browser URL.
-  trustHost: true,
-  adapter: PrismaAdapter(db),
-  session: {
-    strategy: "jwt",
-  },
-  pages: {
-    signIn: "/login",
-  },
-  providers: [
+const allAuthProviders = [
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -262,7 +252,21 @@ export const authOptions = {
           },
         ]
       : []),
-  ],
+];
+
+export const authOptions = {
+  // Behind Caddy/Vercel, use X-Forwarded-Host so OAuth redirect_uri matches the browser URL.
+  trustHost: true,
+  adapter: PrismaAdapter(db),
+  session: {
+    strategy: "jwt",
+  },
+  pages: {
+    signIn: "/login",
+  },
+  providers: isClaraIdpOAuthConfigured()
+    ? allAuthProviders.filter((p) => (p as { id?: string }).id === "trefolio-id")
+    : allAuthProviders,
   callbacks: {
     async signIn({ account, profile, user }) {
       if (account?.provider === "google") {
@@ -371,7 +375,7 @@ export const authOptions = {
       const syncTok = token as { idpEntitlementSyncAt?: number };
       const now = Date.now();
       if (
-        shouldSendUsersToUnifiedIdp() &&
+        isClaraIdpOAuthConfigured() &&
         token.sub &&
         (!syncTok.idpEntitlementSyncAt ||
           now - syncTok.idpEntitlementSyncAt > ENT_SYNC_MS)
@@ -397,6 +401,8 @@ export const authOptions = {
      */
     async createUser({ user }) {
       if (!user?.id || !user.email) return;
+      // Unified IdP notifies ops when the identity row is created at user.trefolio.com — avoid duplicate mail from Clara.
+      if (isClaraIdpOAuthConfigured()) return;
       void notifyAdminOfNewUser({
         userId: user.id,
         email: user.email,

@@ -19,7 +19,6 @@ beforeEach(() => {
   delete process.env.IDP_BASE_URL;
   delete process.env.IDP_CLIENT_ID;
   delete process.env.IDP_CLIENT_SECRET;
-  delete process.env.USE_LEGACY_AUTH;
   vi.clearAllMocks();
   mockedIsFeatureEnabled.mockReset();
 });

@@ -62,20 +62,21 @@ export function getIdpBaseUrl(): string {
 }
 
 /**
- * Whether `/login` and `/register` should send users to the unified IdP
- * (`user.trefolio.com`) via NextAuth `trefolio-id`.
- *
- * Requires full OAuth client config. **Unified IdP is the default** whenever
- * those vars are set; set **`USE_LEGACY_AUTH=true`** explicitly to keep the
- * local email/password (+ optional Google) forms (rollback / self-host).
+ * Whether Clara is configured for unified IdP OAuth (`trefolio-id` only).
  */
-export function shouldSendUsersToUnifiedIdp(): boolean {
-  const configured =
+export function isClaraIdpOAuthConfigured(): boolean {
+  return (
     Boolean(getIdpBaseUrl()) &&
     Boolean(process.env.IDP_CLIENT_ID?.trim()) &&
-    Boolean(process.env.IDP_CLIENT_SECRET?.trim());
-  if (!configured) return false;
-  return process.env.USE_LEGACY_AUTH !== "true";
+    Boolean(process.env.IDP_CLIENT_SECRET?.trim())
+  );
+}
+
+/**
+ * @deprecated Use {@link isClaraIdpOAuthConfigured}.
+ */
+export function shouldSendUsersToUnifiedIdp(): boolean {
+  return isClaraIdpOAuthConfigured();
 }
 
 /**
@@ -109,8 +110,18 @@ export function buildIdpUpgradeUrlForClara(
  * Only when unified IdP auth is active for this deployment.
  */
 export function buildIdpBillingPortalUrlForClara(): string | null {
-  if (!shouldSendUsersToUnifiedIdp()) return null;
+  if (!isClaraIdpOAuthConfigured()) return null;
   const origin = getIdpBrowserOrigin();
   if (!origin) return null;
   return `${origin.replace(/\/+$/, "")}/api/billing/portal?from=clara`;
+}
+
+/** Unified account hub on user.trefolio.com (profile, passkeys, password). */
+export function buildIdpAccountUrlForClara(): string | null {
+  if (!isClaraIdpOAuthConfigured()) return null;
+  const origin = getIdpBrowserOrigin();
+  if (!origin) return null;
+  const u = new URL(`${origin.replace(/\/+$/, "")}/account`);
+  u.searchParams.set("from", "clara");
+  return u.toString();
 }

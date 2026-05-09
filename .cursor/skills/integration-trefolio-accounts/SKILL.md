@@ -2,7 +2,7 @@
 name: integration-trefolio-accounts
 description: >-
   Explains how Clara (etracker) integrates with user.trefolio.com via NextAuth OAuth
-  provider trefolio-id, IdP-only register redirect, entitlements sync, and env vars.
+  provider trefolio-id, IdP bridge on /login, entitlements sync, and env vars.
   Use when editing src/lib/auth.ts, IDP_* env, /register, or quota claims from the IdP.
 ---
 
@@ -28,11 +28,12 @@ From this skill file directory, approximate path to those docs: `../../../../../
 | Area | Role |
 |------|------|
 | [`src/lib/auth.ts`](../../../src/lib/auth.ts) | NextAuth providers: `trefolio-id` with `app_hint: clara`; `events.signIn` applies `entitlements.clara_daily_limit`, persists `User.idpSub` from OIDC `sub` |
-| [`src/lib/idp-base.ts`](../../../src/lib/idp-base.ts) | `getIdpBaseUrl()`, `shouldSendUsersToUnifiedIdp()`, `buildIdpUpgradeUrlForClara()` |
+| [`src/lib/idp-base.ts`](../../../src/lib/idp-base.ts) | `isClaraIdpOAuthConfigured()`, `buildIdpUpgradeUrlForClara()`, `buildIdpBillingPortalUrlForClara()`, deprecated `shouldSendUsersToUnifiedIdp()` alias |
 | [`src/lib/idp-telegram.ts`](../../../src/lib/idp-telegram.ts) | `POST`/`GET` IdP `/api/v1/telegram/*` for cross-app Telegram map |
-| [`src/app/(auth)/login/page.tsx`](../../../src/app/(auth)/login/page.tsx) | `shouldSendUsersToUnifiedIdp()` → auto `signIn('trefolio-id')` |
-| [`src/app/(auth)/register/page.tsx`](../../../src/app/(auth)/register/page.tsx) | IdP-only → `IdpSignupRedirect` with `screen_hint=signup` |
-| [`src/app/(auth)/register/idp-signup-redirect.tsx`](../../../src/app/(auth)/register/idp-signup-redirect.tsx) | Client-side OAuth start |
+| [`src/app/(auth)/login/page.tsx`](../../../src/app/(auth)/login/page.tsx) | `IdpUnifiedBridge` when IdP configured; `LoginForm` when not |
+| [`src/app/(auth)/login/idp-unified-bridge.tsx`](../../../src/app/(auth)/login/idp-unified-bridge.tsx) | Countdown + `signIn('trefolio-id')` |
+| [`src/app/(auth)/register/page.tsx`](../../../src/app/(auth)/register/page.tsx) | `IdpSignupRedirect` or `RegisterForm` per IdP configuration |
+| [`src/app/(auth)/register/idp-signup-redirect.tsx`](../../../src/app/(auth)/register/idp-signup-redirect.tsx) | Client-side OAuth signup hint |
 | [`src/app/api/auth/idp-signout/route.ts`](../../../src/app/api/auth/idp-signout/route.ts) | RP-initiated logout coordination |
 | [`src/app/api/webhooks/telegram/route.ts`](../../../src/app/api/webhooks/telegram/route.ts) | After link: `idpRegisterTelegramUser`; lookup: `idpResolveSubForTelegramUser` + `User.idpSub` |
 | [`src/lib/billing/stripe.ts`](../../../src/lib/billing/stripe.ts) | `isUpsellActive` is false when unified IdP is on (Stripe Supporter upsell retired for that mode) |
@@ -43,7 +44,7 @@ From this skill file directory, approximate path to those docs: `../../../../../
 - `IDP_CLIENT_ID` — Typically `clara`.
 - `IDP_CLIENT_SECRET` — Same secret value as **`IDP_CLIENT_SECRET_CLARA`** on the IdP Vercel project (`external/accounts`).
 - `IDP_SERVICE_TOKEN` — Same bearer string as **`IDP_SERVICE_TOKEN`** on the IdP (admin import, Telegram link, `by-id` lookup, service probes).
-- `USE_LEGACY_AUTH` — Set **`true`** only for self-host / rollback so `/login` keeps local credentials + optional Google. When IdP OAuth client envs are set and this is not `true`, login/register default to the unified IdP.
+- **`isClaraIdpOAuthConfigured()`** — when `IDP_BASE_URL`, `IDP_CLIENT_ID`, and `IDP_CLIENT_SECRET` are set, `/login` uses **`IdpUnifiedBridge`** into the unified IdP; NextAuth exposes **`trefolio-id`** only in that mode. Omit `IDP_CLIENT_SECRET` locally if you still need the legacy `LoginForm`.
 
 NextAuth reads **`authorization_endpoint`** from IdP discovery; ensure **`external/accounts`** sets **`IDP_ISSUER`** (and usually **`IDP_SERVER_ORIGIN`**) per [`dev/README.md`](../../../../../dev/README.md) so the browser is not sent to `localhost`.
 

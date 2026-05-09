@@ -3,6 +3,7 @@ import { SettingsManager } from "@/components/settings-manager";
 import { SubscriptionCard } from "@/components/subscription-card";
 import { isGoogleAuthConfigured } from "@/lib/auth-providers";
 import {
+  buildIdpAccountUrlForClara,
   buildIdpBillingPortalUrlForClara,
   buildIdpUpgradeUrlForClara,
   getIdpBaseUrl,
@@ -80,6 +81,7 @@ async function loadSettingsData() {
     ? buildIdpUpgradeUrlForClara(user.idpSub)
     : null;
   const idpPortalUrl = unifiedIdpBilling ? buildIdpBillingPortalUrlForClara() : null;
+  const unifiedIdpAccountUrl = unifiedIdpBilling ? buildIdpAccountUrlForClara() : null;
   const ecosystemPatManageUrl = unifiedIdpBilling
     ? `${(getIdpBrowserOrigin() || getIdpBaseUrl()).replace(/\/+$/, "")}/account/developer`
     : null;
@@ -144,6 +146,7 @@ async function loadSettingsData() {
       idpPortalUrl,
     },
     ecosystemPatManageUrl,
+    unifiedIdpAccountUrl,
   } as const;
 }
 
@@ -180,6 +183,7 @@ export default async function SettingsPage() {
         initialPasskeys={data.initialPasskeys}
         googleAuthConfigured={isGoogleAuthConfigured()}
         ecosystemPatManageUrl={data.ecosystemPatManageUrl}
+        unifiedIdpAccountUrl={data.unifiedIdpAccountUrl}
       />
     </PageContainer>
   );

@@ -30,11 +30,25 @@ export async function syncEntitlementsFromIdpForUser(userId: string): Promise<vo
 
   const data = (await res.json()) as {
     entitlements?: { clara_daily_limit?: number };
+    profile?: { name?: string; picture?: string | null };
   };
   const limit = Number(data.entitlements?.clara_daily_limit) || 30;
 
+  const update: {
+    dailyAgentMessageLimit: number;
+    name?: string;
+    image?: string | null;
+  } = { dailyAgentMessageLimit: limit };
+
+  if (data.profile?.name !== undefined) {
+    update.name = data.profile.name;
+  }
+  if (data.profile?.picture !== undefined) {
+    update.image = data.profile.picture;
+  }
+
   await db.user.update({
     where: { id: userId },
-    data: { dailyAgentMessageLimit: limit },
+    data: update,
   });
 }

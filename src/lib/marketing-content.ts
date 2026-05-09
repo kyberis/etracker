@@ -174,6 +174,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.9",
+      date: "2026-05-09",
+      title: "Perfil y acceso en user.trefolio.com",
+      highlights: [
+        "Con la cuenta unificada del IdP, Configuración → Perfil y acceso enlaza el portal /account en user.trefolio.com (nombre, contraseña, Google, passkeys); Preferencias e integraciones siguen en Clara.",
+        "El nombre y la foto del perfil se sincronizan desde el IdP junto con el cupo diario.",
+      ],
+    },
+    {
       version: "0.12.8",
       date: "2026-05-09",
       title: "Idioma del IdP alineado con trefolio",
@@ -904,6 +913,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.9",
+      date: "2026-05-09",
+      title: "Profile & access on user.trefolio.com",
+      highlights: [
+        "With the unified IdP account, Settings → Profile & access links to the /account hub on user.trefolio.com (display name, password, Google, passkeys); Preferences and integrations stay in Clara.",
+        "Display name and profile picture sync from the IdP together with the daily quota.",
+      ],
+    },
     {
       version: "0.12.8",
       date: "2026-05-09",
