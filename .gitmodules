@@ -1,0 +1,3 @@
+[submodule "cursor-plugins"]
+	path = cursor-plugins
+	url = https://github.com/kyberis/cursor-plugins.git
