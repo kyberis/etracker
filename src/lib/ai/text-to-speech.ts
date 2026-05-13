@@ -1,8 +1,10 @@
 /**
- * Speech synthesis for Telegram voice-note replies via Vercel AI Gateway (OpenAI-compatible audio).
+ * Speech synthesis for Telegram voice-note replies via OpenAI TTS.
+ * Uses OPENAI_BASE_URL if set, otherwise calls api.openai.com directly.
+ * The Vercel AI Gateway does not proxy /audio/* endpoints.
  */
 
-import { resolveGatewayApiKeyFromEnv, VERCEL_AI_GATEWAY_BASE } from "@/lib/ai/gateway-auth";
+import { resolveGatewayApiKeyFromEnv } from "@/lib/ai/gateway-auth";
 import type { Locale } from "@/lib/i18n/locale";
 
 const MAX_INPUT_CHARS = 4096;
@@ -26,7 +28,7 @@ export async function synthesizeSpeechMp3(
   const input = text.trim().slice(0, MAX_INPUT_CHARS);
   if (!input) return null;
 
-  const apiKey = resolveGatewayApiKeyFromEnv();
+  const apiKey = process.env.OPENAI_API_KEY?.trim() || resolveGatewayApiKeyFromEnv();
   if (!apiKey) return null;
 
   const model = process.env.OPENAI_TTS_MODEL?.trim() || DEFAULT_MODEL;
@@ -57,7 +59,8 @@ export async function synthesizeSpeechMp3(
       (locale === "en" ? DEFAULT_INSTRUCTIONS_EN : DEFAULT_INSTRUCTIONS_ES);
   }
 
-  const res = await fetch(`${VERCEL_AI_GATEWAY_BASE}/audio/speech`, {
+  const base = process.env.OPENAI_BASE_URL?.replace(/\/+$/, "") || "https://api.openai.com/v1";
+  const res = await fetch(`${base}/audio/speech`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,

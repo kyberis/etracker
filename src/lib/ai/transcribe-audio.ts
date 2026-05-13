@@ -1,8 +1,18 @@
 /**
- * Speech-to-text for Telegram voice notes via Whisper (Vercel AI Gateway).
+ * Speech-to-text for Telegram voice notes via OpenAI Whisper.
+ * Uses OPENAI_BASE_URL if set, otherwise calls api.openai.com directly.
+ * The Vercel AI Gateway does not proxy /audio/* endpoints.
  */
 
-import { resolveGatewayApiKeyFromEnv, VERCEL_AI_GATEWAY_BASE } from "@/lib/ai/gateway-auth";
+import { resolveGatewayApiKeyFromEnv } from "@/lib/ai/gateway-auth";
+
+/** For direct OpenAI endpoints (audio), prefer OPENAI_API_KEY over Gateway tokens. */
+function resolveOpenAIDirectKey(): string | null {
+  return (
+    process.env.OPENAI_API_KEY?.trim() ||
+    resolveGatewayApiKeyFromEnv()
+  );
+}
 import type { Locale } from "@/lib/i18n/locale";
 
 const TRANSCRIPTION_MODEL =
@@ -52,7 +62,7 @@ export async function transcribeAudioOpenAI(opts: {
   const locale: Locale = opts.locale ?? "es";
   const messages = TRANSCRIBE_MESSAGES[locale];
 
-  const apiKey = resolveGatewayApiKeyFromEnv();
+  const apiKey = resolveOpenAIDirectKey();
   if (!apiKey) {
     return { ok: false, message: messages.missingKey };
   }
@@ -67,7 +77,8 @@ export async function transcribeAudioOpenAI(opts: {
   form.append("model", TRANSCRIPTION_MODEL);
   form.append("language", locale);
 
-  const res = await fetch(`${VERCEL_AI_GATEWAY_BASE}/audio/transcriptions`, {
+  const base = process.env.OPENAI_BASE_URL?.replace(/\/+$/, "") || "https://api.openai.com/v1";
+  const res = await fetch(`${base}/audio/transcriptions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
