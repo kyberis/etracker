@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 
 import { generateExpenseAgentReply } from "@/lib/ai/run-expense-agent";
 import { transcribeAudioOpenAI } from "@/lib/ai/transcribe-audio";
+import { isCsvAttachment, isPdfAttachment } from "@/lib/chat/attachment-types";
+import { formatBankCsvForAgent } from "@/lib/chat/bank-csv-for-agent";
 import { dataUrlToBuffer, extractPdf } from "@/lib/pdf-extract";
 import {
   consumeAgentQuota,
@@ -774,18 +776,24 @@ async function respondToLinkedUser(
   }
 
   if (message.document) {
-    const isPdf = isPdfDocument(message.document);
+    const doc = message.document;
+    const isPdf = isPdfDocument(doc);
+    const isCsv = isCsvDocument(doc);
     log.info("telegram.respond_branch", {
       userId,
-      branch: isPdf ? "pdf" : "document_unsupported",
-      mimeType: message.document.mime_type,
-      filename: message.document.file_name,
+      branch: isPdf ? "pdf" : isCsv ? "csv" : "document_unsupported",
+      mimeType: doc.mime_type,
+      filename: doc.file_name,
     });
-    if (!isPdf) {
-      await sendTelegramMessage(message.chat.id, t.unsupportedMedia);
+    if (isPdf) {
+      await handlePdfDocument(userId, message);
       return;
     }
-    await handlePdfDocument(userId, message);
+    if (isCsv) {
+      await handleCsvDocument(userId, message);
+      return;
+    }
+    await sendTelegramMessage(message.chat.id, t.unsupportedMedia);
     return;
   }
 
@@ -1014,12 +1022,14 @@ async function respondToLinkedUserText(
 
 /** Cap to keep extracted PDF text from blowing the prompt context. */
 const TELEGRAM_PDF_MAX_BYTES = 12 * 1024 * 1024;
+const TELEGRAM_CSV_MAX_BYTES = 12 * 1024 * 1024;
 
 function isPdfDocument(doc: TelegramDocument): boolean {
-  if (doc.mime_type === "application/pdf" || doc.mime_type === "application/x-pdf") {
-    return true;
-  }
-  return Boolean(doc.file_name && doc.file_name.toLowerCase().endsWith(".pdf"));
+  return isPdfAttachment(doc.mime_type, doc.file_name ?? "");
+}
+
+function isCsvDocument(doc: TelegramDocument): boolean {
+  return isCsvAttachment(doc.mime_type, doc.file_name ?? "");
 }
 
 /**
@@ -1107,6 +1117,62 @@ async function handlePdfDocument(
     composedText,
     images.length > 0 ? images : undefined,
   );
+}
+
+/**
+ * Handle a CSV document attachment. Mirrors the web chat composer: download,
+ * format rows for the agent, then forward with the same confirmation intro.
+ */
+async function handleCsvDocument(
+  userId: string,
+  message: TelegramMessageObject,
+): Promise<void> {
+  const doc = message.document!;
+  const locale = await getUserLocale(userId);
+  const t = getTelegramStrings(locale);
+  const caption = (message.text ?? message.caption ?? "").trim();
+
+  if (doc.file_size && doc.file_size > TELEGRAM_CSV_MAX_BYTES) {
+    await sendTelegramMessage(message.chat.id, t.csvTooLarge);
+    return;
+  }
+
+  await sendChatAction(message.chat.id, "typing");
+
+  const fileUrl = await getTelegramFileUrl(doc.file_id);
+  if (!fileUrl) {
+    await sendTelegramMessage(message.chat.id, t.csvDownloadFailed);
+    return;
+  }
+  const media = await downloadTelegramFile(fileUrl);
+  if (!media) {
+    await sendTelegramMessage(message.chat.id, t.csvDownloadFailed);
+    return;
+  }
+
+  let rawText: string;
+  try {
+    rawText = media.buffer.toString("utf8");
+    if (!rawText.trim()) {
+      await sendTelegramMessage(message.chat.id, t.csvReadFailed);
+      return;
+    }
+  } catch (error) {
+    log.error("telegram.csv_read_error", {
+      error: serializeError(error),
+      userId,
+    });
+    await sendTelegramMessage(message.chat.id, t.csvReadFailed);
+    return;
+  }
+
+  const filename = doc.file_name ?? "export.csv";
+  const csvBlock = formatBankCsvForAgent(rawText, filename);
+  const composedText = [caption, t.csvAttachmentIntro, csvBlock]
+    .filter((s) => s.length > 0)
+    .join("\n\n");
+
+  await respondToLinkedUserText(userId, message.chat.id, composedText);
 }
 
 async function loadHistory(userId: string): Promise<ModelMessage[]> {

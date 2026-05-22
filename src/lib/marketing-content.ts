@@ -174,6 +174,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.12.10",
+      date: "2026-05-22",
+      title: "Telegram: CSV y PDF como documento",
+      highlights: [
+        "Podés mandar un export CSV del banco como archivo en Telegram; Clara lo interpreta igual que en el chat web.",
+        "Endurecimos la detección de PDF/CSV (incluye octet-stream con extensión .pdf/.csv) para que no caigan en “tipo de archivo no soportado”.",
+      ],
+    },
+    {
       version: "0.12.9",
       date: "2026-05-09",
       title: "Perfil y acceso en user.trefolio.com",
@@ -913,6 +922,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.12.10",
+      date: "2026-05-22",
+      title: "Telegram: CSV and PDF documents",
+      highlights: [
+        "You can send a bank CSV export as a Telegram document; Clara parses it the same way as in the web chat.",
+        "Tighter PDF/CSV detection (including octet-stream with a .pdf/.csv extension) so real bank files no longer hit “unsupported file type”.",
+      ],
+    },
     {
       version: "0.12.9",
       date: "2026-05-09",

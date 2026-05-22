@@ -72,7 +72,11 @@ type MenuStringKey =
   | "pdfTooLarge"
   | "pdfDownloadFailed"
   | "pdfExtractFailed"
-  | "pdfAttachmentIntro";
+  | "pdfAttachmentIntro"
+  | "csvTooLarge"
+  | "csvDownloadFailed"
+  | "csvReadFailed"
+  | "csvAttachmentIntro";
 
 /**
  * Synthetic user message we feed the agent on the very first Telegram turn
@@ -87,7 +91,7 @@ export const TELEGRAM_SETUP_KICKOFF_TOKEN = "__telegram_setup_kickoff__";
 const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
   es: {
     welcomeLinked:
-      "Listo, vinculé tu Telegram a tu cuenta de Clara. Decime qué querés saber del mes, mandame una captura del banco o una nota de voz.",
+      "Listo, vinculé tu Telegram a tu cuenta de Clara. Decime qué querés saber del mes, mandame una captura del banco, un PDF/CSV del home banking o una nota de voz.",
     welcomeAlreadyLinked:
       "Ya estás vinculado. Mandame un mensaje y arrancamos.",
     welcomeNotLinked:
@@ -99,7 +103,7 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
     unlinkDone:
       "Listo, desvinculé este chat. Cuando quieras volver, generá el link desde Configuración.",
     unsupportedMedia:
-      "Por ahora proceso texto, fotos y mensajes de voz. Este tipo de archivo no lo puedo usar.",
+      "Por ahora proceso texto, fotos, notas de voz, PDFs y CSVs del banco. Este tipo de archivo no lo puedo usar.",
     noFile: "No recibí el archivo. ¿Lo mandás de nuevo?",
     imageDownloadFailed:
       "No pude descargar la imagen, ¿la mandás de nuevo?",
@@ -128,10 +132,18 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
       "No pude leer el PDF (¿escaneo sin OCR, contraseña o archivo dañado?). Probá una captura o un export CSV.",
     pdfAttachmentIntro:
       "Te adjunto un PDF: texto cuando el archivo tiene capa de texto, y/o páginas renderizadas como imagen si era escaneo. Tratalo como extracto bancario; respetá mis instrucciones personales y pedí confirmación antes de cargar o marcar pagos.",
+    csvTooLarge:
+      "El CSV supera los 12 MB. Mandame uno más chico o pegá el extracto como texto en el chat.",
+    csvDownloadFailed:
+      "No pude descargar el CSV, ¿lo mandás de nuevo?",
+    csvReadFailed:
+      "No pude leer el CSV (¿encoding raro o archivo dañado?). Probá re-exportarlo en UTF-8 o pegá las filas como texto.",
+    csvAttachmentIntro:
+      "Te adjunto movimientos exportados del banco (CSV). Usá la lista que sigue; respetá mis instrucciones personales si las hay. Pedí confirmación antes de cargar o marcar pagos.",
   },
   en: {
     welcomeLinked:
-      "Done, this Telegram chat is now linked to your Clara account. Ask me anything about the month, or send me a bank screenshot or a voice note.",
+      "Done, this Telegram chat is now linked to your Clara account. Ask me anything about the month, or send a bank screenshot, PDF/CSV export or a voice note.",
     welcomeAlreadyLinked: "You're already linked. Send me a message and we begin.",
     welcomeNotLinked:
       "Hi, I'm Clara. To help you with your money, link this chat to your account first. Generate the deep link in the web app (Settings → Integrations → Telegram).",
@@ -142,7 +154,7 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
     unlinkDone:
       "Done, this chat is unlinked. When you want to come back, generate the link from Settings.",
     unsupportedMedia:
-      "For now I can only process text, photos and voice messages. I can't use this file type.",
+      "For now I can process text, photos, voice notes, bank PDFs and CSVs. I can't use this file type.",
     noFile: "I didn't get the file. Can you send it again?",
     imageDownloadFailed:
       "I couldn't download the image. Can you send it again?",
@@ -170,6 +182,13 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
       "I couldn't read the PDF (scan without OCR, password-protected or corrupted file?). Try a screenshot or a CSV export.",
     pdfAttachmentIntro:
       "I'm attaching a PDF: text when the file has a text layer, and/or pages rendered as images if it was a scan. Treat it as a bank statement; respect my personal instructions and ask for confirmation before loading or marking payments.",
+    csvTooLarge:
+      "The CSV is over 12 MB. Send a smaller file or paste the statement as text in the chat.",
+    csvDownloadFailed: "I couldn't download the CSV. Can you send it again?",
+    csvReadFailed:
+      "I couldn't read the CSV (unusual encoding or corrupted file?). Try re-exporting as UTF-8 or paste the rows as text.",
+    csvAttachmentIntro:
+      "I'm attaching bank-exported movements (CSV). Use the list below; respect my personal instructions if any. Ask for confirmation before loading or marking payments.",
   },
 };
 

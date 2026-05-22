@@ -43,6 +43,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
+import { isCsvAttachment, isPdfAttachment } from "@/lib/chat/attachment-types";
 import { formatBankCsvForAgent } from "@/lib/chat/bank-csv-for-agent";
 import { intlLocale } from "@/lib/i18n/format";
 import { pick, useLocale, useT, useTx } from "@/lib/i18n/client";
@@ -731,17 +732,11 @@ export function ChatExperience({
     const text = input.trim();
     const fileArray = files ? Array.from(files) : [];
     const imageFiles = fileArray.filter((f) => f.type.startsWith("image/"));
-    const csvFiles = fileArray.filter(
-      (f) =>
-        f.type === "text/csv" ||
-        f.type === "application/csv" ||
-        f.name.toLowerCase().endsWith(".csv"),
+    const csvFiles = fileArray.filter((f) =>
+      isCsvAttachment(f.type, f.name),
     );
-    const pdfFiles = fileArray.filter(
-      (f) =>
-        f.type === "application/pdf" ||
-        f.type === "application/x-pdf" ||
-        f.name.toLowerCase().endsWith(".pdf"),
+    const pdfFiles = fileArray.filter((f) =>
+      isPdfAttachment(f.type, f.name),
     );
 
     if (!text && imageFiles.length === 0 && csvFiles.length === 0 && pdfFiles.length === 0)

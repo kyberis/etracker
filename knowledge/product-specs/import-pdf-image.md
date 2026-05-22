@@ -10,7 +10,7 @@
 The user can ingest expenses through any of:
 
 - **Web upload** — drag a PDF / image / CSV into the chat composer.
-- **Telegram message** — send a photo, document (PDF), voice note,
+- **Telegram message** — send a photo, document (PDF or CSV), voice note,
   or paste a CSV / list as text.
 
 Clara then:
@@ -39,6 +39,9 @@ Clara then:
 
 | Layer | Path |
 |-------|------|
+| Attachment MIME helpers | [`src/lib/chat/attachment-types.ts`](../../src/lib/chat/attachment-types.ts) |
+| CSV formatting | [`src/lib/chat/bank-csv-for-agent.ts`](../../src/lib/chat/bank-csv-for-agent.ts) |
+| PDF extract (web + Telegram) | [`src/lib/pdf-extract.ts`](../../src/lib/pdf-extract.ts) |
 | Whisper STT | [`src/lib/ai/transcribe-audio.ts`](../../src/lib/ai/transcribe-audio.ts) |
 | Agent loop (prompt rules for image / PDF / CSV / dates) | [`src/lib/ai/run-expense-agent.ts`](../../src/lib/ai/run-expense-agent.ts) |
 | Tool registry (`addMonthLine`, `updateMonthLine`) | [`src/lib/ai/expense-tools.ts`](../../src/lib/ai/expense-tools.ts) |
@@ -102,6 +105,9 @@ The agent's system prompt includes these rules verbatim (see
 
 - Treated like an image-extracted statement: same date rule, same
   confirmation, same dedupe index.
+- Web: client-side parse via `bank-csv-for-agent.ts` before the agent
+  turn. Telegram: CSV **documents** download server-side and use the
+  same formatter; pasted CSV text still works as before.
 - Multiple banks in one CSV → grouped in the confirmation list per
   bank.
 
