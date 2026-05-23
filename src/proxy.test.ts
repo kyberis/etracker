@@ -34,6 +34,11 @@ describe("isPublicPathname", () => {
     expect(isPublicPathname("/api/mcp/tools")).toBe(true);
   });
 
+  it("treats Agent Office internal routes as public (service token auth in handler)", () => {
+    expect(isPublicPathname("/api/internal/office/savings-summary")).toBe(true);
+    expect(isPublicPathname("/api/internal/office/propose-release")).toBe(true);
+  });
+
   it("treats /api/events/share/* (preview + accept) as public", () => {
     // `GET /api/events/share/[token]` — anonymous preview.
     expect(isPublicPathname("/api/events/share/sometoken")).toBe(true);

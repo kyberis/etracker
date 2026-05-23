@@ -47,6 +47,9 @@ const PUBLIC_PREFIXES = [
   // `/api/v1/users/by-sub/<sub>` with a service token. The route handler
   // validates the Bearer header itself, so we skip the NextAuth check.
   "/api/v1/users/by-sub",
+  // Warren Agent Office server-to-server calls (Bearer IDP_SERVICE_TOKEN).
+  // Route handlers validate the token; skip NextAuth or Warren gets 307 → /login.
+  "/api/internal/office",
 ];
 
 /**
