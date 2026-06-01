@@ -440,5 +440,11 @@ export const authOptions = {
 } as NextAuthOptions;
 
 export function getAuthSession() {
+  // Static prerender (e.g. `/offline`) runs through the root layout's
+  // `getLocale()` → session lookup. Vercel preview builds may not inject
+  // `NEXTAUTH_SECRET`; skip NextAuth instead of failing the whole build.
+  if (!process.env.NEXTAUTH_SECRET) {
+    return Promise.resolve(null);
+  }
   return getServerSession(authOptions);
 }
