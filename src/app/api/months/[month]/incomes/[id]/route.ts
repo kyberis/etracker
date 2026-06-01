@@ -62,7 +62,7 @@ export async function PATCH(
         const bank = await db.bank.findFirst({
           where: { id: payload.bankId, userId },
         });
-        if (!bank) return jsonError("El banco no existe.", 404);
+        if (!bank) return jsonError("Bank not found.", 404);
         data.bankId = payload.bankId;
       }
     }
@@ -76,7 +76,7 @@ export async function PATCH(
         where: { id: userId },
         select: { primaryCurrency: true },
       });
-      if (!user) return jsonError("Usuario no encontrado.", 404);
+      if (!user) return jsonError("User not found.", 404);
 
       const nextCurrency = payload.currency ?? line.currency;
       const nextAmount = payload.amount ?? Number(line.amount);
@@ -111,7 +111,7 @@ export async function PATCH(
     const parsedOccurredOn =
       payload.occurredOn !== undefined ? parseIsoDate(payload.occurredOn) : null;
     if (payload.occurredOn !== undefined && !parsedOccurredOn) {
-      return jsonError("occurredOn debe ser yyyy-MM-dd.", 400);
+      return jsonError("occurredOn must be yyyy-MM-dd.", 400);
     }
 
     const hasScalarUpdates = Object.keys(data).length > 0;
@@ -134,7 +134,7 @@ export async function PATCH(
       } catch (error) {
         if (error instanceof TemplateLineRebucketError) {
           return jsonError(
-            "No se puede mover una línea de plantilla a otro mes. Editá la fecha dentro del mismo mes o borrá y creá una línea suelta.",
+            "Cannot move a template line to another month. Edit the date within the same month, or delete and re-add as a one-off line.",
             400,
           );
         }

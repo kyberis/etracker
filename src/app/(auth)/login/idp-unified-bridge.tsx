@@ -3,21 +3,44 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 
+import { pick } from "@/lib/i18n/client";
+import type { Locale } from "@/lib/i18n/locale";
+
 const DEFAULT_SECONDS = 4;
 
-const COPY = {
-  login: {
-    heading: "Inicio de sesión unificado",
-    body: "Te redirigimos a la cuenta compartida de trefolio en user.trefolio.com. El mismo acceso sirve para trefolio, Clara y Will.",
-  },
-  countdown: (s: number) => `Continuando en ${s}s…`,
-  continue: "Continuar ahora",
-  retry: "Intentar de nuevo",
-  errorTitle: "No pudimos completar el inicio de sesión",
-  idpDisabledTitle: "Inicio de sesión no configurado",
-  idpDisabledBody:
-    "Este entorno no tiene el cliente OAuth del IdP. Configurá IDP_BASE_URL, IDP_CLIENT_ID e IDP_CLIENT_SECRET, o usá la app hospedada de Clara.",
-} as const;
+function bridgeCopy(locale: Locale) {
+  return {
+    login: {
+      heading: pick(locale, {
+        es: "Inicio de sesion unificado",
+        en: "Unified sign-in",
+      }),
+      body: pick(locale, {
+        es: "Te redirigimos a la cuenta compartida de trefolio en user.trefolio.com. El mismo acceso sirve para trefolio, Clara y Will.",
+        en: "We are redirecting you to the shared trefolio account at user.trefolio.com. The same login works for trefolio, Clara, and Will.",
+      }),
+    },
+    countdown: (s: number) =>
+      pick(locale, {
+        es: `Continuando en ${s}s…`,
+        en: `Continuing in ${s}s…`,
+      }),
+    continue: pick(locale, { es: "Continuar ahora", en: "Continue now" }),
+    retry: pick(locale, { es: "Intentar de nuevo", en: "Try again" }),
+    errorTitle: pick(locale, {
+      es: "No pudimos completar el inicio de sesion",
+      en: "We could not complete sign-in",
+    }),
+    idpDisabledTitle: pick(locale, {
+      es: "Inicio de sesion no configurado",
+      en: "Sign-in not configured",
+    }),
+    idpDisabledBody: pick(locale, {
+      es: "Este entorno no tiene el cliente OAuth del IdP. Configura IDP_BASE_URL, IDP_CLIENT_ID e IDP_CLIENT_SECRET, o usa la app hospedada de Clara.",
+      en: "This environment has no IdP OAuth client. Set IDP_BASE_URL, IDP_CLIENT_ID, and IDP_CLIENT_SECRET, or use the hosted Clara app.",
+    }),
+  };
+}
 
 export interface IdpUnifiedBridgeProps {
   callbackUrl?: string;
@@ -32,6 +55,9 @@ export function IdpUnifiedBridge({
   error,
   idpDisabled,
 }: IdpUnifiedBridgeProps) {
+  const locale: Locale = uiLocales === "en" ? "en" : "es";
+  const COPY = bridgeCopy(locale);
+
   const [secondsLeft, setSecondsLeft] = useState(
     error || idpDisabled ? 0 : DEFAULT_SECONDS,
   );

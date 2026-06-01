@@ -28,7 +28,7 @@ export async function POST(request: Request, context: { params: Promise<{ month:
     } catch (error) {
       if (error instanceof MonthOccurredOnMismatchError) {
         return jsonError(
-          `El mes del path (${error.pathMonth}) no coincide con la fecha del gasto (${error.occurredOnMonth}).`,
+          `Path month (${error.pathMonth}) does not match the expense date month (${error.occurredOnMonth}).`,
           400,
         );
       }
@@ -39,11 +39,11 @@ export async function POST(request: Request, context: { params: Promise<{ month:
       where: { id: userId },
       select: { primaryCurrency: true },
     });
-    if (!user) return jsonError("Usuario no encontrado.", 404);
+    if (!user) return jsonError("User not found.", 404);
 
     const bank = await db.bank.findFirst({ where: { id: payload.bankId, userId } });
     if (!bank) {
-      return jsonError("El banco no existe.", 404);
+      return jsonError("Bank not found.", 404);
     }
 
     let converted;
