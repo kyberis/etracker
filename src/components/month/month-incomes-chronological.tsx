@@ -1,9 +1,19 @@
 "use client";
 
-import { format, isSameDay, isToday, isYesterday } from "date-fns";
+import { format, isSameDay, isToday, isYesterday, parse } from "date-fns";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
 
+import { MonthIncomeEditDialog } from "@/components/month/month-income-edit-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatLineAmount } from "@/lib/format";
 import { dateLocale } from "@/lib/i18n/format";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
@@ -12,18 +22,16 @@ import { cn } from "@/lib/utils";
 
 import type { Locale } from "@/lib/i18n/locale";
 
+type Bank = { id: string; name: string };
+
 type Props = {
-  /** Pre-ordered desc por `createdAt` desde el backend. */
   incomes: MonthIncomeLinePayload[];
   primaryCurrency: string;
-  /**
-   * Callback al togglear `received`. La línea pasa del estado actual al nuevo.
-   * Solo se permite editar el mes en curso; viewer-mode (meses pasados) recibe
-   * un no-op.
-   */
+  monthKey: string;
+  banks: Bank[];
   onToggleReceived: (lineId: string, nextReceived: boolean) => void;
-  /** Permite togglear / mostrar checkboxes interactivos. */
-  editable: boolean;
+  editable?: boolean;
+  onMutated?: () => void;
 };
 
 function dayLabel(
@@ -46,11 +54,14 @@ function groupByDay(
   const groups: DayGroup[] = [];
   let current: DayGroup | null = null;
   for (const income of incomes) {
-    const created = new Date(income.createdAt);
-    if (!current || !isSameDay(new Date(current.lines[0].createdAt), created)) {
+    const dayDate = parse(income.occurredOn, "yyyy-MM-dd", new Date());
+    if (
+      !current ||
+      !isSameDay(parse(current.lines[0].occurredOn, "yyyy-MM-dd", new Date()), dayDate)
+    ) {
       current = {
-        key: format(created, "yyyy-MM-dd"),
-        label: dayLabel(created, locale, tx),
+        key: income.occurredOn,
+        label: dayLabel(dayDate, locale, tx),
         lines: [],
       };
       groups.push(current);
@@ -60,17 +71,14 @@ function groupByDay(
   return groups;
 }
 
-/**
- * Lista cronológica de líneas de ingreso. Espejo de
- * `MonthLinesChronological` con `received` en lugar de `paid` y la convención
- * inversa: una línea **no recibida** se muestra con peso visual (es la
- * "tarea pendiente" del usuario), una recibida se atenúa.
- */
 export function MonthIncomesChronological({
   incomes,
   primaryCurrency,
+  monthKey,
+  banks,
   onToggleReceived,
-  editable,
+  editable = false,
+  onMutated,
 }: Props) {
   const locale = useLocale();
   const t = useT();
@@ -78,17 +86,83 @@ export function MonthIncomesChronological({
   const groups = groupByDay(incomes, locale, tx);
   const pending = incomes.filter((i) => !i.received).length;
 
+  const [editLine, setEditLine] = useState<MonthIncomeLinePayload | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editBankId, setEditBankId] = useState("");
+  const [editCategory, setEditCategory] = useState("OTROS");
+  const [editOccurredOn, setEditOccurredOn] = useState("");
+  const [editReceived, setEditReceived] = useState(true);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  function openEdit(line: MonthIncomeLinePayload) {
+    setEditLine(line);
+    setEditName(line.name);
+    setEditAmount(line.amount);
+    setEditBankId(line.bankId ?? "");
+    setEditCategory(line.category);
+    setEditOccurredOn(line.occurredOn);
+    setEditReceived(line.received);
+    setEditError(null);
+    setEditOpen(true);
+  }
+
+  async function onSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editLine) return;
+    setEditSaving(true);
+    setEditError(null);
+    const res = await fetch(`/api/months/${monthKey}/incomes/${editLine.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editName,
+        amount: Number(editAmount),
+        ...(editBankId ? { bankId: editBankId } : { bankId: null }),
+        category: editCategory,
+        occurredOn: editOccurredOn,
+        received: editReceived,
+        occurredOnSource: "USER",
+      }),
+    });
+    setEditSaving(false);
+    if (!res.ok) {
+      const p = (await res.json().catch(() => ({}))) as { error?: string };
+      setEditError(p.error ?? t.month.saveError);
+      return;
+    }
+    setEditOpen(false);
+    setEditLine(null);
+    onMutated?.();
+  }
+
+  async function onDelete(line: MonthIncomeLinePayload) {
+    if (!window.confirm(t.month.deleteIncomeConfirm)) return;
+    setPendingId(line.id);
+    const res = await fetch(`/api/months/${monthKey}/incomes/${line.id}`, {
+      method: "DELETE",
+    });
+    setPendingId(null);
+    if (!res.ok) {
+      const p = (await res.json().catch(() => ({}))) as { error?: string };
+      alert(p.error ?? t.month.saveError);
+      return;
+    }
+    onMutated?.();
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div className="space-y-0.5">
-          <CardTitle className="text-sm">
-            {t.month.incomesChronoTitle}
-          </CardTitle>
+          <CardTitle className="text-sm">{t.month.incomesChronoTitle}</CardTitle>
           <p className="text-muted-foreground text-xs">
             {tx({
-              es: "cobros del mes · más nuevo primero",
-              en: "income this month · newest first",
+              es: "por fecha del cobro · más reciente primero",
+              en: "by payment date · newest first",
             })}
           </p>
         </div>
@@ -125,10 +199,11 @@ export function MonthIncomesChronological({
                 <ul className="mt-1 space-y-0.5">
                   {group.lines.map((income) => (
                     <li key={income.id}>
-                      <label
+                      <div
                         className={cn(
-                          "hover:bg-muted/50 flex min-h-[2.75rem] cursor-pointer items-center gap-3 rounded-lg border border-transparent px-2 py-2",
+                          "hover:bg-muted/50 flex min-h-[2.75rem] items-center gap-3 rounded-lg border border-transparent px-2 py-2",
                           !income.received && "border-warn/30 bg-warn/5",
+                          pendingId === income.id && "pointer-events-none opacity-50",
                         )}
                       >
                         <Checkbox
@@ -136,8 +211,7 @@ export function MonthIncomesChronological({
                           checked={income.received}
                           disabled={!editable}
                           onCheckedChange={(checked) =>
-                            editable &&
-                            onToggleReceived(income.id, checked === true)
+                            editable && onToggleReceived(income.id, checked === true)
                           }
                         />
                         <div className="min-w-0 flex-1">
@@ -153,13 +227,16 @@ export function MonthIncomesChronological({
                                 {tx({ es: "previsto", en: "expected" })}
                               </span>
                             ) : null}
+                            {income.occurredOnSource === "ESTIMATED" ? (
+                              <Badge variant="outline" className="shrink-0 text-[10px] font-normal">
+                                {t.month.estimatedDateBadge}
+                              </Badge>
+                            ) : null}
                           </p>
                           <p className="text-muted-foreground mt-0.5 truncate text-xs">
                             {income.bankName ? (
                               <>
-                                <span className="font-medium">
-                                  {income.bankName}
-                                </span>
+                                <span className="font-medium">{income.bankName}</span>
                                 <span className="mx-1">·</span>
                               </>
                             ) : null}
@@ -174,7 +251,30 @@ export function MonthIncomesChronological({
                         >
                           {formatLineAmount(income, primaryCurrency, locale)}
                         </p>
-                      </label>
+                        {editable ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md"
+                              aria-label={tx({ es: "Más acciones", en: "More actions" })}
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEdit(income)}>
+                                <Pencil className="size-4" />
+                                {t.month.editLineAction}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => void onDelete(income)}
+                              >
+                                <Trash2 className="size-4" />
+                                {t.month.delete}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -183,6 +283,30 @@ export function MonthIncomesChronological({
           </div>
         )}
       </CardContent>
+      <MonthIncomeEditDialog
+        open={editOpen}
+        onOpenChange={(open) => {
+          setEditOpen(open);
+          if (!open) setEditLine(null);
+        }}
+        line={editLine}
+        banks={banks}
+        saving={editSaving}
+        error={editError}
+        name={editName}
+        amount={editAmount}
+        bankId={editBankId}
+        category={editCategory}
+        occurredOn={editOccurredOn}
+        received={editReceived}
+        onChangeName={setEditName}
+        onChangeAmount={setEditAmount}
+        onChangeBankId={setEditBankId}
+        onChangeCategory={setEditCategory}
+        onChangeOccurredOn={setEditOccurredOn}
+        onChangeReceived={setEditReceived}
+        onSubmit={onSaveEdit}
+      />
     </Card>
   );
 }

@@ -632,6 +632,12 @@ export const en: Dict = {
     savingsContributionDialogTitle: "Monthly savings contribution",
     savingsContributionHint:
       "Informational: declares how much you're dedicating to savings this month. Does NOT reduce the month's balance.",
+    editLineDialogTitle: "Edit expense",
+    editIncomeDialogTitle: "Edit income",
+    transactionDateLabel: "Transaction date",
+    estimatedDateBadge: "estimated date",
+    editLineAction: "Edit",
+    deleteIncomeConfirm: "Delete this income line from the month?",
   },
 
   chat: {

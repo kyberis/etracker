@@ -12,7 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -47,6 +49,10 @@ type Props = {
   onChangeCategory: (v: string) => void;
   onChangeCurrency: (v: string) => void;
   onChangeFxRateDraft: (v: string) => void;
+  occurredOn: string;
+  paid: boolean;
+  onChangeOccurredOn: (v: string) => void;
+  onChangePaid: (v: boolean) => void;
   onSubmit: (e: FormEvent) => void | Promise<void>;
 };
 
@@ -69,6 +75,10 @@ export function MonthAddLineDialog({
   onChangeCategory,
   onChangeCurrency,
   onChangeFxRateDraft,
+  occurredOn,
+  paid,
+  onChangeOccurredOn,
+  onChangePaid,
   onSubmit,
 }: Props) {
   const t = useT();
@@ -157,14 +167,11 @@ export function MonthAddLineDialog({
         showCloseButton
       >
         <DialogHeader>
-          <DialogTitle>
-            {t.month.addLineDialogTitle}
-            {tx({ es: " (este mes)", en: " (this month)" })}
-          </DialogTitle>
+          <DialogTitle>{t.month.addLineDialogTitle}</DialogTitle>
           <DialogDescription>
             {tx({
-              es: "Solo aplica al mes en curso. No modifica las definiciones.",
-              en: "Only applies to the current month. Does not change templates.",
+              es: "Se guarda en el mes de la fecha del movimiento. No modifica plantillas.",
+              en: "Stored in the month of the transaction date. Does not change templates.",
             })}
           </DialogDescription>
         </DialogHeader>
@@ -279,6 +286,20 @@ export function MonthAddLineDialog({
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1">
+            <Label htmlFor="add-occurred-on">{t.month.transactionDateLabel}</Label>
+            <Input
+              id="add-occurred-on"
+              type="date"
+              value={occurredOn}
+              onChange={(ev) => onChangeOccurredOn(ev.target.value)}
+              required
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={paid} onCheckedChange={(c) => onChangePaid(c === true)} />
+            {paid ? t.month.paid : t.month.unpaid}
+          </label>
           <div className="space-y-1">
             <span className="text-muted-foreground text-xs">{t.common.category}</span>
             <Select value={category} onValueChange={(v) => onChangeCategory(v ?? "OTROS")}>

@@ -1,6 +1,7 @@
 import {
   EventAttributionMode,
   EventStatus,
+  OccurrenceDateSource,
   Prisma,
   SavingsMovementKind,
   UserKind,
@@ -39,6 +40,13 @@ import {
   mergePendingTemplateIncomeLinesIntoMonth,
   mergePendingTemplateLinesIntoMonth,
 } from "@/lib/month-bucket";
+import {
+  rebucketExpenseLineIfNeeded,
+  rebucketIncomeLineIfNeeded,
+  resolveCreateOccurredOn,
+  resolveMonthRecordId,
+  TemplateLineRebucketError,
+} from "@/lib/month-line-bucket";
 import { loadMonthPageData } from "@/lib/month-page-data";
 import {
   formatMonthKey,
@@ -84,6 +92,7 @@ const monthKey = z
   .string()
   .regex(/^\d{4}-\d{2}$/u, "Month in yyyy-MM format (e.g. 2026-04).");
 const optionalMonthKey = monthKey.optional();
+const occurredOnSourceEnum = z.nativeEnum(OccurrenceDateSource);
 const categoryEnum = z.enum(expenseCategoryOptions);
 const incomeCategoryEnum = z.enum(incomeCategoryOptions);
 
@@ -527,7 +536,9 @@ export function buildExpenseTools(
 
     addMonthLine: tool({
       description:
-        "Adds a one-off expense to the current month (does not create a template). Only the current month is allowed. " +
+        "Adds a one-off expense (does not create a template). The line is stored in the month bucket of " +
+        "`occurredOn` (any calendar month — past, current, or future). Call `createMonthIfNeeded` first if " +
+        "`getMonthState` says the target month is missing. " +
         "Useful when the user reports a one-off expense (bank screenshot, message, receipt). " +
         "By default the line is created as **paid** (`paid=true`) because the user usually reports " +
         "something already spent. Pass `paid=false` ONLY if the user explicitly says it isn't paid yet. " +
@@ -571,6 +582,14 @@ export function buildExpenseTools(
             "When the line comes from a bank screenshot, photo, receipt, PDF or CSV, you MUST pass the date you read off the source for THAT specific transaction (not today). " +
             "If the date in the source is missing, cropped, ambiguous or has no year, ask the user before calling this tool — do not silently default to today.",
           ),
+        occurredOnSource: occurredOnSourceEnum
+          .optional()
+          .describe(
+            "USER when the user stated the date; ARTIFACT when read from CSV/PDF/image; omit for chat without date → server sets ESTIMATED (today).",
+          ),
+        month: optionalMonthKey.describe(
+          "Optional yyyy-MM bucket hint; must match the month of `occurredOn` if provided. Usually omit and let the server derive from `occurredOn`.",
+        ),
         eventId: cuidIdSchema
           .optional()
           .describe(
@@ -593,8 +612,12 @@ export function buildExpenseTools(
           ),
       }),
       execute: async (input) => {
-        const month = getCurrentMonthKey();
-        const monthStart = toMonthStart(parseMonthKey(month));
+        const { occurredOn, occurredOnSource } = resolveCreateOccurredOn({
+          occurredOn: input.occurredOn,
+          occurredOnSource: input.occurredOnSource,
+        });
+        const bucketMonthKey =
+          input.month ?? formatMonthKey(toMonthStart(occurredOn));
 
         // For GUEST users, the tool is locked to a single event and the
         // line must live under the event OWNER's userId (so it shows up
@@ -685,21 +708,20 @@ export function buildExpenseTools(
           };
         }
 
-        const [storageUser, record] = await Promise.all([
-          db.user.findUnique({
-            where: { id: storageUserId },
-            select: { primaryCurrency: true },
-          }),
-          db.monthRecord.findFirst({
-            where: { userId: storageUserId, month: monthStart },
-          }),
-        ]);
+        const storageUser = await db.user.findUnique({
+          where: { id: storageUserId },
+          select: { primaryCurrency: true },
+        });
         if (!storageUser) return { error: "User not found." };
-        if (!record) {
+
+        let monthRecordId: string;
+        try {
+          monthRecordId = await resolveMonthRecordId(storageUserId, occurredOn);
+        } catch {
           return {
             error: isGuest
-              ? "The event owner's current month is not set up yet. Ask them to open the dashboard once."
-              : "The current month is not set up yet. Ask the user to create it with createMonthIfNeeded.",
+              ? "The event owner's month could not be set up. Ask them to open the dashboard once."
+              : "Could not set up the target month. Ask the user to retry or use createMonthIfNeeded.",
           };
         }
         // Bank must belong to the storage user (event owner for shared events).
@@ -725,8 +747,6 @@ export function buildExpenseTools(
           }
           throw error;
         }
-
-        const occurredOn = parseIsoDate(input.occurredOn) ?? todayUtcDate();
 
         let eventName: string | null = null;
         let eventId: string | null = null;
@@ -777,11 +797,12 @@ export function buildExpenseTools(
           line = await db.monthExpenseLine.create({
             data: {
               userId: storageUserId,
-              monthRecordId: record.id,
+              monthRecordId,
               templateId: null,
               bankId: input.bankId,
               name: input.name.trim(),
               occurredOn,
+              occurredOnSource,
               amount: converted.amount,
               currency: converted.currency,
               fxRate: converted.fxRate,
@@ -804,13 +825,17 @@ export function buildExpenseTools(
           }
           throw error;
         }
+        await expireYearTimeline(userId, occurredOn.getUTCFullYear());
+
         return {
           ok: true as const,
           duplicate: false as const,
           ...(droppedEventNote ? { note: droppedEventNote } : {}),
           line: {
             id: line.id,
-            month,
+            month: bucketMonthKey,
+            occurredOn: line.occurredOn.toISOString().slice(0, 10),
+            occurredOnSource: line.occurredOnSource,
             name: line.name,
             amount: line.amount.toString(),
             currency: line.currency,
@@ -895,6 +920,7 @@ export function buildExpenseTools(
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
           .optional(),
+        occurredOnSource: occurredOnSourceEnum.optional(),
       }),
       execute: async ({
         id,
@@ -906,9 +932,10 @@ export function buildExpenseTools(
         bankId,
         category,
         occurredOn,
+        occurredOnSource,
       }) => {
         const existing = await db.monthExpenseLine.findFirst({
-          where: { id, monthRecord: { userId } },
+          where: { id, userId },
           include: { monthRecord: { select: { month: true } } },
         });
         if (!existing) return { error: "Line not found." };
@@ -922,16 +949,17 @@ export function buildExpenseTools(
           amountConverted?: Prisma.Decimal;
           bankId?: string;
           category?: ExpenseCategory;
-          occurredOn?: Date;
+          occurredOnSource?: OccurrenceDateSource;
         } = {};
         if (paid !== undefined) data.paid = paid;
         if (name !== undefined) data.name = name.trim();
         if (category !== undefined) data.category = category as ExpenseCategory;
+        if (occurredOnSource !== undefined) data.occurredOnSource = occurredOnSource;
 
-        if (occurredOn !== undefined) {
-          const parsed = parseIsoDate(occurredOn);
-          if (!parsed) return { error: "Invalid occurredOn (yyyy-MM-dd)." };
-          data.occurredOn = parsed;
+        const parsedOccurredOn =
+          occurredOn !== undefined ? parseIsoDate(occurredOn) : null;
+        if (occurredOn !== undefined && !parsedOccurredOn) {
+          return { error: "Invalid occurredOn (yyyy-MM-dd)." };
         }
 
         if (bankId !== undefined) {
@@ -981,28 +1009,63 @@ export function buildExpenseTools(
           }
         }
 
-        if (Object.keys(data).length === 0) {
+        const hasScalarUpdates = Object.keys(data).length > 0;
+        if (!hasScalarUpdates && parsedOccurredOn === null) {
           return { error: "Nothing to update." };
         }
 
-        let updated;
-        try {
-          updated = await db.monthExpenseLine.update({
-            where: { id },
-            data,
-          });
-        } catch (error) {
-          if (isUniqueViolation(error)) {
-            return {
-              error:
-                "There's already an expense with that date, description, and amount; I can't leave two identical ones.",
-            };
+        let rebucketYear: number | null = null;
+        if (parsedOccurredOn) {
+          try {
+            const rebucket = await rebucketExpenseLineIfNeeded(
+              id,
+              userId,
+              parsedOccurredOn,
+              { occurredOnSource },
+            );
+            if (rebucket.rebucketed) {
+              rebucketYear = parsedOccurredOn.getUTCFullYear();
+            }
+          } catch (error) {
+            if (error instanceof TemplateLineRebucketError) {
+              return {
+                error:
+                  "Cannot move a template line to another month. Edit within the same month or delete and re-add as a one-off.",
+              };
+            }
+            throw error;
           }
-          throw error;
         }
-        await expireYearTimeline(
-          userId,
-          existing.monthRecord.month.getUTCFullYear(),
+
+        let updated = existing;
+        if (hasScalarUpdates) {
+          try {
+            updated = await db.monthExpenseLine.update({
+              where: { id },
+              data,
+              include: { monthRecord: { select: { month: true } } },
+            });
+          } catch (error) {
+            if (isUniqueViolation(error)) {
+              return {
+                error:
+                  "There's already an expense with that date, description, and amount; I can't leave two identical ones.",
+              };
+            }
+            throw error;
+          }
+        } else if (parsedOccurredOn) {
+          updated =
+            (await db.monthExpenseLine.findFirst({
+              where: { id, userId },
+              include: { monthRecord: { select: { month: true } } },
+            })) ?? existing;
+        }
+
+        const years = new Set<number>([existing.monthRecord.month.getUTCFullYear()]);
+        if (rebucketYear !== null) years.add(rebucketYear);
+        await Promise.all(
+          [...years].map((year) => expireYearTimeline(userId, year)),
         );
         return {
           ok: true,
@@ -1017,6 +1080,7 @@ export function buildExpenseTools(
             bankId: updated.bankId,
             category: updated.category,
             occurredOn: updated.occurredOn.toISOString().slice(0, 10),
+            occurredOnSource: updated.occurredOnSource,
           },
         };
       },
@@ -1276,8 +1340,8 @@ export function buildExpenseTools(
 
     addIncomeLine: tool({
       description:
-        "Records a ONE-OFF incoming payment in the current month (does not create a template). Only the " +
-        "current month is allowed. Use it when the user says 'I got paid X', 'they paid me $Y', 'they " +
+        "Records a ONE-OFF incoming payment (does not create a template). Stored in the month bucket of " +
+        "`occurredOn` (any month). Use `createMonthIfNeeded` if the month is missing. Use when the user says 'I got paid X', 'they paid me $Y', 'they " +
         "transferred me $Z for freelance', 'the bonus came in', 'I got a refund', etc. " +
         "By default the line is created as **received** (`received=true`) because the user " +
         "is reporting something already received. Pass `received=false` ONLY if they clarify they're still " +
@@ -1319,22 +1383,30 @@ export function buildExpenseTools(
             "When the income comes from a bank screenshot, photo, receipt, PDF or CSV, you MUST pass the date you read off the source for THAT specific entry (not today). " +
             "If the date in the source is missing, cropped, ambiguous or has no year, ask the user before calling this tool — do not silently default to today.",
           ),
+        occurredOnSource: occurredOnSourceEnum.optional(),
+        month: optionalMonthKey,
       }),
       execute: async (input) => {
-        const month = getCurrentMonthKey();
-        const monthStart = toMonthStart(parseMonthKey(month));
-        const [user, record] = await Promise.all([
-          db.user.findUnique({
-            where: { id: userId },
-            select: { primaryCurrency: true },
-          }),
-          db.monthRecord.findFirst({ where: { userId, month: monthStart } }),
-        ]);
+        const { occurredOn, occurredOnSource } = resolveCreateOccurredOn({
+          occurredOn: input.occurredOn,
+          occurredOnSource: input.occurredOnSource,
+        });
+        const bucketMonthKey =
+          input.month ?? formatMonthKey(toMonthStart(occurredOn));
+
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: { primaryCurrency: true },
+        });
         if (!user) return { error: "User not found." };
-        if (!record) {
+
+        let monthRecordId: string;
+        try {
+          monthRecordId = await resolveMonthRecordId(userId, occurredOn);
+        } catch {
           return {
             error:
-              "The current month is not set up yet. Ask the user to create it with createMonthIfNeeded.",
+              "Could not set up the target month. Ask the user to use createMonthIfNeeded.",
           };
         }
         let bankName: string | null = null;
@@ -1364,17 +1436,17 @@ export function buildExpenseTools(
           throw error;
         }
 
-        const occurredOn = parseIsoDate(input.occurredOn) ?? todayUtcDate();
         let line;
         try {
           line = await db.monthIncomeLine.create({
             data: {
               userId,
-              monthRecordId: record.id,
+              monthRecordId,
               templateId: null,
               bankId: input.bankId ?? null,
               name: input.name.trim(),
               occurredOn,
+              occurredOnSource,
               amount: converted.amount,
               currency: converted.currency,
               fxRate: converted.fxRate,
@@ -1394,13 +1466,13 @@ export function buildExpenseTools(
           }
           throw error;
         }
-        await expireYearTimeline(userId, monthStart.getUTCFullYear());
+        await expireYearTimeline(userId, occurredOn.getUTCFullYear());
         return {
           ok: true as const,
           duplicate: false as const,
           line: {
             id: line.id,
-            month,
+            month: bucketMonthKey,
             name: line.name,
             amount: line.amount.toString(),
             currency: line.currency,
@@ -1411,6 +1483,7 @@ export function buildExpenseTools(
             category: line.category,
             received: line.received,
             occurredOn: line.occurredOn.toISOString().slice(0, 10),
+            occurredOnSource: line.occurredOnSource,
           },
         };
       },
@@ -1437,6 +1510,7 @@ export function buildExpenseTools(
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
           .optional(),
+        occurredOnSource: occurredOnSourceEnum.optional(),
       }),
       execute: async ({
         id,
@@ -1448,6 +1522,7 @@ export function buildExpenseTools(
         bankId,
         category,
         occurredOn,
+        occurredOnSource,
       }) => {
         const existing = await db.monthIncomeLine.findFirst({
           where: { id, userId },
@@ -1464,16 +1539,17 @@ export function buildExpenseTools(
           amountConverted?: Prisma.Decimal;
           bankId?: string | null;
           category?: IncomeCategory;
-          occurredOn?: Date;
+          occurredOnSource?: OccurrenceDateSource;
         } = {};
         if (received !== undefined) data.received = received;
         if (name !== undefined) data.name = name.trim();
         if (category !== undefined) data.category = category as IncomeCategory;
+        if (occurredOnSource !== undefined) data.occurredOnSource = occurredOnSource;
 
-        if (occurredOn !== undefined) {
-          const parsed = parseIsoDate(occurredOn);
-          if (!parsed) return { error: "Invalid occurredOn (yyyy-MM-dd)." };
-          data.occurredOn = parsed;
+        const parsedOccurredOn =
+          occurredOn !== undefined ? parseIsoDate(occurredOn) : null;
+        if (occurredOn !== undefined && !parsedOccurredOn) {
+          return { error: "Invalid occurredOn (yyyy-MM-dd)." };
         }
 
         if (bankId !== undefined) {
@@ -1526,25 +1602,61 @@ export function buildExpenseTools(
           }
         }
 
-        if (Object.keys(data).length === 0) {
+        const hasScalarUpdates = Object.keys(data).length > 0;
+        if (!hasScalarUpdates && parsedOccurredOn === null) {
           return { error: "Nothing to update." };
         }
 
-        let updated;
-        try {
-          updated = await db.monthIncomeLine.update({ where: { id }, data });
-        } catch (error) {
-          if (isUniqueViolation(error)) {
-            return {
-              error:
-                "There's already an incoming payment with that date, description, and amount; I can't leave two identical ones.",
-            };
+        let rebucketYear: number | null = null;
+        if (parsedOccurredOn) {
+          try {
+            const rebucket = await rebucketIncomeLineIfNeeded(
+              id,
+              userId,
+              parsedOccurredOn,
+              { occurredOnSource },
+            );
+            if (rebucket.rebucketed) rebucketYear = parsedOccurredOn.getUTCFullYear();
+          } catch (error) {
+            if (error instanceof TemplateLineRebucketError) {
+              return {
+                error:
+                  "Cannot move a template income line to another month. Edit within the same month or delete and re-add.",
+              };
+            }
+            throw error;
           }
-          throw error;
         }
-        await expireYearTimeline(
-          userId,
-          existing.monthRecord.month.getUTCFullYear(),
+
+        let updated = existing;
+        if (hasScalarUpdates) {
+          try {
+            updated = await db.monthIncomeLine.update({
+              where: { id },
+              data,
+              include: { monthRecord: { select: { month: true } } },
+            });
+          } catch (error) {
+            if (isUniqueViolation(error)) {
+              return {
+                error:
+                  "There's already an incoming payment with that date, description, and amount; I can't leave two identical ones.",
+              };
+            }
+            throw error;
+          }
+        } else if (parsedOccurredOn) {
+          updated =
+            (await db.monthIncomeLine.findFirst({
+              where: { id, userId },
+              include: { monthRecord: { select: { month: true } } },
+            })) ?? existing;
+        }
+
+        const years = new Set<number>([existing.monthRecord.month.getUTCFullYear()]);
+        if (rebucketYear !== null) years.add(rebucketYear);
+        await Promise.all(
+          [...years].map((year) => expireYearTimeline(userId, year)),
         );
         return {
           ok: true as const,
@@ -1559,6 +1671,7 @@ export function buildExpenseTools(
             bankId: updated.bankId,
             category: updated.category,
             occurredOn: updated.occurredOn.toISOString().slice(0, 10),
+            occurredOnSource: updated.occurredOnSource,
           },
         };
       },

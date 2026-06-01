@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { defaultOccurredOnForMonthView } from "@/lib/month-default-occurred-on";
 import { formatCurrency } from "@/lib/format";
 import { dateLocale } from "@/lib/i18n/format";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
@@ -101,21 +102,6 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   const [savingsBusy, setSavingsBusy] = useState(false);
   const [savingsError, setSavingsError] = useState<string | null>(null);
 
-  const [lastMonth, setLastMonth] = useState(data.month);
-  if (lastMonth !== data.month) {
-    setLastMonth(data.month);
-    setExpenses(data.expenses);
-    setIncomes(data.incomes);
-    setCarryoverFromPrev(data.carryoverFromPrev);
-    setDismissedPending(false);
-    setDismissedIncomePending(false);
-    setCarryoverPrompt(data.carryoverPrompt);
-    setCarryoverError(null);
-    setSavingsBalance(data.savings);
-    setMonthlyContribution(data.monthlySavingsContribution);
-    setSavingsError(null);
-  }
-
   // Add line dialog
   const [addName, setAddName] = useState("");
   const [addAmount, setAddAmount] = useState("");
@@ -129,6 +115,30 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addOccurredOn, setAddOccurredOn] = useState(() =>
+    defaultOccurredOnForMonthView(data.month),
+  );
+  const [addPaid, setAddPaid] = useState(true);
+  const [addIncomeOccurredOn, setAddIncomeOccurredOn] = useState(() =>
+    defaultOccurredOnForMonthView(data.month),
+  );
+
+  const [lastMonth, setLastMonth] = useState(data.month);
+  if (lastMonth !== data.month) {
+    setLastMonth(data.month);
+    setExpenses(data.expenses);
+    setIncomes(data.incomes);
+    setCarryoverFromPrev(data.carryoverFromPrev);
+    setDismissedPending(false);
+    setDismissedIncomePending(false);
+    setCarryoverPrompt(data.carryoverPrompt);
+    setCarryoverError(null);
+    setSavingsBalance(data.savings);
+    setMonthlyContribution(data.monthlySavingsContribution);
+    setSavingsError(null);
+    setAddOccurredOn(defaultOccurredOnForMonthView(data.month));
+    setAddIncomeOccurredOn(defaultOccurredOnForMonthView(data.month));
+  }
 
   const [mergingPending, setMergingPending] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
@@ -251,6 +261,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     setAddIncomeCurrency(data.primaryCurrency);
     setAddIncomeFxRateDraft("");
     setAddIncomeReceived(true);
+    setAddIncomeOccurredOn(defaultOccurredOnForMonthView(data.month));
     setAddIncomeDialogOpen(true);
   }
 
@@ -270,6 +281,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         currency: addIncomeCurrency || data.primaryCurrency,
         ...(trimmedFxRate ? { fxRate: Number(trimmedFxRate) } : {}),
         received: addIncomeReceived,
+        occurredOn: addIncomeOccurredOn,
       }),
     });
     setAddIncomeBusy(false);
@@ -326,6 +338,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         category: addCategory,
         currency: addCurrency || data.primaryCurrency,
         ...(trimmedFxRate ? { fxRate: Number(trimmedFxRate) } : {}),
+        occurredOn: addOccurredOn,
+        paid: addPaid,
       }),
     });
     setAdding(false);
@@ -678,8 +692,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </Card>
       ) : null}
 
-      {data.isCurrentMonth ? (
-        <MonthAddIncomeDialog
+      <MonthAddIncomeDialog
           open={addIncomeDialogOpen}
           onOpenChange={setAddIncomeDialogOpen}
           banks={data.banks}
@@ -700,11 +713,12 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
           onChangeCurrency={setAddIncomeCurrency}
           onChangeFxRateDraft={setAddIncomeFxRateDraft}
           onChangeReceived={setAddIncomeReceived}
+          occurredOn={addIncomeOccurredOn}
+          onChangeOccurredOn={setAddIncomeOccurredOn}
           onSubmit={onAddIncome}
         />
-      ) : null}
 
-      {data.isCurrentMonth && data.banks.length === 0 ? (
+      {data.banks.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           {tx({
             es: "Creá al menos un banco para agregar gastos a este mes.",
@@ -713,7 +727,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </p>
       ) : null}
 
-      {data.isCurrentMonth && data.banks.length > 0 ? (
+      {data.banks.length > 0 ? (
         <>
           <MonthAddLineDialog
             open={addDialogOpen}
@@ -734,12 +748,18 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
             onChangeCategory={setAddCategory}
             onChangeCurrency={setAddCurrency}
             onChangeFxRateDraft={setAddFxRateDraft}
+            occurredOn={addOccurredOn}
+            paid={addPaid}
+            onChangeOccurredOn={setAddOccurredOn}
+            onChangePaid={setAddPaid}
             onSubmit={onAddExpense}
           />
           <Button
             type="button"
             onClick={() => {
               setAddError(null);
+              setAddOccurredOn(defaultOccurredOnForMonthView(data.month));
+              setAddPaid(true);
               setAddDialogOpen(true);
             }}
             className="gradient-lime text-ink fixed right-4 bottom-4 z-30 size-14 rounded-full shadow-[0_18px_40px_-16px_oklch(0.74_0.18_156/0.55)] sm:right-6 sm:bottom-6"
@@ -761,7 +781,7 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         balance={balance}
         pendingByBank={pendingByBank}
         currency={data.primaryCurrency}
-        onAddIncome={data.isCurrentMonth ? openAddIncomeDialog : undefined}
+        onAddIncome={openAddIncomeDialog}
       />
 
       <Card className="border-lilac/40 bg-lilac/10">
@@ -892,8 +912,11 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       <MonthIncomesChronological
         incomes={incomes}
         primaryCurrency={data.primaryCurrency}
+        monthKey={data.month}
+        banks={data.banks}
         onToggleReceived={toggleIncomeReceived}
-        editable={data.isCurrentMonth}
+        editable
+        onMutated={() => router.refresh()}
       />
 
       {data.incomeHistory.length > 0 ? (
@@ -936,8 +959,11 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       <MonthLinesChronological
         expenses={expenses}
         primaryCurrency={data.primaryCurrency}
+        banks={data.banks}
+        editable
         onTogglePaid={toggleLinePaid}
         onLineEventChanged={() => router.refresh()}
+        onMutated={() => router.refresh()}
       />
     </div>
   );

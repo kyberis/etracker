@@ -1,9 +1,13 @@
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import { isUniqueViolation } from "@/lib/expense-line";
+import { isUniqueViolation, parseIsoDate } from "@/lib/expense-line";
 import { FxUnavailableError, convertToPrimary } from "@/lib/fx/rates";
 import { jsonError, withApi } from "@/lib/http";
+import {
+  TemplateLineRebucketError,
+  rebucketExpenseLineIfNeeded,
+} from "@/lib/month-line-bucket";
 import { requireUserId } from "@/lib/session";
 import { monthExpenseLineUpdateSchema } from "@/lib/validators";
 import { expireYearTimeline } from "@/lib/year-timeline-data";
@@ -30,14 +34,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       currency?: string;
       fxRate?: Prisma.Decimal;
       amountConverted?: Prisma.Decimal;
+      bankId?: string;
+      category?: typeof payload.category;
+      occurredOnSource?: typeof payload.occurredOnSource;
     } = {};
     if (payload.paid !== undefined) data.paid = payload.paid;
     if (payload.name !== undefined) data.name = payload.name;
+    if (payload.category !== undefined) data.category = payload.category;
+    if (payload.occurredOnSource !== undefined) {
+      data.occurredOnSource = payload.occurredOnSource;
+    }
 
-    // FX-affecting fields: any change to amount/currency/fxRate triggers a
-    // re-conversion. The rate stays "locked" only when no FX-bearing field
-    // changes — editing the amount alone reuses the existing rate, which is
-    // what we want for "fix a typo" flows.
+    if (payload.bankId !== undefined) {
+      const bank = await db.bank.findFirst({
+        where: { id: payload.bankId, userId },
+      });
+      if (!bank) return jsonError("El banco no existe.", 404);
+      data.bankId = payload.bankId;
+    }
+
     const amountChanged = payload.amount !== undefined;
     const currencyChanged = payload.currency !== undefined;
     const rateChanged = payload.fxRate !== undefined;
@@ -51,8 +66,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
       const nextCurrency = payload.currency ?? line.currency;
       const nextAmount = payload.amount ?? Number(line.amount);
-      // When the user changes currency without supplying a new rate, fetch a
-      // fresh one. When they just tweak the amount, keep the locked rate.
       const useExistingRate =
         !currencyChanged &&
         !rateChanged &&
@@ -81,23 +94,88 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       }
     }
 
-    if (Object.keys(data).length === 0) {
+    const parsedOccurredOn =
+      payload.occurredOn !== undefined ? parseIsoDate(payload.occurredOn) : null;
+    if (payload.occurredOn !== undefined && !parsedOccurredOn) {
+      return jsonError("occurredOn must be yyyy-MM-dd.", 400);
+    }
+
+    const hasScalarUpdates = Object.keys(data).length > 0;
+    if (!hasScalarUpdates && parsedOccurredOn === null) {
       return jsonError("Nothing to update.", 400);
     }
 
-    let updated;
-    try {
-      updated = await db.monthExpenseLine.update({ where: { id }, data });
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        return jsonError(
-          "An expense with the same date, description and amount already exists. Cannot leave two identical entries.",
-          409,
-        );
+    let rebucketYear: number | null = null;
+    if (parsedOccurredOn) {
+      try {
+        const rebucket = await rebucketExpenseLineIfNeeded(id, userId, parsedOccurredOn, {
+          occurredOnSource: payload.occurredOnSource,
+        });
+        if (rebucket.rebucketed) {
+          rebucketYear = parsedOccurredOn.getUTCFullYear();
+        }
+        if (payload.occurredOnSource !== undefined) {
+          delete data.occurredOnSource;
+        }
+      } catch (error) {
+        if (error instanceof TemplateLineRebucketError) {
+          return jsonError(
+            "No se puede mover una línea de plantilla a otro mes. Editá la fecha dentro del mismo mes o borrá y creá una línea suelta.",
+            400,
+          );
+        }
+        throw error;
       }
-      throw error;
     }
-    await expireYearTimeline(userId, line.monthRecord.month.getUTCFullYear());
+
+    let updated = line;
+    if (hasScalarUpdates) {
+      try {
+        updated = await db.monthExpenseLine.update({
+          where: { id },
+          data,
+          include: { monthRecord: { select: { month: true, userId: true } } },
+        });
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          return jsonError(
+            "An expense with the same date, description and amount already exists. Cannot leave two identical entries.",
+            409,
+          );
+        }
+        throw error;
+      }
+    } else if (parsedOccurredOn) {
+      updated =
+        (await db.monthExpenseLine.findFirst({
+          where: { id, monthRecord: { userId } },
+          include: { monthRecord: { select: { month: true, userId: true } } },
+        })) ?? line;
+    }
+
+    const years = new Set<number>([line.monthRecord.month.getUTCFullYear()]);
+    if (rebucketYear !== null) years.add(rebucketYear);
+    await Promise.all([...years].map((year) => expireYearTimeline(userId, year)));
+
     return { line: updated };
+  });
+}
+
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  return withApi(async () => {
+    const userId = await requireUserId();
+    const { id } = await context.params;
+
+    const line = await db.monthExpenseLine.findFirst({
+      where: { id, monthRecord: { userId } },
+      include: { monthRecord: { select: { month: true } } },
+    });
+    if (!line) {
+      return jsonError("Line not found.", 404);
+    }
+
+    await db.monthExpenseLine.delete({ where: { id } });
+    await expireYearTimeline(userId, line.monthRecord.month.getUTCFullYear());
+    return { ok: true };
   });
 }

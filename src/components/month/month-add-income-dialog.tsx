@@ -52,6 +52,8 @@ type Props = {
   onChangeCurrency: (v: string) => void;
   onChangeFxRateDraft: (v: string) => void;
   onChangeReceived: (v: boolean) => void;
+  occurredOn: string;
+  onChangeOccurredOn: (v: string) => void;
   onSubmit: (e: FormEvent) => void | Promise<void>;
 };
 
@@ -81,6 +83,8 @@ export function MonthAddIncomeDialog({
   onChangeCurrency,
   onChangeFxRateDraft,
   onChangeReceived,
+  occurredOn,
+  onChangeOccurredOn,
   onSubmit,
 }: Props) {
   const t = useT();
@@ -307,6 +311,16 @@ export function MonthAddIncomeDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="add-income-occurred-on">{t.month.transactionDateLabel}</Label>
+            <Input
+              id="add-income-occurred-on"
+              type="date"
+              value={occurredOn}
+              onChange={(ev) => onChangeOccurredOn(ev.target.value)}
+              required
+            />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input

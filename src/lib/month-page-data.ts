@@ -33,11 +33,11 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
         // heredan ese orden dentro de cada banco.
         lines: {
           include: { bank: true, event: true },
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
         },
         incomeLines: {
           include: { bank: true },
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
         },
       },
     }),
@@ -91,6 +91,7 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     received: line.received,
     category: line.category,
     occurredOn: line.occurredOn.toISOString().slice(0, 10),
+    occurredOnSource: line.occurredOnSource,
     createdAt: line.createdAt.toISOString(),
   }));
 
@@ -127,6 +128,8 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
           status: line.event.status,
         }
       : null,
+    occurredOn: line.occurredOn.toISOString().slice(0, 10),
+    occurredOnSource: line.occurredOnSource,
     createdAt: line.createdAt.toISOString(),
   }));
 
