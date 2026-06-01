@@ -174,6 +174,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.13.0",
+      date: "2026-05-31",
+      title: "CRUD en cualquier mes y fechas estimadas",
+      highlights: [
+        "Podés crear, editar y borrar gastos e ingresos en meses pasados, actuales o futuros desde el dashboard, el chat y Telegram; las líneas se agrupan por la fecha real del movimiento.",
+        "Si no indicás fecha en el chat, Clara usa hoy y la marca como estimada; en CSV/PDF conserva la fecha del extracto.",
+        "El agente actúa con menos confirmaciones en altas claras y mantiene confirmación en importaciones masivas y borrados.",
+      ],
+    },
+    {
       version: "0.12.10",
       date: "2026-05-22",
       title: "Telegram: CSV y PDF como documento",
@@ -922,6 +932,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.13.0",
+      date: "2026-05-31",
+      title: "Cross-month CRUD and estimated dates",
+      highlights: [
+        "Create, edit, and delete expenses and income in past, current, or future months from the dashboard, chat, and Telegram; lines bucket by the real transaction date.",
+        "When you omit a date in chat, Clara uses today and marks it as estimated; CSV/PDF imports keep the date from the statement.",
+        "The agent acts with fewer confirmations on clear one-offs while still confirming bulk imports and deletions.",
+      ],
+    },
     {
       version: "0.12.10",
       date: "2026-05-22",

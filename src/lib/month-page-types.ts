@@ -31,11 +31,11 @@ export type MonthLinePayload = {
    * único row colapsable dentro del listado del mes.
    */
   event: MonthLineEventRef | null;
-  /**
-   * ISO timestamp del momento en que se creó la línea. Es el único orden
-   * cronológico real disponible para `MonthExpenseLine` (no hay fecha de
-   * transacción explícita), así que lo usamos para ordenar la lista del mes.
-   */
+  /** Fecha real del gasto (`yyyy-MM-dd`, UTC). */
+  occurredOn: string;
+  /** USER | ARTIFACT | ESTIMATED — cómo se fijó `occurredOn`. */
+  occurredOnSource: "USER" | "ARTIFACT" | "ESTIMATED";
+  /** ISO timestamp de alta en el sistema (orden secundario). */
   createdAt: string;
 };
 
@@ -67,6 +67,7 @@ export type MonthIncomeLinePayload = {
   category: string;
   /** ISO date `yyyy-MM-dd`. Real date the payment hit the user's account. */
   occurredOn: string;
+  occurredOnSource: "USER" | "ARTIFACT" | "ESTIMATED";
   /** ISO timestamp del momento en que se creó la línea. */
   createdAt: string;
 };

@@ -635,6 +635,12 @@ export const es = {
     savingsContributionDialogTitle: "Aporte mensual a ahorro",
     savingsContributionHint:
       "Es informativo: declara cuánto dedicás a ahorro este mes. NO descuenta del balance.",
+    editLineDialogTitle: "Editar gasto",
+    editIncomeDialogTitle: "Editar cobro",
+    transactionDateLabel: "Fecha del movimiento",
+    estimatedDateBadge: "fecha estimada",
+    editLineAction: "Editar",
+    deleteIncomeConfirm: "¿Borrar este cobro del mes?",
   },
 
   chat: {

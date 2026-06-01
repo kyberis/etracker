@@ -1,21 +1,21 @@
 import { db } from "@/lib/db";
-import {
-  isUniqueViolation,
-  parseIsoDate,
-  todayUtcDate,
-} from "@/lib/expense-line";
+import { isUniqueViolation } from "@/lib/expense-line";
 import { FxUnavailableError, convertToPrimary } from "@/lib/fx/rates";
 import { jsonError, withApi } from "@/lib/http";
-import { isCurrentMonthKey, parseMonthKey, toMonthStart } from "@/lib/months";
+import {
+  MonthOccurredOnMismatchError,
+  assertPathMonthMatchesOccurredOn,
+  resolveCreateOccurredOn,
+  resolveMonthRecordId,
+} from "@/lib/month-line-bucket";
+import { parseMonthKey } from "@/lib/months";
 import { requireUserId } from "@/lib/session";
 import { monthIncomeLineCreateSchema, monthParamSchema } from "@/lib/validators";
 import { expireYearTimeline } from "@/lib/year-timeline-data";
 
 /**
- * Crear una línea de ingreso para el mes actual. Espejo de
- * `POST /api/months/[month]/lines` para gastos. Solo permitido en el mes en
- * curso (igual que los gastos): cobros pasados se cargan editando el mes
- * correspondiente vía herramientas de agente o flujo de import.
+ * Crear una línea de ingreso para el mes indicado en el path. El path debe
+ * coincidir con el mes UTC de `occurredOn` (default: hoy, marcado ESTIMATED).
  */
 export async function POST(request: Request, context: { params: Promise<{ month: string }> }) {
   return withApi(async () => {
@@ -23,30 +23,34 @@ export async function POST(request: Request, context: { params: Promise<{ month:
     const { month: monthParam } = await context.params;
     const { month: monthKey } = monthParamSchema.parse({ month: monthParam });
 
-    if (!isCurrentMonthKey(monthKey)) {
-      return jsonError("Solo se pueden agregar ingresos al mes en curso.", 403);
-    }
-
-    const month = toMonthStart(parseMonthKey(monthKey));
     const body = await request.json();
     const payload = monthIncomeLineCreateSchema.parse(body);
 
-    const [user, monthRecord] = await Promise.all([
-      db.user.findUnique({
-        where: { id: userId },
-        select: { primaryCurrency: true },
-      }),
-      db.monthRecord.findFirst({ where: { userId, month } }),
-    ]);
-    if (!user) return jsonError("Usuario no encontrado.", 404);
-    if (!monthRecord) return jsonError("Set up the month first.", 404);
+    const { occurredOn, occurredOnSource } = resolveCreateOccurredOn(payload);
+    try {
+      assertPathMonthMatchesOccurredOn(monthKey, occurredOn);
+    } catch (error) {
+      if (error instanceof MonthOccurredOnMismatchError) {
+        return jsonError(
+          `Path month (${error.pathMonth}) does not match the income date month (${error.occurredOnMonth}).`,
+          400,
+        );
+      }
+      throw error;
+    }
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { primaryCurrency: true },
+    });
+    if (!user) return jsonError("User not found.", 404);
 
     if (payload.bankId) {
       const bank = await db.bank.findFirst({
         where: { id: payload.bankId, userId },
       });
       if (!bank) {
-        return jsonError("El banco no existe.", 404);
+        return jsonError("Bank not found.", 404);
       }
     }
 
@@ -68,18 +72,20 @@ export async function POST(request: Request, context: { params: Promise<{ month:
       throw error;
     }
 
-    const occurredOn = parseIsoDate(payload.occurredOn) ?? todayUtcDate();
+    const monthRecordId = await resolveMonthRecordId(userId, occurredOn);
+    const bucketMonth = parseMonthKey(monthKey);
 
     let line;
     try {
       line = await db.monthIncomeLine.create({
         data: {
           userId,
-          monthRecordId: monthRecord.id,
+          monthRecordId,
           templateId: null,
           bankId: payload.bankId ?? null,
           name: payload.name.trim(),
           occurredOn,
+          occurredOnSource,
           amount: converted.amount,
           currency: converted.currency,
           fxRate: converted.fxRate,
@@ -99,7 +105,7 @@ export async function POST(request: Request, context: { params: Promise<{ month:
       throw error;
     }
 
-    await expireYearTimeline(userId, month.getUTCFullYear());
+    await expireYearTimeline(userId, bucketMonth.getUTCFullYear());
 
     return new Response(
       JSON.stringify({
@@ -115,6 +121,7 @@ export async function POST(request: Request, context: { params: Promise<{ month:
           received: line.received,
           category: line.category,
           occurredOn: line.occurredOn.toISOString().slice(0, 10),
+          occurredOnSource: line.occurredOnSource,
         },
         primaryCurrency: user.primaryCurrency,
       }),

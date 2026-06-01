@@ -88,6 +88,16 @@ vi.mock("@/lib/year-timeline-data", () => ({
   expireYearTimeline: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/month-line-bucket", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/month-line-bucket")>(
+    "@/lib/month-line-bucket",
+  );
+  return {
+    ...actual,
+    resolveMonthRecordId: vi.fn().mockResolvedValue("month_1"),
+  };
+});
+
 vi.mock("@/lib/fx/rates", async () => {
   const actual =
     await vi.importActual<typeof import("@/lib/fx/rates")>("@/lib/fx/rates");
@@ -113,6 +123,7 @@ import {
 } from "@/lib/savings";
 import { SavingsMovementKind } from "@prisma/client";
 import { applyPrevMonthLeftoverDecision } from "@/lib/month-bucket";
+import { resolveMonthRecordId } from "@/lib/month-line-bucket";
 
 const USER_ID = "user_1";
 const OTHER_USER = "user_2";
@@ -122,6 +133,26 @@ const execOpts = {} as never;
 
 function tools() {
   return buildExpenseTools(USER_ID);
+}
+
+/** Minimal create() payload returned by Prisma mocks for month expense lines. */
+function mockMonthExpenseLine(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: "line_1",
+    name: "Expense",
+    amount: new Prisma.Decimal("200"),
+    currency: "USD",
+    fxRate: new Prisma.Decimal("1"),
+    amountConverted: new Prisma.Decimal("200"),
+    category: "OTROS",
+    paid: true,
+    occurredOn: new Date(Date.UTC(2026, 4, 20)),
+    occurredOnSource: "USER",
+    eventId: null,
+    ...overrides,
+  };
 }
 
 function uniqueViolation() {
@@ -469,7 +500,7 @@ describe("income tools", () => {
     expect(db.monthIncomeLine.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         userId: USER_ID,
-        monthRecordId: "mr_current",
+        monthRecordId: "month_1",
         templateId: null,
         bankId: null,
         name: "Freelance",
@@ -496,8 +527,8 @@ describe("income tools", () => {
     expect(result).toMatchObject({ ok: true, duplicate: true });
   });
 
-  it("addIncomeLine errors when the current month has no record", async () => {
-    vi.mocked(db.monthRecord.findFirst).mockResolvedValueOnce(null);
+  it("addIncomeLine errors when the target month cannot be created", async () => {
+    vi.mocked(resolveMonthRecordId).mockRejectedValueOnce(new Error("db unavailable"));
 
     const result = await tools().addIncomeLine.execute!(
       { name: "Sueldo", amount: 1500 } as never,
@@ -575,16 +606,9 @@ describe("addMonthLine — eventId validation", () => {
     vi.mocked(db.eventParticipant.findUnique).mockResolvedValue({
       removedAt: null,
     } as never);
-    vi.mocked(db.monthExpenseLine.create).mockResolvedValue({
-      id: "line_1",
-      name: "Hotel",
-      amount: new Prisma.Decimal("200"),
-      currency: "USD",
-      fxRate: new Prisma.Decimal("1"),
-      amountConverted: new Prisma.Decimal("200"),
-      category: "OTROS",
-      paid: true,
-    } as never);
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue(
+      mockMonthExpenseLine({ name: "Hotel", eventId: null }) as never,
+    );
 
     const result = (await tools().addMonthLine.execute!(
       {
@@ -626,16 +650,12 @@ describe("addMonthLine — eventId validation", () => {
     vi.mocked(db.eventParticipant.findUnique).mockResolvedValue({
       removedAt: null,
     } as never);
-    vi.mocked(db.monthExpenseLine.create).mockResolvedValue({
-      id: "line_1",
-      name: "Hotel",
-      amount: new Prisma.Decimal("200"),
-      currency: "USD",
-      fxRate: new Prisma.Decimal("1"),
-      amountConverted: new Prisma.Decimal("200"),
-      category: "OTROS",
-      paid: true,
-    } as never);
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue(
+      mockMonthExpenseLine({
+        name: "Hotel",
+        eventId: "event_1",
+      }) as never,
+    );
 
     const result = (await tools().addMonthLine.execute!(
       {
@@ -682,16 +702,9 @@ describe("addMonthLine — eventId validation", () => {
     } as never);
     // Caller is not a participant either.
     vi.mocked(db.eventParticipant.findUnique).mockResolvedValue(null);
-    vi.mocked(db.monthExpenseLine.create).mockResolvedValue({
-      id: "line_1",
-      name: "Hotel",
-      amount: new Prisma.Decimal("200"),
-      currency: "USD",
-      fxRate: new Prisma.Decimal("1"),
-      amountConverted: new Prisma.Decimal("200"),
-      category: "OTROS",
-      paid: true,
-    } as never);
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue(
+      mockMonthExpenseLine({ name: "Hotel", eventId: null }) as never,
+    );
 
     const result = (await tools().addMonthLine.execute!(
       {
@@ -726,16 +739,18 @@ describe("addMonthLine — eventId validation", () => {
     // CUID-shaped value) as eventId. The lookup misses, but the line must
     // still be created so the user gets what they asked for.
     vi.mocked(db.event.findUnique).mockResolvedValue(null);
-    vi.mocked(db.monthExpenseLine.create).mockResolvedValue({
-      id: "line_1",
-      name: "Aldi",
-      amount: new Prisma.Decimal("29.67"),
-      currency: "EUR",
-      fxRate: new Prisma.Decimal("1"),
-      amountConverted: new Prisma.Decimal("29.67"),
-      category: "ALIMENTACION",
-      paid: true,
-    } as never);
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue(
+      mockMonthExpenseLine({
+        id: "line_1",
+        name: "Aldi",
+        amount: new Prisma.Decimal("29.67"),
+        currency: "EUR",
+        amountConverted: new Prisma.Decimal("29.67"),
+        category: "ALIMENTACION",
+        occurredOn: new Date(Date.UTC(2026, 4, 1)),
+        eventId: null,
+      }) as never,
+    );
 
     const result = (await tools().addMonthLine.execute!(
       {

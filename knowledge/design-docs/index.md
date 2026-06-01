@@ -23,6 +23,10 @@ Design docs capture cross-cutting decisions that aren't obvious from the code.
 - [savings-ledger](savings-ledger.md) — append-only `SavingsMovement` ledger
   + denormalized `User.savings` cache, single chokepoint at `src/lib/savings.ts`,
   invariant `User.savings === SUM(amount)`.
+- [occurred-on-month-bucketing](occurred-on-month-bucketing.md) — month bucket
+  follows `occurredOn` (not creation month), `occurredOnSource` for estimated
+  vs artifact dates, rebucket rules. Exec plan:
+  [`cross-month-crud-act-first`](../exec-plans/active/cross-month-crud-act-first.md).
 
 ## Suggested next docs (write when needed)
 

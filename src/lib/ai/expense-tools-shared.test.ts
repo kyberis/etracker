@@ -64,6 +64,20 @@ vi.mock("@/lib/fx/rates", async () => {
   };
 });
 
+vi.mock("@/lib/month-line-bucket", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/month-line-bucket")>(
+    "@/lib/month-line-bucket",
+  );
+  return {
+    ...actual,
+    resolveMonthRecordId: vi.fn().mockResolvedValue("month_1"),
+  };
+});
+
+vi.mock("@/lib/year-timeline-data", () => ({
+  expireYearTimeline: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { buildExpenseTools } from "@/lib/ai/expense-tools";
 import { db } from "@/lib/db";
 import { UserKind } from "@prisma/client";
@@ -168,6 +182,10 @@ describe("addMonthLine — paidByUserId enforcement on shared events", () => {
       amountConverted: new Prisma.Decimal(50),
       category: "OTROS",
       paid: true,
+      occurredOn: new Date(Date.UTC(2026, 3, 15)),
+      occurredOnSource: "USER",
+      eventId: EVENT,
+      paidByUserId: paidByUserId ?? null,
     } as never);
   }
 

@@ -83,6 +83,16 @@ enum ExpenseCategory {
   OTROS
 }
 
+/// Origen de confianza de `occurredOn` en líneas manuales/importadas.
+/// - USER: el usuario indicó la fecha (chat, formulario, voz explícita).
+/// - ARTIFACT: leída de CSV, PDF o captura bancaria.
+/// - ESTIMATED: default a hoy cuando no hubo fecha (chat/voz sin día).
+enum OccurrenceDateSource {
+  USER
+  ARTIFACT
+  ESTIMATED
+}
+
 /// Origen / categoría de un ingreso. Espejo del enum `ExpenseCategory` para
 /// la pata de ingresos. Lo usamos tanto para plantillas (`Income.category`)
 /// como para líneas mensuales (`MonthIncomeLine.category`).
@@ -580,6 +590,8 @@ model MonthExpenseLine {
   /// Solo guardamos la parte de fecha (sin hora) para que la
   /// deduplicación sea determinística entre zonas horarias.
   occurredOn      DateTime        @db.Date
+  /// De dónde salió `occurredOn`. Ver enum `OccurrenceDateSource`.
+  occurredOnSource OccurrenceDateSource @default(USER)
   /// Monto en la moneda original de la línea (`currency`).
   amount          Decimal         @db.Decimal(12, 2)
   /// ISO 4217 (3 letras, mayúsculas). Moneda en la que el usuario carga el
@@ -683,6 +695,8 @@ model MonthIncomeLine {
   /// Solo guardamos la parte de fecha (sin hora) para que la deduplicación
   /// sea determinística entre zonas horarias.
   occurredOn      DateTime       @db.Date
+  /// De dónde salió `occurredOn`. Ver enum `OccurrenceDateSource`.
+  occurredOnSource OccurrenceDateSource @default(USER)
   /// Monto en la moneda original de la línea (`currency`).
   amount          Decimal        @db.Decimal(12, 2)
   /// ISO 4217 (3 letras, mayúsculas). Moneda en la que el usuario carga el

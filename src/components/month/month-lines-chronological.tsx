@@ -1,16 +1,20 @@
 "use client";
 
-import { format, isToday, isYesterday } from "date-fns";
+import { format, isToday, isYesterday, parse } from "date-fns";
 import {
   ChevronDown,
   ChevronRight,
   Luggage,
   MoreHorizontal,
+  Pencil,
+  Trash2,
   TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
+import { MonthLineEditDialog } from "@/components/month/month-line-edit-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -30,13 +34,18 @@ import { isInvestmentCategory } from "@/lib/validators";
 
 import type { Locale } from "@/lib/i18n/locale";
 
+type Bank = { id: string; name: string };
+
 type Props = {
-  /** Pre-ordered desc por `createdAt` desde el backend. */
+  /** Pre-ordered desc por `occurredOn` desde el backend. */
   expenses: MonthLinePayload[];
   primaryCurrency: string;
+  banks: Bank[];
+  editable?: boolean;
   onTogglePaid: (lineId: string, nextPaid: boolean) => void;
   /** Llamado cuando se asocia/desasocia una línea a un evento — refresca página. */
   onLineEventChanged?: () => void;
+  onMutated?: () => void;
 };
 
 /** Etiqueta amigable de un grupo: "hoy", "ayer" o "26 abr". */
@@ -56,7 +65,7 @@ function dayLabel(
  * a esa billetera, agrupados visualmente).
  */
 type DayItem =
-  | { kind: "line"; line: MonthLinePayload; createdAt: Date }
+  | { kind: "line"; line: MonthLinePayload; dayDate: Date }
   | {
       kind: "event";
       eventId: string;
@@ -66,8 +75,7 @@ type DayItem =
       lines: MonthLinePayload[];
       /** Suma en primary currency de las líneas en ESTE día. */
       totalThisDay: number;
-      /** Para ordenar el bucket dentro del día. */
-      createdAt: Date;
+      dayDate: Date;
     };
 
 type DayGroup = { key: string; label: string; items: DayItem[] };
@@ -83,12 +91,12 @@ function groupByDayWithEvents(
   const eventBucketByDay = new Map<string, DayItem & { kind: "event" }>();
 
   for (const expense of expenses) {
-    const created = new Date(expense.createdAt);
-    const dayKey = format(created, "yyyy-MM-dd");
+    const dayDate = parse(expense.occurredOn, "yyyy-MM-dd", new Date());
+    const dayKey = expense.occurredOn;
     if (!current || current.key !== dayKey) {
       current = {
         key: dayKey,
-        label: dayLabel(created, locale, tx),
+        label: dayLabel(dayDate, locale, tx),
         items: [],
       };
       groups.push(current);
@@ -106,7 +114,7 @@ function groupByDayWithEvents(
           eventStatus: expense.event.status,
           lines: [],
           totalThisDay: 0,
-          createdAt: created,
+          dayDate,
         };
         eventBucketByDay.set(bucketKey, bucket);
         current.items.push(bucket);
@@ -117,7 +125,7 @@ function groupByDayWithEvents(
       current.items.push({
         kind: "line",
         line: expense,
-        createdAt: created,
+        dayDate,
       });
     }
   }
@@ -138,8 +146,11 @@ type OpenEventOption = {
 export function MonthLinesChronological({
   expenses,
   primaryCurrency,
+  banks,
+  editable = false,
   onTogglePaid,
   onLineEventChanged,
+  onMutated,
 }: Props) {
   const locale = useLocale();
   const t = useT();
@@ -148,6 +159,72 @@ export function MonthLinesChronological({
   const [openEvents, setOpenEvents] = useState<OpenEventOption[] | null>(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [pendingLineId, setPendingLineId] = useState<string | null>(null);
+  const [editLine, setEditLine] = useState<MonthLinePayload | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editBankId, setEditBankId] = useState("");
+  const [editCategory, setEditCategory] = useState("OTROS");
+  const [editOccurredOn, setEditOccurredOn] = useState("");
+  const [editPaid, setEditPaid] = useState(true);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function openEdit(line: MonthLinePayload) {
+    setEditLine(line);
+    setEditName(line.name);
+    setEditAmount(line.amount);
+    setEditBankId(line.bankId);
+    setEditCategory(line.category);
+    setEditOccurredOn(line.occurredOn);
+    setEditPaid(line.paid);
+    setEditError(null);
+    setEditOpen(true);
+  }
+
+  async function onSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editLine) return;
+    setEditSaving(true);
+    setEditError(null);
+    const res = await fetch(`/api/month-expense-lines/${editLine.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editName,
+        amount: Number(editAmount),
+        bankId: editBankId,
+        category: editCategory,
+        occurredOn: editOccurredOn,
+        paid: editPaid,
+        occurredOnSource: "USER",
+      }),
+    });
+    setEditSaving(false);
+    if (!res.ok) {
+      const p = (await res.json().catch(() => ({}))) as { error?: string };
+      setEditError(p.error ?? t.month.saveError);
+      return;
+    }
+    setEditOpen(false);
+    setEditLine(null);
+    onMutated?.();
+    onLineEventChanged?.();
+  }
+
+  async function onDeleteLine(line: MonthLinePayload) {
+    if (!window.confirm(t.month.deleteConfirm)) return;
+    setPendingLineId(line.id);
+    const res = await fetch(`/api/month-expense-lines/${line.id}`, { method: "DELETE" });
+    setPendingLineId(null);
+    if (!res.ok) {
+      const p = (await res.json().catch(() => ({}))) as { error?: string };
+      alert(p.error ?? t.month.saveError);
+      return;
+    }
+    onMutated?.();
+    onLineEventChanged?.();
+  }
 
   // Refetch en cada apertura del menú. Es una sola query liviana y evita
   // tener que coordinar un cache invalidator: si el usuario engancha o
@@ -244,8 +321,8 @@ export function MonthLinesChronological({
           <CardTitle className="text-sm">{t.month.chronoTitle}</CardTitle>
           <p className="text-muted-foreground text-xs">
             {tx({
-              es: "orden cronológico · más nuevo primero",
-              en: "chronological · newest first",
+              es: "por fecha del movimiento · más reciente primero",
+              en: "by transaction date · newest first",
             })}
           </p>
         </div>
@@ -287,11 +364,15 @@ export function MonthLinesChronological({
                             expense={item.line}
                             primaryCurrency={primaryCurrency}
                             locale={locale}
+                            t={t}
                             tx={tx}
+                            editable={editable}
                             isPending={pendingLineId === item.line.id}
                             openEvents={openEvents}
                             loadingEvents={loadingEvents}
                             onTogglePaid={onTogglePaid}
+                            onEdit={() => openEdit(item.line)}
+                            onDelete={() => void onDeleteLine(item.line)}
                             onAttach={(eventId) =>
                               attachLineToEvent(item.line.id, eventId)
                             }
@@ -391,11 +472,15 @@ export function MonthLinesChronological({
                                   expense={expense}
                                   primaryCurrency={primaryCurrency}
                                   locale={locale}
+                                  t={t}
                                   tx={tx}
+                                  editable={editable}
                                   isPending={pendingLineId === expense.id}
                                   openEvents={openEvents}
                                   loadingEvents={loadingEvents}
                                   onTogglePaid={onTogglePaid}
+                                  onEdit={() => openEdit(expense)}
+                                  onDelete={() => void onDeleteLine(expense)}
                                   onAttach={(eventId) =>
                                     attachLineToEvent(expense.id, eventId)
                                   }
@@ -417,6 +502,30 @@ export function MonthLinesChronological({
           </div>
         )}
       </CardContent>
+      <MonthLineEditDialog
+        open={editOpen}
+        onOpenChange={(open) => {
+          setEditOpen(open);
+          if (!open) setEditLine(null);
+        }}
+        line={editLine}
+        banks={banks}
+        saving={editSaving}
+        error={editError}
+        name={editName}
+        amount={editAmount}
+        bankId={editBankId}
+        category={editCategory}
+        occurredOn={editOccurredOn}
+        paid={editPaid}
+        onChangeName={setEditName}
+        onChangeAmount={setEditAmount}
+        onChangeBankId={setEditBankId}
+        onChangeCategory={setEditCategory}
+        onChangeOccurredOn={setEditOccurredOn}
+        onChangePaid={setEditPaid}
+        onSubmit={onSaveEdit}
+      />
     </Card>
   );
 }
@@ -425,11 +534,15 @@ function ExpenseRow({
   expense,
   primaryCurrency,
   locale,
+  t,
   tx,
+  editable,
   isPending,
   openEvents,
   loadingEvents,
   onTogglePaid,
+  onEdit,
+  onDelete,
   onAttach,
   onDetach,
   onOpenEventsMenu,
@@ -437,11 +550,15 @@ function ExpenseRow({
   expense: MonthLinePayload;
   primaryCurrency: string;
   locale: Locale;
+  t: ReturnType<typeof useT>;
   tx: ReturnType<typeof useTx>;
+  editable: boolean;
   isPending: boolean;
   openEvents: OpenEventOption[] | null;
   loadingEvents: boolean;
   onTogglePaid: (lineId: string, nextPaid: boolean) => void;
+  onEdit: () => void;
+  onDelete: () => void;
   onAttach: (eventId: string) => void;
   onDetach: (eventId: string) => void;
   onOpenEventsMenu: () => void;
@@ -481,6 +598,11 @@ function ExpenseRow({
               <TrendingUp className="size-2.5" />
               {tx({ es: "inversión", en: "investment" })}
             </span>
+          ) : null}
+          {expense.occurredOnSource === "ESTIMATED" ? (
+            <Badge variant="outline" className="shrink-0 text-[10px] font-normal">
+              {t.month.estimatedDateBadge}
+            </Badge>
           ) : null}
         </p>
         <p className="text-muted-foreground mt-0.5 truncate text-xs">
@@ -527,6 +649,19 @@ function ExpenseRow({
           <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-56">
+          {editable ? (
+            <>
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="size-4" />
+                {t.month.editLineAction}
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                <Trash2 className="size-4" />
+                {t.month.delete}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
           {eventRef ? (
             <>
               <DropdownMenuLabel>

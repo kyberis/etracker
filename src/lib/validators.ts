@@ -1,3 +1,4 @@
+import { OccurrenceDateSource } from "@prisma/client";
 import { z } from "zod";
 
 import {
@@ -33,6 +34,8 @@ export function isInvestmentCategory(category: string): boolean {
 
 export const expenseCategorySchema = z.enum(expenseCategoryValues);
 export const expenseCategoryOptions = expenseCategoryValues;
+
+export const occurrenceDateSourceSchema = z.nativeEnum(OccurrenceDateSource);
 
 const incomeCategoryValues = [
   "SUELDO",
@@ -165,6 +168,8 @@ export const createMonthSchema = z
     { message: "copyFromMonth must be yyyy-MM when mode is copyFrom.", path: ["copyFromMonth"] },
   );
 
+const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
 export const monthExpenseLineUpdateSchema = z.object({
   paid: z.coerce.boolean().optional(),
   name: z.string().min(1).max(120).optional(),
@@ -173,9 +178,14 @@ export const monthExpenseLineUpdateSchema = z.object({
   currency: currencySchema.optional(),
   /** Optional manual rate override (e.g. Argentine "blue dolar"). Skips the API. */
   fxRate: z.coerce.number().positive().optional(),
+  bankId: z.string().min(1).optional(),
+  category: expenseCategorySchema.optional(),
+  occurredOn: z
+    .string()
+    .regex(isoDateRegex, "occurredOn must be yyyy-MM-dd.")
+    .optional(),
+  occurredOnSource: occurrenceDateSourceSchema.optional(),
 });
-
-const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
 export const monthExpenseLineCreateSchema = z.object({
   name: z.string().min(1, "Name is required.").max(120),
@@ -200,6 +210,7 @@ export const monthExpenseLineCreateSchema = z.object({
     .string()
     .regex(isoDateRegex, "occurredOn must be yyyy-MM-dd.")
     .optional(),
+  occurredOnSource: occurrenceDateSourceSchema.optional(),
 });
 
 /**
@@ -279,6 +290,7 @@ export const monthIncomeLineCreateSchema = z.object({
     .string()
     .regex(isoDateRegex, "occurredOn must be yyyy-MM-dd.")
     .optional(),
+  occurredOnSource: occurrenceDateSourceSchema.optional(),
 });
 
 export const monthIncomeLineUpdateSchema = z.object({
@@ -294,6 +306,7 @@ export const monthIncomeLineUpdateSchema = z.object({
     .string()
     .regex(isoDateRegex, "occurredOn must be yyyy-MM-dd.")
     .optional(),
+  occurredOnSource: occurrenceDateSourceSchema.optional(),
 });
 
 export const yearParamSchema = z.object({

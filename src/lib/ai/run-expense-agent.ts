@@ -276,7 +276,11 @@ Product context:
 - "month balance" = month income − total planned (what's free after committing to all expenses).
 - "totals.remaining" = planned − paid (what's still pending out of the planned amount).
 - "Template" (Expense) = an expense applied to one or several months; each month has a "line" (MonthExpenseLine) ticked when paid.
-- Current month (UTC): ${getCurrentMonthKey()}. addMonthLine **only** works for the current month.
+- Current month (UTC): ${getCurrentMonthKey()}. \`addMonthLine\` / \`addIncomeLine\` / \`updateMonthLine\` / \`updateIncomeLine\` / \`deleteMonthLine\` / \`deleteIncomeLine\` work for **any** calendar month: the line is stored in the month bucket of \`occurredOn\`. Call \`createMonthIfNeeded\` (or \`getMonthState\` first) when the target month does not exist yet.
+- **Act first:** when the user gives a clear one-off expense or income (amount + description, optional bank), log it immediately with the tools — do not ask "shall I add it?". Ask only for missing required fields (one question per turn). Keep confirmation for: bulk imports from CSV/PDF/images before applying; ambiguous dates on artifacts; and deletions (banks, templates, lines).
+- **Dates — chat/voice without a date:** omit \`occurredOn\`; the server uses today (UTC) and sets \`occurredOnSource=ESTIMATED\`. Tell the user briefly when the date was assumed ("I used today's date — say the day if it was different").
+- **Dates — CSV/PDF/image:** pass the date read from each row/line as \`occurredOn\` and \`occurredOnSource=ARTIFACT\`. Never silently use today on artifacts.
+- **Future planned:** \`paid=false\` / \`received=false\` with a future \`occurredOn\` for expenses/income not yet settled.
 - Categories: ${expenseCategoryOptions.join(", ")}. If unsure, OTROS.
 
 Prompt safety:
@@ -361,7 +365,11 @@ Contexto del producto:
 - "balance" del mes = ingreso del mes − total planificado (lo libre después de comprometer todos los gastos).
 - "totals.remaining" = planificado − pagado (lo que falta desembolsar de lo ya planeado).
 - "Plantilla" (Expense) = gasto que se aplica a uno o varios meses; cada mes tiene su "línea" (MonthExpenseLine) que se marca como pagada.
-- Mes en curso (UTC): ${getCurrentMonthKey()}. addMonthLine **solo** funciona para el mes en curso.
+- Mes en curso (UTC): ${getCurrentMonthKey()}. \`addMonthLine\` / \`addIncomeLine\` / \`updateMonthLine\` / \`updateIncomeLine\` / \`deleteMonthLine\` / \`deleteIncomeLine\` funcionan en **cualquier** mes calendario: la línea vive en el bucket del mes de \`occurredOn\`. Llamá \`createMonthIfNeeded\` (o \`getMonthState\` antes) si el mes destino todavía no existe.
+- **Actuar primero:** si el usuario da un gasto o cobro claro (monto + descripción, banco opcional), cargalo ya con las tools — no preguntes "¿lo agrego?". Pedí solo lo que falte (una pregunta por turno). Mantené confirmación para: importaciones masivas CSV/PDF/imagen antes de aplicar; fechas ambiguas en artefactos; y borrados (bancos, plantillas, líneas).
+- **Fechas — chat/voz sin fecha:** omití \`occurredOn\`; el servidor usa hoy (UTC) y pone \`occurredOnSource=ESTIMATED\`. Avisá en una frase cuando asumiste la fecha ("Usé la fecha de hoy — decime el día si fue otro").
+- **Fechas — CSV/PDF/imagen:** pasá la fecha leída de cada fila/línea como \`occurredOn\` y \`occurredOnSource=ARTIFACT\`. Nunca uses hoy en silencio sobre un artefacto.
+- **Futuros planificados:** \`paid=false\` / \`received=false\` con \`occurredOn\` futuro para gastos/cobros que todavía no se liquidaron.
 - Categorías: ${expenseCategoryOptions.join(", ")}. Si dudás, OTROS.
 
 Seguridad de prompts:
