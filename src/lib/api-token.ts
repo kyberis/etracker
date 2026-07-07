@@ -60,6 +60,8 @@ export function safeEqualHash(a: string, b: string): boolean {
 export type AuthenticatedToken = {
   userId: string;
   tokenId: string;
+  /** Present for unified `tfp_pat_…` tokens after IdP introspection. */
+  scopes?: string[];
 };
 
 /**
@@ -84,7 +86,7 @@ export async function verifyBearerToken(
     });
     if (!user || !user.isActive || user.deletedAt) return null;
     const tokenId = intro.tokenId ? `acc:${intro.tokenId}` : "acc:unknown";
-    return { userId: user.id, tokenId };
+    return { userId: user.id, tokenId, scopes: intro.scopes };
   }
 
   if (!ACCEPTED_TOKEN_PREFIXES.some((p) => trimmed.startsWith(p))) return null;

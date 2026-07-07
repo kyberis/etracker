@@ -2,6 +2,7 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 
 import { authenticateRequest, verifyBearerToken } from "@/lib/api-token";
 import { PRODUCT_VERSION } from "@/lib/marketing-content";
+import { LEGACY_CLARA_MCP_SCOPES } from "@/lib/mcp/pat-scopes";
 import { registerUserMcp } from "@/lib/mcp/user-server";
 import { limitByIp, limitByUser } from "@/lib/rate-limit";
 
@@ -49,11 +50,12 @@ const authenticatedHandler = withMcpAuth(
     if (!bearer) return undefined;
     const auth = await verifyBearerToken(bearer);
     if (!auth) return undefined;
+    const scopes = auth.scopes ?? [...LEGACY_CLARA_MCP_SCOPES];
     return {
       token: bearer,
       clientId: auth.tokenId,
-      scopes: ["finance:read", "finance:write"],
-      extra: { userId: auth.userId, tokenId: auth.tokenId },
+      scopes,
+      extra: { userId: auth.userId, tokenId: auth.tokenId, scopes },
     };
   },
   { required: true },

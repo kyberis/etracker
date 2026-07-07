@@ -42,6 +42,7 @@ import {
   expenseCategoryOptions,
   incomeCategoryOptions,
 } from "@/lib/validators";
+import { registerClaraSavingsSummaryTool } from "@/lib/mcp/savings-summary-tool";
 
 const monthKeySchema = z
   .string()
@@ -1472,4 +1473,6 @@ export function registerUserMcp(server: McpServer): void {
       return jsonContent({ ok: true });
     },
   );
+
+  registerClaraSavingsSummaryTool(server);
 }
