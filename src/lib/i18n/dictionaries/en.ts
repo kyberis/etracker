@@ -177,15 +177,15 @@ export const en: Dict = {
       register: "Start free",
       faq: "Got questions?",
     },
-    metaTitle: "Clara — your AI financial assistant",
+    metaTitle: "Clara — month expenses table & AI financial assistant",
     metaDescription:
-      "Your AI money coach. Chat with your money: PDFs, voice notes, Telegram. Open source MIT, self-hostable, with an MCP server to plug into Claude, ChatGPT and Cursor.",
+      "Clara is your AI money coach: chat about money (PDF, voice, Telegram) and, on desktop, review the month as a bank-grouped spreadsheet with charts and what-if simulation. Open source MIT.",
   },
 
   marketingFeaturesPage: {
-    metaTitle: "Features",
+    metaTitle: "Features — AI chat, month table & MCP",
     metaDescription:
-      "Everything Clara can do for your money: AI chat, PDFs, voice notes, Telegram, MCP and more.",
+      "Clara reads PDF/CSV and voice, plans month by month, shows expenses as a desktop spreadsheet (by bank, charts, simulation) and exposes an MCP server for your AI assistant.",
     chip: "Capabilities · Apr 2026",
     title1: "What",
     titleHighlight: "Clara does",

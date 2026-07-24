@@ -180,15 +180,15 @@ export const es = {
       register: "Empezar gratis",
       faq: "Resolver dudas",
     },
-    metaTitle: "Clara — tu asistente financiera con IA",
+    metaTitle: "Clara — gastos del mes en tabla y asistente financiera con IA",
     metaDescription:
-      "Tu money coach con IA. Chateá con tu plata: PDFs, notas de voz, Telegram. Open source MIT, self-hostable, con servidor MCP para integrar con Claude, ChatGPT y Cursor.",
+      "Clara es tu money coach con IA: chateá con tu plata (PDF, voz, Telegram) y, en desktop, mirá el mes en planilla por banco con gráficos y simulación qué-pasa-si. Open source MIT.",
   },
 
   marketingFeaturesPage: {
-    metaTitle: "Features",
+    metaTitle: "Features — chat IA, tabla del mes y MCP",
     metaDescription:
-      "Todo lo que Clara puede hacer por tus finanzas: chat con IA, PDFs, notas de voz, Telegram, MCP y más.",
+      "Clara lee PDF/CSV y voz, planifica mes a mes, muestra gastos en tabla en desktop (por banco, gráficos, simulación) y expone un servidor MCP para tu AI assistant.",
     chip: "Capacidades · Abr 2026",
     title1: "Lo que",
     titleHighlight: "Clara hace",

@@ -56,6 +56,27 @@ export type LandingCopy = {
   ruleTitlePart1: string;
   ruleTitleHighlight: string;
   ruleBody: string;
+  tableSticker: string;
+  tableTitlePart1: string;
+  tableTitleHighlight: string;
+  tableTitlePart2: string;
+  tableBody: string;
+  tableBullet1: string;
+  tableBullet2: string;
+  tableBullet3: string;
+  tableNote: string;
+  tableCta: string;
+  tableSecondary: string;
+  tablePreviewBank: string;
+  tablePreviewColConcept: string;
+  tablePreviewColAmount: string;
+  tablePreviewRow1: string;
+  tablePreviewRow1Amt: string;
+  tablePreviewRow2: string;
+  tablePreviewRow2Amt: string;
+  tablePreviewRow3: string;
+  tablePreviewRow3Amt: string;
+  tablePreviewBadge: string;
   finalTitlePart1: string;
   finalTitleHighlight: string;
   finalTitlePart2: string;
@@ -166,9 +187,9 @@ export type TermsCopy = {
 };
 
 const LANDING_ES: LandingCopy = {
-  metaTitle: "Clara — tu asistente financiera con IA",
+  metaTitle: "Clara — gastos del mes en tabla y asistente financiera con IA",
   metaDescription:
-    "Tu money coach con IA. Chateá con tu plata: PDFs, notas de voz, Telegram. Open source MIT, self-hostable, con servidor MCP para integrar con Claude, ChatGPT y Cursor.",
+    "Clara es tu money coach con IA: chateá con tu plata (PDF, voz, Telegram) y, en desktop, mirá el mes en planilla por banco con gráficos y simulación qué-pasa-si. Open source MIT.",
   chip: "Money coach con IA · Open Source · MIT",
   titleLine1: "Tu plata,",
   titleLine2Pre: "finalmente ",
@@ -202,7 +223,7 @@ const LANDING_ES: LandingCopy = {
   pitchTitleAssistant: "asistente",
   pitchTitle2: ", no una planilla.",
   pitchExtra:
-    "Cada feature está pensada para que entiendas tu plata sin abrir Excel — y para que tu propio AI te ayude sin pedirte permiso quince veces.",
+    "Cada feature está pensada para que entiendas tu plata sin pelearte con Excel — y cuando sí querés la planilla del mes, Clara también te la da en desktop.",
   mcpSticker: "MCP-ready",
   mcpTitlePart1: "Tu propio AI puede ",
   mcpTitleHighlight: "hablar con Clara",
@@ -216,6 +237,29 @@ const LANDING_ES: LandingCopy = {
   ruleTitleHighlight: "menos planilla, más decisiones",
   ruleBody:
     "Solo las plantillas recurrentes nacen pendientes. Lo que cargues en el mes — por chat, voz o foto — se marca como pagado por defecto. Vos te enfocás en decidir, Clara se ocupa del resto.",
+  tableSticker: "Nuevo · desktop",
+  tableTitlePart1: "Cuando querés ver el mes ",
+  tableTitleHighlight: "en tabla",
+  tableTitlePart2: ", también está.",
+  tableBody:
+    "En pantallas anchas, los gastos del mes abren en planilla agrupada por banco: filtros recurrente/puntual, gráficos, edición al doble click y un modo simular para probar escenarios sin tocar tus datos reales.",
+  tableBullet1: "Planilla por banco, no un muro de filas sueltas",
+  tableBullet2: "Simulá “qué pasa si…” sin guardar nada",
+  tableBullet3: "Clickeá un número y preguntale a Clara al toque",
+  tableNote:
+    "Las respuestas de Clara son informativas y pueden equivocarse; no son asesoramiento financiero.",
+  tableCta: "Empezar gratis",
+  tableSecondary: "Ver en Features",
+  tablePreviewBank: "Galicia",
+  tablePreviewColConcept: "Concepto",
+  tablePreviewColAmount: "Monto",
+  tablePreviewRow1: "Alquiler",
+  tablePreviewRow1Amt: "850",
+  tablePreviewRow2: "Netflix",
+  tablePreviewRow2Amt: "15",
+  tablePreviewRow3: "Supermercado",
+  tablePreviewRow3Amt: "210",
+  tablePreviewBadge: "Recurrente",
   finalTitlePart1: "Tu plata ",
   finalTitleHighlight: "clara",
   finalTitlePart2: ", en cinco minutos.",
@@ -226,9 +270,9 @@ const LANDING_ES: LandingCopy = {
 };
 
 const LANDING_EN: LandingCopy = {
-  metaTitle: "Clara — your AI financial assistant",
+  metaTitle: "Clara — month expenses table & AI financial assistant",
   metaDescription:
-    "Your AI money coach. Chat with your money: PDFs, voice notes, Telegram. Open source MIT, self-hostable, with an MCP server to plug into Claude, ChatGPT and Cursor.",
+    "Clara is your AI money coach: chat about money (PDF, voice, Telegram) and, on desktop, review the month as a bank-grouped spreadsheet with charts and what-if simulation. Open source MIT.",
   chip: "AI money coach · Open Source · MIT",
   titleLine1: "Your money,",
   titleLine2Pre: "finally ",
@@ -262,7 +306,7 @@ const LANDING_EN: LandingCopy = {
   pitchTitleAssistant: "assistant",
   pitchTitle2: ", not a spreadsheet.",
   pitchExtra:
-    "Every feature is built so you can understand your money without opening Excel — and so your own AI can help without asking permission fifteen times.",
+    "Every feature is built so you can understand your money without fighting Excel — and when you do want the month as a spreadsheet, Clara has that on desktop too.",
   mcpSticker: "MCP-ready",
   mcpTitlePart1: "Your own AI can ",
   mcpTitleHighlight: "talk to Clara",
@@ -276,6 +320,29 @@ const LANDING_EN: LandingCopy = {
   ruleTitleHighlight: "less spreadsheet, more decisions",
   ruleBody:
     "Only recurring templates start as pending. Anything you log during the month — chat, voice or photo — defaults to paid. You focus on deciding, Clara handles the rest.",
+  tableSticker: "New · desktop",
+  tableTitlePart1: "When you want the month ",
+  tableTitleHighlight: "as a table",
+  tableTitlePart2: ", it’s here.",
+  tableBody:
+    "On wide screens, month expenses open as a bank-grouped spreadsheet: recurring/one-off filters, charts, double-click edit, and a simulate mode to try scenarios without changing your real data.",
+  tableBullet1: "Grouped by bank — not a wall of loose rows",
+  tableBullet2: "Simulate “what if…” without saving anything",
+  tableBullet3: "Click a number and ask Clara on the spot",
+  tableNote:
+    "Clara’s answers are informational and can be wrong; they are not financial advice.",
+  tableCta: "Start free",
+  tableSecondary: "See Features",
+  tablePreviewBank: "Galicia",
+  tablePreviewColConcept: "Name",
+  tablePreviewColAmount: "Amount",
+  tablePreviewRow1: "Rent",
+  tablePreviewRow1Amt: "850",
+  tablePreviewRow2: "Netflix",
+  tablePreviewRow2Amt: "15",
+  tablePreviewRow3: "Groceries",
+  tablePreviewRow3Amt: "210",
+  tablePreviewBadge: "Recurring",
   finalTitlePart1: "Your money ",
   finalTitleHighlight: "clear",
   finalTitlePart2: ", in five minutes.",
@@ -374,21 +441,30 @@ const ABOUT_EN: AboutCopy = {
 };
 
 const FEATURES_ES: FeaturesCopy = {
-  metaTitle: "Features",
+  metaTitle: "Features — chat IA, tabla del mes y MCP",
   metaDescription:
-    "Todo lo que Clara puede hacer: leer extractos PDF/CSV, transcribir notas de voz desde el chat web o Telegram, planificar mes a mes y exponer un servidor MCP para tu propio AI assistant.",
+    "Clara lee PDF/CSV y voz, planifica mes a mes, muestra gastos en tabla en desktop (por banco, gráficos, simulación) y expone un servidor MCP para tu AI assistant.",
   chip: "Features",
   title1: "Todo lo que hace Clara, ",
   titleHighlight: "sin marketing-speak",
   title2: ".",
   intro:
-    "Las features están agrupadas por superficie. Cada una tiene un para qué claro: hacer que entender tu plata sea conversacional, no operativo.",
+    "Las features están agrupadas por superficie. Cada una tiene un para qué claro: hacer que entender tu plata sea conversacional, no operativo — y cuando querés la planilla, también está.",
   cta1: "Empezar gratis",
   cta2: "Ver FAQ",
   ctaCode: "Código en GitHub →",
   breadcrumbHome: "Inicio",
   breadcrumbSelf: "Features",
   sections: [
+    {
+      id: "month-table",
+      title: "Gastos del mes en tabla (desktop)",
+      body: [
+        "En pantallas anchas, el mes abre por defecto en «Gastos en tabla»: planilla agrupada por banco, con filtros recurrente/puntual, KPIs y gráficos.",
+        "Doble click para editar; click en un número para preguntarle a Clara en un chat flotante. Modo Simular: probá escenarios sin guardar nada en la base.",
+        "En el celular seguís con la lista cronológica. Las respuestas de Clara son informativas y pueden equivocarse; no son asesoramiento financiero.",
+      ],
+    },
     {
       id: "chat",
       title: "Chat-first, multimodal",
@@ -445,21 +521,30 @@ const FEATURES_ES: FeaturesCopy = {
 };
 
 const FEATURES_EN: FeaturesCopy = {
-  metaTitle: "Features",
+  metaTitle: "Features — AI chat, month table & MCP",
   metaDescription:
-    "Everything Clara can do: read PDF/CSV statements, transcribe voice notes from the web chat or Telegram, plan month by month and expose an MCP server for your own AI assistant.",
+    "Clara reads PDF/CSV and voice, plans month by month, shows expenses as a desktop spreadsheet (by bank, charts, simulation) and exposes an MCP server for your AI assistant.",
   chip: "Features",
   title1: "Everything Clara does, ",
   titleHighlight: "no marketing-speak",
   title2: ".",
   intro:
-    "Features are grouped by surface. Each has a clear purpose: make understanding your money conversational, not operational.",
+    "Features are grouped by surface. Each has a clear purpose: make understanding your money conversational, not operational — and when you want the spreadsheet, it’s there too.",
   cta1: "Start free",
   cta2: "See FAQ",
   ctaCode: "Code on GitHub →",
   breadcrumbHome: "Home",
   breadcrumbSelf: "Features",
   sections: [
+    {
+      id: "month-table",
+      title: "Month expenses as a table (desktop)",
+      body: [
+        "On wide screens, the month opens by default in Expenses table: a bank-grouped spreadsheet with recurring/one-off filters, KPIs and charts.",
+        "Double-click to edit; click a number to ask Clara in a floating chat. Simulate mode: try scenarios without writing anything to the database.",
+        "On phones you keep the chronological list. Clara’s answers are informational and can be wrong; they are not financial advice.",
+      ],
+    },
     {
       id: "chat",
       title: "Chat-first, multimodal",

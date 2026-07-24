@@ -71,6 +71,12 @@ const ES: LocalisedMarketingContent = {
     "Chat-first expense tracker con personalidad. Open source, MIT, self-hostable. Sin telemetría, sin precio por usuario, hablando rioplatense.",
   FEATURES: [
     {
+      emoji: "📊",
+      title: "Gastos del mes en tabla",
+      description:
+        "En desktop, el mes abre como planilla por banco: filtros recurrente/puntual, gráficos, edición al doble click y simulación qué-pasa-si sin tocar tus datos reales.",
+    },
+    {
       emoji: "🤖",
       title: "Lee tus extractos",
       description:
@@ -129,12 +135,17 @@ const ES: LocalisedMarketingContent = {
     {
       question: "¿Qué es Clara?",
       answer:
-        "Clara es una asistente financiera con IA: un expense tracker conversacional que entiende fotos del banco, PDFs, CSVs y notas de voz desde el chat web o Telegram. Te ayuda a planificar tus gastos mes a mes y mantener tu balance al día.",
+        "Clara es una asistente financiera con IA: un expense tracker conversacional que entiende fotos del banco, PDFs, CSVs y notas de voz desde el chat web o Telegram. Te ayuda a planificar tus gastos mes a mes, y en desktop también podés ver el mes en planilla por banco.",
     },
     {
       question: "¿Cuánto cuesta?",
       answer:
         "Clara es open source bajo licencia MIT y se puede self-hostear gratis. La versión hosteada por nosotros incluye 30 consultas diarias con la asistente sin pagar nada. Si te queda corto y querés ayudar a mantener la infraestructura, podés subirte al plan Supporter por €7,99 al mes (200 consultas diarias) o hacer un aporte único por el monto que quieras desde el chat. Donación y suscripción son opcionales: el producto sigue siendo gratis para la mayoría de la gente.",
+    },
+    {
+      question: "¿Clara tiene vista tipo planilla / Excel?",
+      answer:
+        "Sí, en pantallas de escritorio. En el mes (/m/AAAA-MM) la vista por defecto es «Gastos en tabla»: planilla agrupada por banco, con filtros, gráficos y un modo Simular para probar escenarios sin guardar. En el celular seguís con la lista cronológica. Las respuestas de Clara sobre números son informativas y pueden equivocarse; no son asesoramiento financiero.",
     },
     {
       question: "¿Cómo procesa los PDFs y extractos bancarios?",
@@ -169,10 +180,19 @@ const ES: LocalisedMarketingContent = {
     {
       question: "¿Cómo se compara con otras apps de finanzas?",
       answer:
-        "Mint, YNAB, Fintonic y similares son planillas con mejor diseño: filas, categorías y reportes. Clara es chat-first: hablás con ella en lenguaje normal, le mandás un PDF y entiende, le mandás una nota de voz y registra el gasto. La IA es el núcleo del producto, no una feature de marketing. Y es open source.",
+        "Mint, YNAB, Fintonic y similares son planillas con mejor diseño: filas, categorías y reportes. Clara es chat-first: hablás con ella en lenguaje normal, le mandás un PDF y entiende, le mandás una nota de voz y registra el gasto. Cuando querés la planilla del mes, también la tenés en desktop. La IA es el núcleo del producto, no una feature de marketing. Y es open source.",
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.14.2",
+      date: "2026-07-25",
+      title: "Vista tabla en la home y SEO",
+      highlights: [
+        "La landing pública destaca «Gastos en tabla» para quien todavía no entró a la app.",
+        "Meta, FAQ, Features y llms.txt mencionan la planilla del mes (desktop) para mejor descubrimiento en buscadores y AIs.",
+      ],
+    },
     {
       version: "0.14.1",
       date: "2026-07-24",
@@ -189,7 +209,7 @@ const ES: LocalisedMarketingContent = {
       highlights: [
         "En pantallas anchas podés ver los gastos del mes en planilla agrupada por banco, con filtros recurrente/puntual y gráficos.",
         "Doble click para editar un dato; click para preguntarle a Clara sobre ese número en un chat flotante.",
-        "Modo Simular: probá “qué pasa si saco o bajo un gasto” sin tocar tus datos reales (activar con NEXT_PUBLIC_MONTH_DESKTOP_GRID=1).",
+        "Modo Simular: probá “qué pasa si saco o bajo un gasto” sin tocar tus datos reales.",
       ],
     },
     {
@@ -849,6 +869,12 @@ const EN: LocalisedMarketingContent = {
     "Chat-first expense tracker with personality. Open source, MIT, self-hostable. No telemetry, no per-user pricing, neutral English (or rioplatense Spanish — your call).",
   FEATURES: [
     {
+      emoji: "📊",
+      title: "Month expenses as a table",
+      description:
+        "On desktop, the month opens as a bank-grouped spreadsheet: recurring/one-off filters, charts, double-click edit, and what-if simulation without changing your real data.",
+    },
+    {
       emoji: "🤖",
       title: "Reads your statements",
       description:
@@ -907,12 +933,17 @@ const EN: LocalisedMarketingContent = {
     {
       question: "What is Clara?",
       answer:
-        "Clara is an AI financial assistant: a conversational expense tracker that understands bank screenshots, PDFs, CSVs and voice notes from the web chat or Telegram. She helps you plan monthly expenses and keep your balance up to date.",
+        "Clara is an AI financial assistant: a conversational expense tracker that understands bank screenshots, PDFs, CSVs and voice notes from the web chat or Telegram. She helps you plan monthly expenses, and on desktop you can also view the month as a bank-grouped spreadsheet.",
     },
     {
       question: "How much does it cost?",
       answer:
         "Clara is open source under the MIT license and free to self-host. The version we host includes 30 free daily queries with the assistant. If that's tight and you want to help cover infrastructure, you can upgrade to the Supporter plan for €7.99/month (200 daily queries) or send a one-time donation in the amount of your choice from the chat. Donations and subscription are optional: the product is still free for most people.",
+    },
+    {
+      question: "Does Clara have a spreadsheet / Excel-style view?",
+      answer:
+        "Yes, on desktop screens. On the month page (/m/YYYY-MM) the default is Expenses table: a bank-grouped spreadsheet with filters, charts, and a Simulate mode to try scenarios without saving. On phones you keep the chronological list. Clara’s answers about numbers are informational and can be wrong; they are not financial advice.",
     },
     {
       question: "How does Clara process PDFs and bank statements?",
@@ -947,10 +978,19 @@ const EN: LocalisedMarketingContent = {
     {
       question: "How does it compare to other finance apps?",
       answer:
-        "Mint, YNAB, Fintonic and similar are spreadsheets with better design: rows, categories and reports. Clara is chat-first: you talk to her in plain language, send her a PDF and she understands, send a voice note and she registers the expense. AI is the core of the product, not a marketing feature. And it is open source.",
+        "Mint, YNAB, Fintonic and similar are spreadsheets with better design: rows, categories and reports. Clara is chat-first: you talk to her in plain language, send her a PDF and she understands, send a voice note and she registers the expense. When you want the month as a spreadsheet, you also get that on desktop. AI is the core of the product, not a marketing feature. And it is open source.",
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.14.2",
+      date: "2026-07-25",
+      title: "Table view on the home page and SEO",
+      highlights: [
+        "The public landing highlights Expenses table for people who have not signed in yet.",
+        "Meta, FAQ, Features and llms.txt mention the desktop month spreadsheet for better discovery in search and AI crawlers.",
+      ],
+    },
     {
       version: "0.14.1",
       date: "2026-07-24",
@@ -967,7 +1007,7 @@ const EN: LocalisedMarketingContent = {
       highlights: [
         "On wide screens you can view the month’s expenses as a bank-grouped spreadsheet with recurring/one-off filters and charts.",
         "Double-click to edit a value; click to ask Clara about that number in a floating chat.",
-        "Simulate mode: try “what if I drop or cut an expense” without changing real data (enable with NEXT_PUBLIC_MONTH_DESKTOP_GRID=1).",
+        "Simulate mode: try “what if I drop or cut an expense” without changing real data.",
       ],
     },
     {

@@ -21,9 +21,9 @@ export const SITE_TAGLINE_EN = "Your AI financial assistant";
 export const SITE_TAGLINE = SITE_TAGLINE_ES;
 
 export const SITE_DESCRIPTION_ES =
-  "Clara es una asistente financiera con IA: planificá gastos, mirá tu balance mes a mes, mandá notas de voz desde el chat web o Telegram, importá extractos PDF y CSV. Open source, MIT, self-hostable.";
+  "Clara es una asistente financiera con IA: planificá gastos, mirá el mes en planilla por banco (desktop), chateá con PDFs y notas de voz (web o Telegram). Open source, MIT, self-hostable.";
 export const SITE_DESCRIPTION_EN =
-  "Clara is an AI financial assistant: plan expenses, check your monthly balance, send voice notes from the web chat or Telegram, import PDF and CSV statements. Open source, MIT, self-hostable.";
+  "Clara is an AI financial assistant: plan expenses, review the month as a bank-grouped spreadsheet on desktop, chat with PDFs and voice notes (web or Telegram). Open source, MIT, self-hostable.";
 export const SITE_DESCRIPTION = SITE_DESCRIPTION_ES;
 
 export function siteTagline(locale: Locale): string {
@@ -41,6 +41,9 @@ const KEYWORDS_ES = [
   "expense tracker con IA",
   "presupuesto mensual",
   "control de gastos",
+  "gastos en tabla",
+  "planilla de gastos mensuales",
+  "simular gastos",
   "Telegram finanzas",
   "PDF extractos bancarios",
   "self-hosted finanzas",
@@ -57,6 +60,9 @@ const KEYWORDS_EN = [
   "AI expense tracker",
   "monthly budget",
   "spending tracker",
+  "expense spreadsheet",
+  "month expenses table",
+  "what-if expense simulation",
   "Telegram finance",
   "bank PDF statements",
   "self-hosted finance",
@@ -239,6 +245,7 @@ export function softwareApplicationJsonLd() {
     publisher: { "@type": "Organization", name: ORG_LEGAL_NAME, url: ORG_URL },
     featureList: [
       "Chat IA conversacional para registrar gastos",
+      "Vista tabla del mes por banco (desktop) con gráficos y simulación",
       "Importación de PDFs y CSVs bancarios",
       "Notas de voz desde el chat web o Telegram",
       "Planificación mensual con plantillas recurrentes",

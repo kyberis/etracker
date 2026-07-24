@@ -259,6 +259,103 @@ export default async function LandingPage({ params }: PageProps) {
         </div>
       </section>
 
+      {/* Month table showcase — SEO + conversion for spreadsheet seekers */}
+      <section
+        id="gastos-en-tabla"
+        aria-labelledby="month-table-heading"
+        className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6"
+      >
+        <div className="surface-card grid items-center gap-10 overflow-hidden p-6 sm:p-10 lg:grid-cols-[1.15fr_1fr]">
+          <div className="space-y-5">
+            <span className="sticker sticker-lime">{copy.tableSticker}</span>
+            <h2
+              id="month-table-heading"
+              className="display text-foreground text-3xl leading-tight sm:text-4xl"
+            >
+              {copy.tableTitlePart1}
+              <span className="hl">{copy.tableTitleHighlight}</span>
+              {copy.tableTitlePart2}
+            </h2>
+            <p className="text-foreground/80 max-w-xl leading-relaxed">
+              {copy.tableBody}
+            </p>
+            <ul className="text-foreground/85 space-y-2 text-sm">
+              <li className="flex gap-2">
+                <span className="text-lime-deep font-bold" aria-hidden>
+                  ·
+                </span>
+                {copy.tableBullet1}
+              </li>
+              <li className="flex gap-2">
+                <span className="text-lime-deep font-bold" aria-hidden>
+                  ·
+                </span>
+                {copy.tableBullet2}
+              </li>
+              <li className="flex gap-2">
+                <span className="text-lime-deep font-bold" aria-hidden>
+                  ·
+                </span>
+                {copy.tableBullet3}
+              </li>
+            </ul>
+            <p className="text-muted-foreground max-w-xl text-xs leading-relaxed">
+              {copy.tableNote}
+            </p>
+            <div className="flex flex-wrap gap-3 pt-1">
+              <Link
+                href="/register"
+                className="bg-foreground text-background hover:bg-foreground/90 inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-semibold shadow-sm transition-colors"
+              >
+                {copy.tableCta}
+                <span aria-hidden>→</span>
+              </Link>
+              <Link
+                href={`/${locale}/features#month-table`}
+                className="surface-soft inline-flex h-11 items-center rounded-full px-5 text-sm font-semibold transition-transform hover:scale-[1.01]"
+              >
+                {copy.tableSecondary}
+              </Link>
+            </div>
+          </div>
+
+          <div
+            className="border-foreground/10 bg-background/60 rounded-2xl border p-4 shadow-sm"
+            aria-hidden
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <span className="text-foreground text-sm font-bold">
+                {copy.tablePreviewBank}
+              </span>
+              <span className="sticker sticker-violet text-[10px]">
+                {copy.tablePreviewBadge}
+              </span>
+            </div>
+            <div className="text-muted-foreground mb-2 grid grid-cols-[1fr_auto] gap-2 px-1 text-[10px] font-bold tracking-wide uppercase">
+              <span>{copy.tablePreviewColConcept}</span>
+              <span>{copy.tablePreviewColAmount}</span>
+            </div>
+            <div className="space-y-1.5">
+              {(
+                [
+                  [copy.tablePreviewRow1, copy.tablePreviewRow1Amt],
+                  [copy.tablePreviewRow2, copy.tablePreviewRow2Amt],
+                  [copy.tablePreviewRow3, copy.tablePreviewRow3Amt],
+                ] as const
+              ).map(([name, amt]) => (
+                <div
+                  key={name}
+                  className="bg-muted/40 grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <span className="text-foreground font-medium">{name}</span>
+                  <span className="num text-foreground font-bold">{amt}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features grid */}
       <section
         id="features"

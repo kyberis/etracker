@@ -12,7 +12,7 @@ const STRINGS = {
     docsHeading: "Documentación principal",
     aboutLine: "[Sobre Clara]({about}): historia, equipo (Trefolio), filosofía y origen del nombre.",
     featuresLine:
-      "[Features]({features}): lista detallada de capacidades — chat multimodal, Telegram, MCP, self-hosting.",
+      "[Features]({features}): lista detallada — chat multimodal, gastos en tabla (desktop), Telegram, MCP, self-hosting.",
     faqLine:
       "[FAQ]({faq}): preguntas frecuentes sobre privacidad, costo, bancos soportados e integraciones AI.",
     changelogLine: "[Changelog]({changelog}): historial de releases con SemVer.",
@@ -74,7 +74,7 @@ const STRINGS = {
     docsHeading: "Main documentation",
     aboutLine: "[About Clara]({about}): story, team (Trefolio), philosophy and origin of the name.",
     featuresLine:
-      "[Features]({features}): detailed capabilities — multimodal chat, Telegram, MCP, self-hosting.",
+      "[Features]({features}): detailed capabilities — multimodal chat, desktop month table, Telegram, MCP, self-hosting.",
     faqLine:
       "[FAQ]({faq}): frequently asked questions about privacy, cost, supported banks, and AI integrations.",
     changelogLine: "[Changelog]({changelog}): release history with SemVer.",
