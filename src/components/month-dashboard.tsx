@@ -4,7 +4,7 @@ import { format, parse } from "date-fns";
 import { Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { useBalance } from "@/components/balance-provider";
 import { MonthAddIncomeDialog } from "@/components/month/month-add-income-dialog";
@@ -70,6 +70,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     () => {
       if (typeof window === "undefined") return "chrono";
       try {
+        const fromQuery = new URLSearchParams(window.location.search).get("view");
+        if (fromQuery === "table" || fromQuery === "chrono") return fromQuery;
         const stored = localStorage.getItem(MONTH_VIEW_STORAGE_KEY);
         if (stored === "table" || stored === "chrono") return stored;
       } catch {
@@ -79,6 +81,24 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     },
   );
   const monthView = showGridToggle ? monthViewPreference : "chrono";
+
+  // Deep link from menu CTA (`?view=table`) — persist preference and strip
+  // the query so refresh / share stay clean.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get("view");
+    if (view !== "table" && view !== "chrono") return;
+    setMonthViewPreference(view);
+    try {
+      localStorage.setItem(MONTH_VIEW_STORAGE_KEY, view);
+    } catch {
+      /* ignore */
+    }
+    params.delete("view");
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
+  }, [router]);
 
   function selectMonthView(next: "chrono" | "table") {
     setMonthViewPreference(next);

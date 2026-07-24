@@ -14,11 +14,12 @@ import {
   Settings,
   Shield,
   Sparkles,
+  Table2,
   X,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useBalance } from "@/components/balance-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -27,6 +28,10 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
 import { useLocale, useT } from "@/lib/i18n/client";
 import { dateLocale } from "@/lib/i18n/format";
+import {
+  isMonthDesktopGridEnabled,
+  MONTH_VIEW_STORAGE_KEY,
+} from "@/lib/month-desktop-grid-flag";
 import { cn } from "@/lib/utils";
 
 function shortMonthLabel(monthKey: string, locale: ReturnType<typeof useLocale>): string {
@@ -41,11 +46,13 @@ function shortMonthLabel(monthKey: string, locale: ReturnType<typeof useLocale>)
 
 export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
   const balance = useBalance();
   const drawer = useMonthDrawer();
   const t = useT();
   const locale = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
+  const showTableCta = isMonthDesktopGridEnabled();
 
   const NAV_LINKS = [
     {
@@ -284,6 +291,39 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                   <p className="text-muted-foreground/80 px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.18em]">
                     {t.header.menuTitle}
                   </p>
+                  {showTableCta ? (
+                    <button
+                      type="button"
+                      data-testid="menu-cta-month-table"
+                      onClick={() => {
+                        try {
+                          localStorage.setItem(MONTH_VIEW_STORAGE_KEY, "table");
+                        } catch {
+                          /* ignore */
+                        }
+                        setMenuOpen(false);
+                        router.push(`/m/${balance.month}?view=table`);
+                      }}
+                      className="from-lime/25 via-card to-lilac/15 ring-lime/30 hover:ring-lime/50 mb-2 flex w-full items-start gap-3 rounded-2xl bg-gradient-to-br px-3 py-3.5 text-left shadow-sm ring-1 transition-[box-shadow,transform] hover:scale-[1.01]"
+                    >
+                      <span className="bg-lime/30 text-lime flex size-10 shrink-0 items-center justify-center rounded-xl">
+                        <Table2 className="size-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-foreground text-sm font-bold">
+                            {t.header.menuCtaTableTitle}
+                          </span>
+                          <span className="bg-lime/25 text-lime rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                            {t.header.menuCtaTableBadge}
+                          </span>
+                        </span>
+                        <span className="text-muted-foreground mt-0.5 block text-xs leading-snug">
+                          {t.header.menuCtaTableBody}
+                        </span>
+                      </span>
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => {
