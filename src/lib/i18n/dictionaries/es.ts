@@ -589,6 +589,11 @@ export const es = {
 
   month: {
     drawerTitle: "Panel del mes",
+    panelNavLabel: "Secciones del mes",
+    panelTable: "Gastos en tabla",
+    panelOverview: "Resumen",
+    panelChrono: "Lista",
+    panelIncomes: "Ingresos",
     summaryIncome: "Ingreso",
     summaryCarryover: "Carryover",
     summaryPlanned: "Planificado",

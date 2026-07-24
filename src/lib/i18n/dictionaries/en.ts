@@ -586,6 +586,11 @@ export const en: Dict = {
 
   month: {
     drawerTitle: "Month panel",
+    panelNavLabel: "Month sections",
+    panelTable: "Expenses table",
+    panelOverview: "Overview",
+    panelChrono: "List",
+    panelIncomes: "Income",
     summaryIncome: "Income",
     summaryCarryover: "Carryover",
     summaryPlanned: "Planned",

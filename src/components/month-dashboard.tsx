@@ -27,9 +27,12 @@ import { Label } from "@/components/ui/label";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { defaultOccurredOnForMonthView } from "@/lib/month-default-occurred-on";
 import {
+  defaultMonthPanel,
   isMonthDesktopGridEnabled,
   MONTH_DESKTOP_MQ,
   MONTH_VIEW_STORAGE_KEY,
+  parseMonthPanel,
+  type MonthPanel,
 } from "@/lib/month-desktop-grid-flag";
 import { formatCurrency } from "@/lib/format";
 import { dateLocale } from "@/lib/i18n/format";
@@ -65,31 +68,36 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   const balanceCtx = useBalance();
   const gridFlag = isMonthDesktopGridEnabled();
   const isDesktop = useMediaQuery(MONTH_DESKTOP_MQ);
-  const showGridToggle = gridFlag && isDesktop;
-  const [monthViewPreference, setMonthViewPreference] = useState<"chrono" | "table">(
-    () => {
-      if (typeof window === "undefined") return "chrono";
-      try {
-        const fromQuery = new URLSearchParams(window.location.search).get("view");
-        if (fromQuery === "table" || fromQuery === "chrono") return fromQuery;
-        const stored = localStorage.getItem(MONTH_VIEW_STORAGE_KEY);
-        if (stored === "table" || stored === "chrono") return stored;
-      } catch {
-        /* ignore */
-      }
-      return "chrono";
-    },
-  );
-  const monthView = showGridToggle ? monthViewPreference : "chrono";
+  const tableAvailable = gridFlag && isDesktop;
+  const [panelPreference, setPanelPreference] = useState<MonthPanel>(() => {
+    if (typeof window === "undefined") {
+      return defaultMonthPanel(isMonthDesktopGridEnabled());
+    }
+    try {
+      const fromQuery = parseMonthPanel(
+        new URLSearchParams(window.location.search).get("view"),
+      );
+      if (fromQuery) return fromQuery;
+      const stored = parseMonthPanel(localStorage.getItem(MONTH_VIEW_STORAGE_KEY));
+      if (stored) return stored;
+    } catch {
+      /* ignore */
+    }
+    return defaultMonthPanel(isMonthDesktopGridEnabled());
+  });
+  // Table is desktop-only; keep preference but fall back while viewport is narrow.
+  const activePanel: MonthPanel =
+    panelPreference === "table" && !tableAvailable
+      ? "overview"
+      : panelPreference;
 
-  // Deep link from menu CTA (`?view=table`) — persist preference and strip
-  // the query so refresh / share stay clean.
+  // Deep link (`?view=table|overview|chrono|incomes`) — persist and strip query.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const view = params.get("view");
-    if (view !== "table" && view !== "chrono") return;
-    setMonthViewPreference(view);
+    const view = parseMonthPanel(params.get("view"));
+    if (!view) return;
+    setPanelPreference(view);
     try {
       localStorage.setItem(MONTH_VIEW_STORAGE_KEY, view);
     } catch {
@@ -100,8 +108,8 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
     router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
   }, [router]);
 
-  function selectMonthView(next: "chrono" | "table") {
-    setMonthViewPreference(next);
+  function selectPanel(next: MonthPanel) {
+    setPanelPreference(next);
     try {
       localStorage.setItem(MONTH_VIEW_STORAGE_KEY, next);
     } catch {
@@ -831,82 +839,6 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </>
       ) : null}
 
-      <MonthSummary
-        income={income}
-        incomeExpected={incomeTotals.expected}
-        incomePending={incomeTotals.pending}
-        carryoverFromPrev={carryoverFromPrev}
-        savings={savingsBalance}
-        totals={totals}
-        balance={balance}
-        pendingByBank={pendingByBank}
-        currency={data.primaryCurrency}
-        onAddIncome={openAddIncomeDialog}
-      />
-
-      <Card className="border-lilac/40 bg-lilac/10">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{t.month.savingsCardTitle}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div className="space-y-1">
-            {monthlyContribution ? (
-              <>
-                <p className="text-lilac num text-lg">
-                  {formatCurrency(monthlyContribution.amount, data.primaryCurrency, locale)}
-                </p>
-                {monthlyContribution.note ? (
-                  <p className="text-muted-foreground text-xs">
-                    {monthlyContribution.note}
-                  </p>
-                ) : null}
-                <p className="text-muted-foreground text-xs">
-                  {tx({
-                    es: `Pila total: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
-                    en: `Total pile: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
-                  })}
-                </p>
-              </>
-            ) : (
-              <p className="text-muted-foreground">
-                {t.month.savingsCardEmpty}
-                <span className="text-muted-foreground ml-1">
-                  {tx({
-                    es: `Pila total: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
-                    en: `Total pile: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
-                  })}
-                </span>
-              </p>
-            )}
-            {savingsError ? (
-              <p className="text-destructive text-xs">{savingsError}</p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={openSavingsDialog}
-              disabled={savingsBusy}
-            >
-              {monthlyContribution
-                ? t.month.savingsEditBtn
-                : t.month.savingsAddBtn}
-            </Button>
-            {monthlyContribution ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => void onRemoveSavingsContribution()}
-                disabled={savingsBusy}
-              >
-                {t.month.savingsRemoveBtn}
-              </Button>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
-
       <Dialog
         open={savingsDialogOpen}
         onOpenChange={(open) => (open ? setSavingsDialogOpen(true) : setSavingsDialogOpen(false))}
@@ -969,88 +901,45 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         </DialogContent>
       </Dialog>
 
-      <MonthIncomesChronological
-        incomes={incomes}
-        primaryCurrency={data.primaryCurrency}
-        monthKey={data.month}
-        banks={data.banks}
-        onToggleReceived={toggleIncomeReceived}
-        editable
-        onMutated={() => router.refresh()}
-      />
-
-      {data.incomeHistory.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">
-              {tx({
-                es: "Ingreso recibido en otros meses",
-                en: "Received income in other months",
-              })}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="space-y-2">
-              {data.incomeHistory.map((entry) => (
-                <div
-                  key={entry.month}
-                  className="flex items-center justify-between rounded-md border px-3 py-2"
-                >
-                  <span className="text-sm">
-                    {format(parse(entry.month, "yyyy-MM", new Date()), "MMMM yyyy", {
-                      locale: dateLocale(locale),
-                    })}
-                  </span>
-                  <span className="text-good font-bold">
-                    {formatCurrency(entry.amount, data.primaryCurrency, locale)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <MonthBankTotals
-        bankTotals={liveBankTotals}
-        primaryCurrency={data.primaryCurrency}
-      />
-
-      {showGridToggle ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="bg-cream/80 inline-flex gap-0.5 rounded-full border border-[color:var(--border)] p-1">
-            <button
-              type="button"
-              className={cn(
-                "rounded-full px-3 py-1.5 text-sm font-semibold",
-                monthView === "chrono"
-                  ? "bg-ink text-cream-soft"
-                  : "text-muted-foreground",
-              )}
-              onClick={() => selectMonthView("chrono")}
-            >
-              {t.monthGrid.viewChrono}
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "rounded-full px-3 py-1.5 text-sm font-semibold",
-                monthView === "table"
-                  ? "bg-ink text-cream-soft"
-                  : "text-muted-foreground",
-              )}
-              onClick={() => selectMonthView("table")}
-            >
-              {t.monthGrid.viewTable}
-            </button>
-          </div>
-          {monthView === "chrono" ? (
-            <p className="text-muted-foreground text-xs">{t.monthGrid.discovery}</p>
-          ) : null}
+      <nav
+        aria-label={t.month.panelNavLabel}
+        className="bg-cream/80 sticky top-[4.5rem] z-20 -mx-1 overflow-x-auto rounded-full border border-[color:var(--border)] p-1 sm:mx-0"
+        data-testid="month-panel-nav"
+      >
+        <div className="flex min-w-max gap-0.5">
+          {(
+            [
+              ...(tableAvailable
+                ? ([{ id: "table" as const, label: t.month.panelTable }] as const)
+                : []),
+              { id: "overview" as const, label: t.month.panelOverview },
+              { id: "chrono" as const, label: t.month.panelChrono },
+              { id: "incomes" as const, label: t.month.panelIncomes },
+            ] as const
+          ).map((item) => {
+            const active = activePanel === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                data-testid={`month-panel-${item.id}`}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "rounded-full px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition-colors",
+                  active
+                    ? "bg-ink text-cream-soft"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => selectPanel(item.id)}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </div>
-      ) : null}
+      </nav>
 
-      {showGridToggle && monthView === "table" ? (
+      {activePanel === "table" && tableAvailable ? (
         <MonthExcelGrid
           key={data.month}
           month={data.month}
@@ -1063,7 +952,94 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
             router.refresh();
           }}
         />
-      ) : (
+      ) : null}
+
+      {activePanel === "overview" ? (
+        <>
+          <MonthSummary
+            income={income}
+            incomeExpected={incomeTotals.expected}
+            incomePending={incomeTotals.pending}
+            carryoverFromPrev={carryoverFromPrev}
+            savings={savingsBalance}
+            totals={totals}
+            balance={balance}
+            pendingByBank={pendingByBank}
+            currency={data.primaryCurrency}
+            onAddIncome={openAddIncomeDialog}
+          />
+
+          <Card className="border-lilac/40 bg-lilac/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{t.month.savingsCardTitle}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <div className="space-y-1">
+                {monthlyContribution ? (
+                  <>
+                    <p className="text-lilac num text-lg">
+                      {formatCurrency(monthlyContribution.amount, data.primaryCurrency, locale)}
+                    </p>
+                    {monthlyContribution.note ? (
+                      <p className="text-muted-foreground text-xs">
+                        {monthlyContribution.note}
+                      </p>
+                    ) : null}
+                    <p className="text-muted-foreground text-xs">
+                      {tx({
+                        es: `Pila total: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
+                        en: `Total pile: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
+                      })}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">
+                    {t.month.savingsCardEmpty}
+                    <span className="text-muted-foreground ml-1">
+                      {tx({
+                        es: `Pila total: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
+                        en: `Total pile: ${formatCurrency(savingsBalance, data.primaryCurrency, locale)}`,
+                      })}
+                    </span>
+                  </p>
+                )}
+                {savingsError ? (
+                  <p className="text-destructive text-xs">{savingsError}</p>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={openSavingsDialog}
+                  disabled={savingsBusy}
+                >
+                  {monthlyContribution
+                    ? t.month.savingsEditBtn
+                    : t.month.savingsAddBtn}
+                </Button>
+                {monthlyContribution ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => void onRemoveSavingsContribution()}
+                    disabled={savingsBusy}
+                  >
+                    {t.month.savingsRemoveBtn}
+                  </Button>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+
+          <MonthBankTotals
+            bankTotals={liveBankTotals}
+            primaryCurrency={data.primaryCurrency}
+          />
+        </>
+      ) : null}
+
+      {activePanel === "chrono" ? (
         <MonthLinesChronological
           expenses={expenses}
           primaryCurrency={data.primaryCurrency}
@@ -1073,7 +1049,53 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
           onLineEventChanged={() => router.refresh()}
           onMutated={() => router.refresh()}
         />
-      )}
+      ) : null}
+
+      {activePanel === "incomes" ? (
+        <>
+          <MonthIncomesChronological
+            incomes={incomes}
+            primaryCurrency={data.primaryCurrency}
+            monthKey={data.month}
+            banks={data.banks}
+            onToggleReceived={toggleIncomeReceived}
+            editable
+            onMutated={() => router.refresh()}
+          />
+
+          {data.incomeHistory.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">
+                  {tx({
+                    es: "Ingreso recibido en otros meses",
+                    en: "Received income in other months",
+                  })}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="space-y-2">
+                  {data.incomeHistory.map((entry) => (
+                    <div
+                      key={entry.month}
+                      className="flex items-center justify-between rounded-md border px-3 py-2"
+                    >
+                      <span className="text-sm">
+                        {format(parse(entry.month, "yyyy-MM", new Date()), "MMMM yyyy", {
+                          locale: dateLocale(locale),
+                        })}
+                      </span>
+                      <span className="text-good font-bold">
+                        {formatCurrency(entry.amount, data.primaryCurrency, locale)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }

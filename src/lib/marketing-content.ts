@@ -174,6 +174,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.14.1",
+      date: "2026-07-24",
+      title: "Mes más ordenado: submenú y tabla por defecto",
+      highlights: [
+        "En /m/AAAA-MM la planilla, el resumen, la lista y los ingresos viven en pestañas separadas (sin mezclarse).",
+        "En desktop, «Gastos en tabla» es la vista por defecto; el resto queda a un clic en el submenú.",
+      ],
+    },
+    {
       version: "0.14.0",
       date: "2026-07-24",
       title: "Vista tabla del mes (desktop)",
@@ -942,6 +951,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.14.1",
+      date: "2026-07-24",
+      title: "Tidier month page: submenu and table by default",
+      highlights: [
+        "On /m/YYYY-MM the spreadsheet, overview, list, and income each live in their own tab (no more stacking).",
+        "On desktop, Expenses table is the default view; everything else is one click away in the submenu.",
+      ],
+    },
     {
       version: "0.14.0",
       date: "2026-07-24",
