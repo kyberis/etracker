@@ -6,6 +6,10 @@ import {
   streamExpenseAgent,
 } from "@/lib/ai/run-expense-agent";
 import {
+  buildCellAskSystemBlock,
+  type CellAskContext,
+} from "@/lib/ai/cell-ask-context";
+import {
   consumeAgentQuota,
   quotaHeaders,
   recordAgentModelUsage,
@@ -19,16 +23,33 @@ import { jsonError, withApi } from "@/lib/http";
 import { limitByUser } from "@/lib/rate-limit";
 import { requireUserId } from "@/lib/session";
 
+function isCellAskContext(value: unknown): value is CellAskContext {
+  if (!value || typeof value !== "object") return false;
+  const v = value as CellAskContext;
+  return (
+    typeof v.month === "string" &&
+    typeof v.primaryCurrency === "string" &&
+    typeof v.label === "string" &&
+    !!v.focus &&
+    typeof v.focus === "object" &&
+    !!v.monthTotals
+  );
+}
+
 function parseChatBody(raw: unknown): {
   messages: UIMessage[];
   responseStyle: ExpenseAgentResponseStyle;
   activeMonth: string | undefined;
+  surface: "web" | "month-grid";
+  cellAsk: CellAskContext | undefined;
 } {
   const body = raw as {
     messages?: UIMessage[];
     conversationMode?: boolean;
     responseStyle?: string;
     activeMonth?: string;
+    surface?: string;
+    cellAsk?: unknown;
   };
 
   const messages = body.messages ?? [];
@@ -45,7 +66,13 @@ function parseChatBody(raw: unknown): {
     activeMonth = body.activeMonth;
   }
 
-  return { messages, responseStyle, activeMonth };
+  const surface = body.surface === "month-grid" ? "month-grid" : "web";
+  const cellAsk =
+    surface === "month-grid" && isCellAskContext(body.cellAsk)
+      ? body.cellAsk
+      : undefined;
+
+  return { messages, responseStyle, activeMonth, surface, cellAsk };
 }
 
 export async function POST(request: Request) {
@@ -123,16 +150,20 @@ export async function POST(request: Request) {
       return res;
     }
 
-    const { messages: uiMessages, responseStyle, activeMonth } = parseChatBody(
-      await request.json(),
-    );
+    const {
+      messages: uiMessages,
+      responseStyle,
+      activeMonth,
+      surface,
+      cellAsk,
+    } = parseChatBody(await request.json());
     const modelMessages = await convertToModelMessages(uiMessages);
 
     // Persist the latest user turn before streaming so the next page load
-    // shows it even if the user navigates away mid-stream. `persistWebChatMessage`
-    // upserts on `id`, so retries from the AI SDK don't create duplicates.
+    // shows it even if the user navigates away mid-stream. Cell-ask from the
+    // month grid keeps an isolated panel — skip web history for that surface.
     const lastUser = [...uiMessages].reverse().find((m) => m.role === "user");
-    if (lastUser) {
+    if (lastUser && surface !== "month-grid") {
       try {
         await persistWebChatMessage({ userId, message: lastUser });
       } catch (error) {
@@ -141,11 +172,23 @@ export async function POST(request: Request) {
       }
     }
 
+    const userRow = cellAsk
+      ? await db.user.findUnique({
+          where: { id: userId },
+          select: { locale: true },
+        })
+      : null;
+    const cellAskLocale = userRow?.locale === "en" ? "en" : "es";
+    const cellAskBlock = cellAsk
+      ? buildCellAskSystemBlock(cellAsk, cellAskLocale)
+      : undefined;
+
     const result = await streamExpenseAgent({
       userId,
       messages: modelMessages,
       responseStyle,
       activeMonth,
+      cellAskBlock,
       onFinish: async ({ usage, model }) => {
         await Promise.all([
           recordAgentTokens(userId, usage),
@@ -177,6 +220,7 @@ export async function POST(request: Request) {
       messageMetadata: ({ part }) =>
         part.type === "start" ? { createdAt: assistantStartedAt } : undefined,
       onFinish: async ({ responseMessage }) => {
+        if (surface === "month-grid") return;
         try {
           await persistWebChatMessage({ userId, message: responseMessage });
         } catch (error) {

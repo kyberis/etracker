@@ -8,6 +8,10 @@ short and useful.
 
 ## Active plans
 
+- [`month-desktop-grid`](month-desktop-grid.md) — Vista desktop tipo planilla
+  del mes (Tabla / Gráficos / Simular), edición inline, chat contextual por
+  celda. PRD: [`../../product-specs/month-desktop-grid.md`](../../product-specs/month-desktop-grid.md);
+  mockup: `.cursor/mockups/month-excel-grid.html`.
 - [`cross-month-crud-act-first`](cross-month-crud-act-first.md) — CRUD en
   cualquier mes (web + Telegram), fecha estimada, futuros planificados,
   agente act-first, paridad REST ↔ tools ↔ UI. QA:

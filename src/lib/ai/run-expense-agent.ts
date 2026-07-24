@@ -142,6 +142,8 @@ type SystemPromptOptions = {
    * a tightly scoped one that forbids anything outside this event.
    */
   guestEventScope?: GuestEventScope;
+  /** Month-grid cell-ask snapshot (optional). */
+  cellAskBlock?: string;
 };
 
 /**
@@ -338,7 +340,7 @@ Charts (renderChart):
 - After emitting the chart, add ONE short sentence with the takeaway (e.g. "Remaining to pay: ${primaryCurrency} 320") and, if useful, a next-step suggestion.
 
 Language switching:
-- If the user asks to change language ("switch to Spanish", "habla en inglés", "cambiá a inglés"), call \`setUserLocale\` first with the requested locale ("es" or "en"). After the tool resolves, your NEXT reply MUST already be in the new locale, with a short acknowledgement.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}`;
+- If the user asks to change language ("switch to Spanish", "habla en inglés", "cambiá a inglés"), call \`setUserLocale\` first with the requested locale ("es" or "en"). After the tool resolves, your NEXT reply MUST already be in the new locale, with a short acknowledgement.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}`;
   }
 
   // Spanish (default)
@@ -427,7 +429,7 @@ Gráficos (renderChart):
 - Tras emitir el gráfico, agregá UNA frase corta con la conclusión (p. ej. "Restante a pagar: ${primaryCurrency} 320") y, si corresponde, una sugerencia de siguiente paso.
 
 Cambio de idioma:
-- Si el usuario pide cambiar el idioma ("habla en inglés", "switch to English", "cambiá a inglés"), llamá \`setUserLocale\` primero con el locale pedido ("es" o "en"). Después de que resuelva, tu PRÓXIMA respuesta YA tiene que estar en el nuevo idioma, con un acuse breve.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}`;
+- Si el usuario pide cambiar el idioma ("habla en inglés", "switch to English", "cambiá a inglés"), llamá \`setUserLocale\` primero con el locale pedido ("es" o "en"). Después de que resuelva, tu PRÓXIMA respuesta YA tiene que estar en el nuevo idioma, con un acuse breve.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}`;
 }
 
 export type ExpenseAgentMessages = Array<ModelMessage>;
@@ -447,6 +449,7 @@ export async function streamExpenseAgent({
   source = "web",
   responseStyle = "concise",
   activeMonth,
+  cellAskBlock,
   onFinish,
 }: {
   userId: string;
@@ -454,6 +457,8 @@ export async function streamExpenseAgent({
   source?: AgentSource;
   responseStyle?: ExpenseAgentResponseStyle;
   activeMonth?: string | null;
+  /** Extra system block for month-grid cell-ask. */
+  cellAskBlock?: string;
   /**
    * Optional hook for callers (e.g. `/api/chat`) that need to record token
    * usage after the stream finishes. Errors are swallowed by AI SDK; we
@@ -489,7 +494,11 @@ export async function streamExpenseAgent({
     providerOptions: {
       gateway: {
         user: userId,
-        tags: [`feature:chat-${source}`, `locale:${locale}`],
+        tags: [
+          `feature:chat-${source}`,
+          `locale:${locale}`,
+          ...(cellAskBlock ? ["surface:month-grid"] : []),
+        ],
       },
     },
     system: buildSystemPrompt({
@@ -498,6 +507,7 @@ export async function streamExpenseAgent({
       primaryCurrency: user?.primaryCurrency,
       primaryCurrencyConfirmedAt: user?.primaryCurrencyConfirmedAt ?? null,
       locale,
+      cellAskBlock,
     }),
     messages: messagesForModel,
     tools: buildExpenseTools(userId),

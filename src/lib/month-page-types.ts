@@ -10,6 +10,8 @@ export type MonthLineEventRef = {
   status: "OPEN" | "CLOSED";
 };
 
+export type MonthLineKind = "RECURRING" | "ONE_OFF";
+
 export type MonthLinePayload = {
   id: string;
   name: string;
@@ -25,6 +27,13 @@ export type MonthLinePayload = {
   bankName: string;
   paid: boolean;
   category: string;
+  /** Template this line was materialised from, if any. */
+  templateId: string | null;
+  /**
+   * RECURRING when linked to a recurring expense template; otherwise ONE_OFF
+   * (chat one-offs and one-off templates). Used by the desktop grid badges.
+   */
+  kind: MonthLineKind;
   /**
    * Billetera de evento a la que pertenece la línea. `null` para gastos
    * sueltos. La UI agrupa todas las líneas con el mismo `event.id` en un

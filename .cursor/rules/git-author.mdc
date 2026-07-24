@@ -5,9 +5,9 @@ alwaysApply: true
 
 # Git author for this repo
 
-This is a personal/open-source project, NOT an Uber project. All commits and
+This is a personal/open-source project, NOT a work/corporate project. All commits and
 pushes from this repo must be authored as **`Marcos Suarez <suarez84@gmail.com>`**,
-never with the Uber email.
+never with the work email.
 
 Never run `git config` to change the global identity. Override per-command instead:
 
@@ -27,8 +27,8 @@ GIT_COMMITTER_NAME="Marcos Suarez" GIT_COMMITTER_EMAIL="suarez84@gmail.com" \
 
 ## Pre-commit hook & GPG signing
 
-The machine has Uber's tooling installed globally (an `asd-cli` pre-commit
-hook AND `commit.gpgsign=true` with `gpg.format=x509` pointing at an Uber
+The machine has corporate tooling installed globally (an `asd-cli` pre-commit
+hook AND `commit.gpgsign=true` with `gpg.format=x509` pointing at a corporate
 x509 key that requires `ussh`). Both fail on this personal repo with
 `no ssh cert is found, please run ussh first`.
 
@@ -46,7 +46,7 @@ GIT_COMMITTER_NAME="Marcos Suarez" GIT_COMMITTER_EMAIL="suarez84@gmail.com" \
 `origin/main` on https://github.com/kyberis/etracker is wired to Vercel; pushing
 to `main` triggers a production deploy.
 
-The pre-push hook is also Uber's `asd-cli` and fails the same way as the
+The pre-push hook is also the corporate `asd-cli` and fails the same way as the
 pre-commit hook. Always push with **`--no-verify`**:
 
 ```bash

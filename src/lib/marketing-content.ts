@@ -174,6 +174,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.14.0",
+      date: "2026-07-24",
+      title: "Vista tabla del mes (desktop)",
+      highlights: [
+        "En pantallas anchas podés ver los gastos del mes en planilla agrupada por banco, con filtros recurrente/puntual y gráficos.",
+        "Doble click para editar un dato; click para preguntarle a Clara sobre ese número en un chat flotante.",
+        "Modo Simular: probá “qué pasa si saco o bajo un gasto” sin tocar tus datos reales (activar con NEXT_PUBLIC_MONTH_DESKTOP_GRID=1).",
+      ],
+    },
+    {
       version: "0.13.0",
       date: "2026-05-31",
       title: "CRUD en cualquier mes y fechas estimadas",
@@ -932,6 +942,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.14.0",
+      date: "2026-07-24",
+      title: "Desktop month table view",
+      highlights: [
+        "On wide screens you can view the month’s expenses as a bank-grouped spreadsheet with recurring/one-off filters and charts.",
+        "Double-click to edit a value; click to ask Clara about that number in a floating chat.",
+        "Simulate mode: try “what if I drop or cut an expense” without changing real data (enable with NEXT_PUBLIC_MONTH_DESKTOP_GRID=1).",
+      ],
+    },
     {
       version: "0.13.0",
       date: "2026-05-31",

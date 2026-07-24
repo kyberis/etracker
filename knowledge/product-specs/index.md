@@ -49,6 +49,10 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`mcp-public`](mcp-public.md) — public no-auth MCP server at `/api/mcp`.
   Read-only marketing surface (`getOverview`, `getFeatures`, `getFaq`,
   `getChangelog`, `searchContent`) in Spanish + English.
+- [`month-desktop-grid`](month-desktop-grid.md) — **PRD / requerimientos** de la
+  vista desktop tipo planilla del mes: tabla por banco, gráficos, edición
+  inline, simulación “qué pasa si…”, chat contextual por celda. Desktop ≥1100px.
+  Mockup: `.cursor/mockups/month-excel-grid.html`. Incluye métricas, testing y DoD.
 - [`months-and-templates`](months-and-templates.md) — core data model:
   `Expense` template + `MonthRecord` + `MonthExpenseLine`. `amountConverted`
   in primary currency, frozen `fxRate`, partial-unique dedupe on imports,

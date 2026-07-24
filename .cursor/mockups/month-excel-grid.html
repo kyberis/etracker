@@ -1,0 +1,1734 @@
+<!doctype html>
+<!-- Implemented in product: see knowledge/product-specs/month-desktop-grid.md
+     and knowledge/exec-plans/active/month-desktop-grid.md
+     Flag: NEXT_PUBLIC_MONTH_DESKTOP_GRID=1 -->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Clara · Vista tabla · Julio 2026</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ['"Bricolage Grotesque"', "system-ui", "sans-serif"],
+              sans: ['"Schibsted Grotesk"', "system-ui", "sans-serif"],
+            },
+            colors: {
+              cream: { DEFAULT: "#f5efd8", soft: "#faf6e8" },
+              ink: { DEFAULT: "#1a1433", muted: "#5c5478" },
+              lime: { DEFAULT: "#b8f06e", deep: "#7ec83a" },
+              peach: "#ffc596",
+              hotpink: "#e85a6b",
+              lilac: "#c4a8f0",
+              sky: "#a8d4f0",
+              good: "#3db87a",
+              warn: "#e0a03a",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+        --cream: #f5efd8;
+        --cream-soft: #faf6e8;
+        --ink: #1a1433;
+        --ink-muted: #5c5478;
+        --lime: #b8f06e;
+        --lime-deep: #7ec83a;
+        --peach: #ffc596;
+        --hotpink: #e85a6b;
+        --lilac: #c4a8f0;
+        --border: rgba(26, 20, 51, 0.1);
+      }
+
+      html,
+      body {
+        min-height: 100%;
+        background:
+          radial-gradient(ellipse at 12% -5%, rgba(196, 168, 240, 0.35) 0%, transparent 50%),
+          radial-gradient(ellipse at 90% 8%, rgba(184, 240, 110, 0.28) 0%, transparent 45%),
+          radial-gradient(ellipse at 70% 100%, rgba(255, 197, 150, 0.22) 0%, transparent 40%),
+          linear-gradient(180deg, #faf6e8 0%, #f5efd8 100%);
+        font-family: "Schibsted Grotesk", system-ui, sans-serif;
+        color: var(--ink);
+      }
+
+      .display {
+        font-family: "Bricolage Grotesque", system-ui, sans-serif;
+        letter-spacing: -0.02em;
+      }
+
+      .num {
+        font-variant-numeric: tabular-nums;
+        font-family: "Bricolage Grotesque", system-ui, sans-serif;
+        font-weight: 600;
+      }
+
+      .surface {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--border);
+        border-radius: 1.25rem;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 18px 48px -36px rgba(26, 20, 51, 0.35);
+      }
+
+      .kpi {
+        background: rgba(255, 255, 255, 0.65);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        cursor: pointer;
+        transition: box-shadow 0.15s ease, border-color 0.15s ease;
+      }
+
+      .kpi:hover {
+        border-color: rgba(126, 200, 58, 0.55);
+        box-shadow: 0 0 0 3px rgba(184, 240, 110, 0.35);
+      }
+
+      .kpi.ask-active {
+        border-color: var(--lime-deep);
+        box-shadow: 0 0 0 3px rgba(184, 240, 110, 0.5);
+      }
+
+      .label {
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-muted);
+        font-weight: 700;
+      }
+
+      .pill {
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.55);
+        border-radius: 999px;
+      }
+
+      .pill.active {
+        background: var(--ink);
+        color: var(--cream-soft);
+        border-color: var(--ink);
+      }
+
+      .mode-tabs {
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.55);
+      }
+
+      .mode-tabs button {
+        padding: 7px 14px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink-muted);
+        border: none;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .mode-tabs button.active {
+        background: var(--ink);
+        color: var(--cream-soft);
+      }
+
+      .panel-view {
+        display: none;
+      }
+
+      .panel-view.active {
+        display: block;
+      }
+
+      .grid-wrap {
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        overflow: hidden;
+        background: #fff;
+      }
+
+      table.excel {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+      }
+
+      table.excel thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--cream-soft);
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        padding: 10px 14px;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-muted);
+        font-weight: 700;
+      }
+
+      table.excel tbody td {
+        padding: 9px 14px;
+        border-bottom: 1px solid rgba(26, 20, 51, 0.06);
+        vertical-align: middle;
+      }
+
+      table.excel tbody tr.line:nth-child(even) td {
+        background: rgba(245, 239, 216, 0.35);
+      }
+
+      table.excel tbody tr.line:hover td {
+        background: rgba(184, 240, 110, 0.12);
+      }
+
+      table.excel tbody tr.line.ask-row td {
+        background: rgba(184, 240, 110, 0.22);
+      }
+
+      table.excel tbody tr.line.sim-off td {
+        opacity: 0.38;
+        text-decoration: line-through;
+      }
+
+      table.excel tbody tr.line.sim-cut td .amount-cell {
+        color: var(--good);
+      }
+
+      .ask-cell {
+        cursor: pointer;
+        border-radius: 6px;
+        transition: background 0.12s ease, box-shadow 0.12s ease;
+      }
+
+      .ask-cell:hover {
+        background: rgba(184, 240, 110, 0.35) !important;
+        box-shadow: inset 0 0 0 1.5px rgba(126, 200, 58, 0.55);
+      }
+
+      .ask-cell.ask-active {
+        background: rgba(184, 240, 110, 0.45) !important;
+        box-shadow: inset 0 0 0 2px var(--lime-deep);
+      }
+
+      .ask-cell.editing {
+        padding: 4px 6px !important;
+        background: #fff !important;
+        box-shadow: inset 0 0 0 2px var(--lilac) !important;
+      }
+
+      .ask-cell.editing input,
+      .ask-cell.editing select {
+        width: 100%;
+        border: none;
+        outline: none;
+        background: transparent;
+        font: inherit;
+        font-size: 13px;
+        color: var(--ink);
+      }
+
+      tr.group-row td {
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), var(--cream-soft));
+        border-bottom: 1px solid var(--border);
+        padding: 11px 14px;
+        user-select: none;
+      }
+
+      tr.group-row:hover td {
+        background: rgba(196, 168, 240, 0.12);
+      }
+
+      tr.group-row.collapsed .chevron {
+        transform: rotate(-90deg);
+      }
+
+      .chevron {
+        display: inline-block;
+        transition: transform 0.15s ease;
+        color: var(--ink-muted);
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .bank-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        flex-shrink: 0;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 9px;
+        border-radius: 999px;
+      }
+
+      .badge.recurring {
+        background: rgba(184, 240, 110, 0.45);
+        color: #2d5a12;
+      }
+
+      .badge.oneoff {
+        background: rgba(255, 197, 150, 0.55);
+        color: #8a3d18;
+      }
+
+      .check {
+        width: 18px;
+        height: 18px;
+        border-radius: 6px;
+        border: 1.5px solid rgba(26, 20, 51, 0.22);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        color: transparent;
+      }
+
+      .check.on {
+        background: var(--lime);
+        border-color: var(--lime-deep);
+        color: var(--ink);
+      }
+
+      tr.total-row td {
+        background: var(--ink);
+        color: var(--cream-soft);
+        padding: 12px 14px;
+        font-weight: 600;
+        border-bottom: none;
+      }
+
+      .desktop-frame {
+        width: min(1360px, 96vw);
+        margin: 0 auto;
+      }
+
+      .mobile-block {
+        display: none;
+      }
+
+      @media (max-width: 1099px) {
+        .desktop-only {
+          display: none !important;
+        }
+        .mobile-block {
+          display: block;
+        }
+      }
+
+      .scroll-table {
+        max-height: min(52vh, 520px);
+        overflow: auto;
+      }
+
+      .scroll-table::-webkit-scrollbar,
+      .chat-scroll::-webkit-scrollbar,
+      .sim-list::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .scroll-table::-webkit-scrollbar-thumb,
+      .chat-scroll::-webkit-scrollbar-thumb,
+      .sim-list::-webkit-scrollbar-thumb {
+        background: rgba(26, 20, 51, 0.15);
+        border-radius: 999px;
+      }
+
+      .tip-banner {
+        background: linear-gradient(105deg, rgba(184, 240, 110, 0.35), rgba(196, 168, 240, 0.25));
+        border: 1px solid rgba(26, 20, 51, 0.08);
+        border-radius: 1rem;
+      }
+
+      /* Charts */
+      .chart-card {
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        padding: 16px 18px;
+      }
+
+      .chart-card h3 {
+        font-family: "Bricolage Grotesque", system-ui, sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .chart-wrap {
+        position: relative;
+        height: 220px;
+      }
+
+      /* Sim */
+      .sim-banner {
+        background: linear-gradient(105deg, rgba(196, 168, 240, 0.4), rgba(184, 240, 110, 0.3));
+        border: 1px solid rgba(26, 20, 51, 0.1);
+        border-radius: 1rem;
+        padding: 14px 16px;
+      }
+
+      .sim-delta {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--good);
+      }
+
+      .sim-row {
+        display: grid;
+        grid-template-columns: 28px 1fr 90px 120px 70px;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(26, 20, 51, 0.06);
+        font-size: 13px;
+      }
+
+      .sim-row:hover {
+        background: rgba(184, 240, 110, 0.12);
+      }
+
+      .sim-row.off {
+        opacity: 0.45;
+      }
+
+      .sim-row input[type="range"] {
+        width: 100%;
+        accent-color: var(--lime-deep);
+      }
+
+      .sim-list {
+        max-height: 420px;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        background: #fff;
+      }
+
+      /* Float ask */
+      #float-ask {
+        position: fixed;
+        z-index: 80;
+        display: none;
+        width: min(420px, calc(100vw - 24px));
+        animation: floatIn 0.14s ease-out;
+      }
+
+      #float-ask.open {
+        display: block;
+      }
+
+      @keyframes floatIn {
+        from {
+          opacity: 0;
+          transform: translateY(6px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      .float-card {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(26, 20, 51, 0.14);
+        border-radius: 14px;
+        box-shadow:
+          0 0 0 1px rgba(184, 240, 110, 0.25),
+          0 24px 60px -20px rgba(26, 20, 51, 0.45);
+        backdrop-filter: blur(14px);
+        overflow: hidden;
+      }
+
+      .float-context {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px 0;
+        font-size: 11px;
+        color: var(--ink-muted);
+      }
+
+      .float-context .chip {
+        display: inline-flex;
+        max-width: 70%;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(26, 20, 51, 0.06);
+        border: 1px solid var(--border);
+        color: var(--ink);
+        font-weight: 600;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .float-input-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        padding: 10px 12px 12px;
+      }
+
+      .float-input-row textarea {
+        flex: 1;
+        resize: none;
+        border: none;
+        outline: none;
+        background: transparent;
+        font: inherit;
+        font-size: 14px;
+        line-height: 1.4;
+        min-height: 24px;
+        max-height: 96px;
+      }
+
+      .float-send {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        background: var(--ink);
+        color: var(--cream-soft);
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      .float-send:disabled {
+        opacity: 0.35;
+      }
+
+      .float-hints {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 0 12px 12px;
+      }
+
+      .float-hints button {
+        font-size: 11px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(245, 239, 216, 0.7);
+        color: var(--ink-muted);
+        cursor: pointer;
+      }
+
+      .chat-panel {
+        display: flex;
+        flex-direction: column;
+        height: min(62vh, 580px);
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.78);
+        overflow: hidden;
+      }
+
+      .chat-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .bubble-user {
+        align-self: flex-end;
+        max-width: 92%;
+        background: var(--ink);
+        color: var(--cream-soft);
+        border-radius: 14px 14px 4px 14px;
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .bubble-clara {
+        align-self: flex-start;
+        max-width: 95%;
+        background: rgba(245, 239, 216, 0.85);
+        border: 1px solid var(--border);
+        border-radius: 14px 14px 14px 4px;
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .bubble-clara .who {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--ink-muted);
+      }
+
+      .bubble-meta {
+        font-size: 10px;
+        opacity: 0.65;
+        margin-top: 6px;
+      }
+
+      .typing {
+        display: inline-flex;
+        gap: 4px;
+        padding: 4px 2px;
+      }
+
+      .typing i {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--ink-muted);
+        opacity: 0.5;
+        animation: blink 1s infinite ease-in-out;
+      }
+
+      .typing i:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+
+      .typing i:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 0.3;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      .chat-empty {
+        margin: auto;
+        text-align: center;
+        padding: 24px 16px;
+        color: var(--ink-muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .chat-footer-hint {
+        border-top: 1px solid var(--border);
+        padding: 10px 14px;
+        font-size: 11px;
+        color: var(--ink-muted);
+        background: rgba(245, 239, 216, 0.45);
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--ink);
+        color: var(--cream-soft);
+        padding: 10px 16px;
+        border-radius: 999px;
+        font-size: 13px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s, transform 0.2s;
+        z-index: 100;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    </style>
+  </head>
+  <body class="min-h-screen pb-16">
+    <div class="mobile-block px-6 py-20 text-center max-w-md mx-auto">
+      <p class="display text-2xl font-bold mb-2">Vista tabla · desktop</p>
+      <p class="text-ink-muted text-sm leading-relaxed">
+        Este mockup está pensado para pantallas ≥1100px.
+      </p>
+    </div>
+
+    <div class="desktop-only desktop-frame px-5 pt-8 pb-6">
+      <header class="flex items-center gap-3 mb-7">
+        <div
+          class="size-10 rounded-full bg-gradient-to-br from-lime to-lilac shadow-md flex items-center justify-center display font-bold text-ink text-sm"
+        >
+          C
+        </div>
+        <div>
+          <p class="display text-xl font-bold leading-none">Clara</p>
+          <p class="text-ink-muted text-xs mt-1">
+            Tabla · gráficos · editar · simular · chat por celda
+          </p>
+        </div>
+        <div class="ml-auto flex items-center gap-2 text-xs">
+          <span class="pill px-3 py-1.5 font-medium">Solo desktop</span>
+          <span class="pill px-3 py-1.5 font-medium">Julio 2026</span>
+        </div>
+      </header>
+
+      <div class="surface p-6 lg:p-7">
+        <div class="flex items-end justify-between gap-4 mb-5 flex-wrap">
+          <div>
+            <p class="label">julio 2026</p>
+            <h1 class="display text-3xl font-bold mt-1">Gastos en tabla</h1>
+            <p class="text-ink-muted text-sm mt-1 max-w-xl">
+              Click = preguntar · Doble click = editar · Simular = “qué pasa si…”
+            </p>
+          </div>
+          <div class="mode-tabs" id="mode-tabs">
+            <button type="button" data-mode="table" class="active">Tabla</button>
+            <button type="button" data-mode="charts">Gráficos</button>
+            <button type="button" data-mode="sim">Simular</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-4 gap-3 mb-4" id="kpi-strip">
+          <div class="kpi p-4" data-ask-kpi="total">
+            <p class="label">Total mes</p>
+            <p class="num text-2xl mt-1" id="kpi-total">—</p>
+            <p class="text-xs text-good mt-1 hidden" id="kpi-total-delta"></p>
+          </div>
+          <div class="kpi p-4" data-ask-kpi="recurring">
+            <p class="label">Recurrente</p>
+            <p class="num text-2xl mt-1" id="kpi-recurring">—</p>
+            <p class="text-xs text-ink-muted mt-1" id="kpi-recurring-pct"></p>
+          </div>
+          <div class="kpi p-4" data-ask-kpi="oneoff">
+            <p class="label">Puntual</p>
+            <p class="num text-2xl mt-1" id="kpi-oneoff">—</p>
+            <p class="text-xs text-ink-muted mt-1" id="kpi-oneoff-pct"></p>
+          </div>
+          <div class="kpi p-4" data-ask-kpi="banks">
+            <p class="label">Bancos</p>
+            <p class="num text-2xl mt-1" id="kpi-banks">3</p>
+            <p class="text-xs text-ink-muted mt-1" id="kpi-lines"></p>
+          </div>
+        </div>
+
+        <div class="tip-banner px-4 py-3 mb-5 flex items-start gap-3">
+          <span
+            class="size-8 rounded-full bg-ink text-cream-soft display text-sm font-bold flex items-center justify-center shrink-0"
+            >C</span
+          >
+          <p class="text-sm leading-relaxed pt-1" id="clara-tip">Cargando…</p>
+        </div>
+
+        <!-- TABLE VIEW -->
+        <div class="panel-view active" id="view-table">
+          <div class="grid grid-cols-[1fr_320px] gap-5 items-start">
+            <div>
+              <div class="flex items-center gap-2 mb-3 flex-wrap">
+                <p class="label mr-1">Filtrar</p>
+                <button type="button" data-filter="all" class="filter-btn pill px-3 py-1.5 text-sm active">
+                  Todos
+                </button>
+                <button type="button" data-filter="recurring" class="filter-btn pill px-3 py-1.5 text-sm">
+                  Recurrentes
+                </button>
+                <button type="button" data-filter="oneoff" class="filter-btn pill px-3 py-1.5 text-sm">
+                  Puntuales
+                </button>
+                <button type="button" id="expand-all" class="ml-auto pill px-3 py-1.5 text-sm text-ink-muted">
+                  Expandir
+                </button>
+                <button type="button" id="collapse-all" class="pill px-3 py-1.5 text-sm text-ink-muted">
+                  Colapsar
+                </button>
+              </div>
+              <div class="grid-wrap">
+                <div class="scroll-table">
+                  <table class="excel">
+                    <thead>
+                      <tr>
+                        <th style="width: 10%">Fecha</th>
+                        <th style="width: 26%">Concepto</th>
+                        <th style="width: 16%">Categoría</th>
+                        <th style="width: 13%">Tipo</th>
+                        <th style="width: 9%">Pagado</th>
+                        <th style="width: 16%; text-align: right">Monto</th>
+                        <th style="width: 10%" id="th-sim" class="hidden">Sim</th>
+                      </tr>
+                    </thead>
+                    <tbody id="table-body"></tbody>
+                    <tfoot>
+                      <tr class="total-row">
+                        <td colspan="5">Total visible</td>
+                        <td class="num text-right ask-cell" id="grand-total" data-ask-kind="grand">—</td>
+                        <td id="td-sim-spacer" class="hidden"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+              <p class="text-xs text-ink-muted mt-2">
+                Click = chat · Doble click en concepto / categoría / tipo / monto / pagado = editar
+              </p>
+            </div>
+
+            <aside class="space-y-3">
+              <div class="flex items-center justify-between">
+                <p class="label">Chat con Clara</p>
+                <button type="button" id="clear-chat" class="text-xs text-ink-muted underline">Limpiar</button>
+              </div>
+              <div class="chat-panel">
+                <div class="chat-scroll" id="chat-scroll">
+                  <div class="chat-empty" id="chat-empty">
+                    <p class="display font-semibold text-ink mb-1">¿Sobre qué querés preguntar?</p>
+                    <p>Clickeá un valor. Input flotante → respuesta acá.</p>
+                  </div>
+                </div>
+                <div class="chat-footer-hint" id="chat-context-bar">Sin contexto</div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <!-- CHARTS VIEW -->
+        <div class="panel-view" id="view-charts">
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="chart-card">
+              <h3>Por categoría</h3>
+              <p class="text-xs text-ink-muted mb-2">Dónde se concentra el mes</p>
+              <div class="chart-wrap"><canvas id="chart-cat"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h3>Por banco</h3>
+              <p class="text-xs text-ink-muted mb-2">Quién se lleva más plata</p>
+              <div class="chart-wrap"><canvas id="chart-bank"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h3>Recurrente vs puntual</h3>
+              <p class="text-xs text-ink-muted mb-2">Estructura del gasto</p>
+              <div class="chart-wrap"><canvas id="chart-type"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <h3>Top 8 gastos</h3>
+              <p class="text-xs text-ink-muted mb-2">Los más pesados del mes</p>
+              <div class="chart-wrap"><canvas id="chart-top"></canvas></div>
+            </div>
+          </div>
+          <p class="text-xs text-ink-muted">
+            Los gráficos usan los montos efectivos (incluye simulación si está activa).
+          </p>
+        </div>
+
+        <!-- SIM VIEW -->
+        <div class="panel-view" id="view-sim">
+          <div class="sim-banner mb-4 flex items-center gap-6 flex-wrap">
+            <div>
+              <p class="label">Ahorro simulado</p>
+              <p class="sim-delta num" id="sim-saved">$ 0</p>
+              <p class="text-xs text-ink-muted mt-1">vs total real del mes</p>
+            </div>
+            <div class="h-10 w-px bg-ink/10 hidden sm:block"></div>
+            <div>
+              <p class="label">Total simulado</p>
+              <p class="num text-2xl" id="sim-total">—</p>
+            </div>
+            <div>
+              <p class="label">Total real</p>
+              <p class="num text-2xl text-ink-muted" id="sim-baseline">—</p>
+            </div>
+            <div class="ml-auto flex gap-2">
+              <button type="button" id="sim-reset" class="pill px-3 py-2 text-sm font-medium">
+                Resetear simulación
+              </button>
+              <button type="button" id="sim-apply-zero-delivery" class="pill px-3 py-2 text-sm font-medium bg-lime/40 border-lime-deep/30">
+                Sin delivery
+              </button>
+            </div>
+          </div>
+          <p class="text-sm text-ink-muted mb-3">
+            Desmarcá un gasto para sacarlo del mes, o bajá el % para “deducir” parte. Los KPI y
+            gráficos se actualizan al toque.
+          </p>
+          <div class="sim-row text-xs text-ink-muted font-semibold uppercase tracking-wide bg-cream-soft/80 sticky top-0">
+            <span></span>
+            <span>Concepto</span>
+            <span class="text-right">Original</span>
+            <span>Reducir %</span>
+            <span class="text-right">Efectivo</span>
+          </div>
+          <div class="sim-list" id="sim-list"></div>
+        </div>
+      </div>
+
+      <p class="text-center text-xs text-ink-muted mt-6">
+        Mockup · no conectado a datos reales · ≥1100px ·
+        <span class="font-medium">month-excel-grid.html</span>
+      </p>
+    </div>
+
+    <div id="float-ask" role="dialog" aria-label="Preguntar a Clara">
+      <div class="float-card">
+        <div class="float-context">
+          <span>Preguntando sobre</span>
+          <span class="chip" id="float-chip">—</span>
+          <button type="button" id="float-close" class="ml-auto text-ink-muted text-lg px-1" aria-label="Cerrar">
+            ×
+          </button>
+        </div>
+        <div class="float-input-row">
+          <textarea id="float-input" rows="1" placeholder="Preguntale a Clara sobre esto…"></textarea>
+          <button type="button" class="float-send" id="float-send" aria-label="Enviar" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+        <div class="float-hints" id="float-hints"></div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      const BANKS = {
+        galicia: { id: "galicia", name: "Galicia", color: "#7ec83a" },
+        mp: { id: "mp", name: "Mercado Pago", color: "#3b82f6" },
+        brubank: { id: "brubank", name: "Brubank", color: "#a855f7" },
+      };
+
+      const CAT_LABEL = {
+        VIVIENDA: "Vivienda",
+        SERVICIOS: "Servicios",
+        TRANSPORTE: "Transporte",
+        ALIMENTACION: "Alimentación",
+        SALUD: "Salud",
+        ENTRETENIMIENTO: "Entretenimiento",
+        SUSCRIPCIONES: "Suscripciones",
+        OTROS: "Otros",
+      };
+
+      const CAT_COLORS = {
+        VIVIENDA: "#7ec83a",
+        SERVICIOS: "#5c8a3a",
+        TRANSPORTE: "#3b82f6",
+        ALIMENTACION: "#e0a03a",
+        SALUD: "#e85a6b",
+        ENTRETENIMIENTO: "#a855f7",
+        SUSCRIPCIONES: "#c4a8f0",
+        OTROS: "#5c5478",
+      };
+
+      /** @type {{ id: string, bankId: string, date: string, name: string, category: string, recurring: boolean, paid: boolean, amount: number, simEnabled: boolean, simCutPct: number }[]} */
+      let LINES = [
+        { id: "1", bankId: "galicia", date: "2026-07-01", name: "Alquiler", category: "VIVIENDA", recurring: true, paid: true, amount: 450000 },
+        { id: "2", bankId: "galicia", date: "2026-07-03", name: "Edenor", category: "SERVICIOS", recurring: true, paid: true, amount: 42500 },
+        { id: "3", bankId: "galicia", date: "2026-07-05", name: "Internet Fibertel", category: "SERVICIOS", recurring: true, paid: true, amount: 28900 },
+        { id: "4", bankId: "galicia", date: "2026-07-08", name: "Obra social OSDE", category: "SALUD", recurring: true, paid: false, amount: 98500 },
+        { id: "5", bankId: "galicia", date: "2026-07-12", name: "Farmacia puntual", category: "SALUD", recurring: false, paid: true, amount: 18600 },
+        { id: "6", bankId: "galicia", date: "2026-07-18", name: "Regalo cumple Ana", category: "OTROS", recurring: false, paid: true, amount: 35000 },
+        { id: "7", bankId: "mp", date: "2026-07-02", name: "Netflix", category: "SUSCRIPCIONES", recurring: true, paid: true, amount: 8900 },
+        { id: "8", bankId: "mp", date: "2026-07-02", name: "Disney+", category: "SUSCRIPCIONES", recurring: true, paid: true, amount: 10000 },
+        { id: "9", bankId: "mp", date: "2026-07-04", name: "Spotify", category: "SUSCRIPCIONES", recurring: true, paid: true, amount: 3200 },
+        { id: "10", bankId: "mp", date: "2026-07-06", name: "PedidosYa — sushi", category: "ALIMENTACION", recurring: false, paid: true, amount: 28400 },
+        { id: "11", bankId: "mp", date: "2026-07-09", name: "Rappi — burgers", category: "ALIMENTACION", recurring: false, paid: true, amount: 22100 },
+        { id: "12", bankId: "mp", date: "2026-07-14", name: "PedidosYa — pizza", category: "ALIMENTACION", recurring: false, paid: true, amount: 19800 },
+        { id: "13", bankId: "mp", date: "2026-07-21", name: "Rappi — empanadas", category: "ALIMENTACION", recurring: false, paid: false, amount: 17100 },
+        { id: "14", bankId: "mp", date: "2026-07-07", name: "Café de la esquina", category: "ALIMENTACION", recurring: false, paid: true, amount: 4500 },
+        { id: "15", bankId: "mp", date: "2026-07-11", name: "Café de la esquina", category: "ALIMENTACION", recurring: false, paid: true, amount: 4800 },
+        { id: "16", bankId: "mp", date: "2026-07-15", name: "Café de la esquina", category: "ALIMENTACION", recurring: false, paid: true, amount: 4200 },
+        { id: "17", bankId: "mp", date: "2026-07-19", name: "Café de la esquina", category: "ALIMENTACION", recurring: false, paid: true, amount: 5100 },
+        { id: "18", bankId: "brubank", date: "2026-07-01", name: "SUBE / transporte", category: "TRANSPORTE", recurring: true, paid: true, amount: 25000 },
+        { id: "19", bankId: "brubank", date: "2026-07-10", name: "Uber aeropuerto", category: "TRANSPORTE", recurring: false, paid: true, amount: 18500 },
+        { id: "20", bankId: "brubank", date: "2026-07-16", name: "Cine + popcorn", category: "ENTRETENIMIENTO", recurring: false, paid: true, amount: 14200 },
+        { id: "21", bankId: "brubank", date: "2026-07-22", name: "Gym mensual", category: "SALUD", recurring: true, paid: false, amount: 32000 },
+      ].map((l) => ({ ...l, simEnabled: true, simCutPct: 0 }));
+
+      let filter = "all";
+      let mode = "table";
+      const collapsed = new Set();
+      let askCtx = null;
+      let chatHasMessages = false;
+      let clickTimer = null;
+      let charts = { cat: null, bank: null, type: null, top: null };
+      let chartsInited = false;
+
+      function fmt(n) {
+        return "$ " + Math.round(n).toLocaleString("es-AR", { maximumFractionDigits: 0 });
+      }
+
+      function fmtDate(iso) {
+        const [, m, d] = iso.split("-");
+        return `${d}/${m}`;
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function effectiveAmount(l) {
+        if (!l.simEnabled) return 0;
+        return Math.round(l.amount * (1 - (l.simCutPct || 0) / 100));
+      }
+
+      function baselineTotal() {
+        return LINES.reduce((s, l) => s + l.amount, 0);
+      }
+
+      function effectiveLines() {
+        return LINES.map((l) => ({ ...l, amount: effectiveAmount(l) })).filter((l) => l.amount > 0 || l.simEnabled);
+      }
+
+      function monthTotals(useEffective = true) {
+        const src = useEffective
+          ? LINES.map((l) => ({ ...l, amount: effectiveAmount(l) }))
+          : LINES;
+        const total = src.reduce((s, l) => s + l.amount, 0);
+        const rec = src.filter((l) => l.recurring).reduce((s, l) => s + l.amount, 0);
+        return { total, rec, one: total - rec };
+      }
+
+      function visibleLines() {
+        return LINES.filter((l) => {
+          if (filter === "recurring") return l.recurring;
+          if (filter === "oneoff") return !l.recurring;
+          return true;
+        });
+      }
+
+      function bankOrder() {
+        return ["galicia", "mp", "brubank"];
+      }
+
+      function toast(msg) {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.classList.add("show");
+        clearTimeout(toast._t);
+        toast._t = setTimeout(() => el.classList.remove("show"), 1800);
+      }
+
+      function updateKpis() {
+        const base = monthTotals(false);
+        const eff = monthTotals(true);
+        const saved = base.total - eff.total;
+        const recPct = eff.total ? Math.round((eff.rec / eff.total) * 100) : 0;
+        const onePct = 100 - recPct;
+
+        document.getElementById("kpi-total").textContent = fmt(eff.total);
+        document.getElementById("kpi-recurring").textContent = fmt(eff.rec);
+        document.getElementById("kpi-oneoff").textContent = fmt(eff.one);
+        document.getElementById("kpi-recurring-pct").textContent = `${recPct}% del mes`;
+        document.getElementById("kpi-oneoff-pct").textContent = `${onePct}% del mes`;
+        document.getElementById("kpi-lines").textContent = `${LINES.filter((l) => l.simEnabled).length} activos`;
+
+        const deltaEl = document.getElementById("kpi-total-delta");
+        if (saved > 0) {
+          deltaEl.textContent = `−${fmt(saved)} vs real`;
+          deltaEl.classList.remove("hidden");
+        } else {
+          deltaEl.classList.add("hidden");
+        }
+
+        document.getElementById("sim-saved").textContent = fmt(saved);
+        document.getElementById("sim-total").textContent = fmt(eff.total);
+        document.getElementById("sim-baseline").textContent = fmt(base.total);
+
+        const tip =
+          saved > 0
+            ? `Con la simulación actual te ahorrás <strong>${fmt(saved)}</strong> respecto al mes real. Los gráficos ya lo reflejan.`
+            : `Este mes el <strong>${onePct}%</strong> es puntual (${fmt(eff.one)}). Usá <em>Simular</em> para probar “qué pasa si…”`;
+        document.getElementById("clara-tip").innerHTML = tip;
+      }
+
+      function clearAskHighlights() {
+        document.querySelectorAll(".ask-active").forEach((el) => el.classList.remove("ask-active"));
+        document.querySelectorAll(".ask-row").forEach((el) => el.classList.remove("ask-row"));
+      }
+
+      function renderTable() {
+        const lines = visibleLines();
+        const tbody = document.getElementById("table-body");
+        tbody.innerHTML = "";
+        let grand = 0;
+        const showSim = mode === "sim"; // keep sim col only in table when? Actually sim has own view. Keep table clean.
+        document.getElementById("th-sim").classList.add("hidden");
+        document.getElementById("td-sim-spacer").classList.add("hidden");
+
+        for (const bankId of bankOrder()) {
+          const bank = BANKS[bankId];
+          const group = lines.filter((l) => l.bankId === bankId);
+          if (!group.length) continue;
+
+          const sub = group.reduce((s, l) => s + effectiveAmount(l), 0);
+          grand += sub;
+          const isCollapsed = collapsed.has(bankId);
+
+          const gro = document.createElement("tr");
+          gro.className = "group-row" + (isCollapsed ? " collapsed" : "");
+          gro.innerHTML = `
+            <td colspan="5">
+              <div class="flex items-center gap-2.5">
+                <span class="chevron" data-toggle-bank="${bankId}">▼</span>
+                <span class="bank-dot" style="background:${bank.color}"></span>
+                <span class="display font-semibold text-[15px] ask-cell" data-ask-kind="bank" data-bank-id="${bankId}">${bank.name}</span>
+                <span class="text-xs text-ink-muted">${group.length} gasto${group.length === 1 ? "" : "s"}</span>
+              </div>
+            </td>
+            <td class="num text-right text-[15px] ask-cell" data-ask-kind="bank-total" data-bank-id="${bankId}">${fmt(sub)}</td>
+          `;
+          tbody.appendChild(gro);
+
+          if (isCollapsed) continue;
+
+          for (const line of group) {
+            const eff = effectiveAmount(line);
+            const tr = document.createElement("tr");
+            tr.className =
+              "line" +
+              (!line.simEnabled ? " sim-off" : "") +
+              (line.simCutPct > 0 && line.simEnabled ? " sim-cut" : "");
+            tr.dataset.lineId = line.id;
+            tr.innerHTML = `
+              <td class="num text-ink-muted ask-cell" data-ask-kind="line" data-line-id="${line.id}" data-field="date">${fmtDate(line.date)}</td>
+              <td class="font-medium ask-cell editable" data-ask-kind="line" data-line-id="${line.id}" data-field="name">${escapeHtml(line.name)}</td>
+              <td class="text-ink-muted ask-cell editable" data-ask-kind="line" data-line-id="${line.id}" data-field="category">${CAT_LABEL[line.category] || line.category}</td>
+              <td class="ask-cell editable" data-ask-kind="line" data-line-id="${line.id}" data-field="type">
+                <span class="badge ${line.recurring ? "recurring" : "oneoff"}">${line.recurring ? "Recurrente" : "Puntual"}</span>
+              </td>
+              <td class="ask-cell editable" data-ask-kind="line" data-line-id="${line.id}" data-field="paid">
+                <span class="check ${line.paid ? "on" : ""}">${line.paid ? "✓" : ""}</span>
+              </td>
+              <td class="num text-right ask-cell editable amount-cell" data-ask-kind="line" data-line-id="${line.id}" data-field="amount">${fmt(eff)}${eff !== line.amount ? `<span class="block text-[10px] text-ink-muted no-underline" style="text-decoration:none">era ${fmt(line.amount)}</span>` : ""}</td>
+            `;
+            tbody.appendChild(tr);
+          }
+        }
+
+        document.getElementById("grand-total").textContent = fmt(grand);
+      }
+
+      function renderSimList() {
+        const list = document.getElementById("sim-list");
+        list.innerHTML = "";
+        const sorted = [...LINES].sort((a, b) => b.amount - a.amount);
+        for (const line of sorted) {
+          const eff = effectiveAmount(line);
+          const row = document.createElement("div");
+          row.className = "sim-row" + (!line.simEnabled ? " off" : "");
+          row.innerHTML = `
+            <input type="checkbox" ${line.simEnabled ? "checked" : ""} data-sim-toggle="${line.id}" title="Incluir en el mes" />
+            <div>
+              <div class="font-medium">${escapeHtml(line.name)}</div>
+              <div class="text-xs text-ink-muted">${BANKS[line.bankId].name} · ${CAT_LABEL[line.category]} · ${line.recurring ? "Recurrente" : "Puntual"}</div>
+            </div>
+            <div class="num text-right text-ink-muted">${fmt(line.amount)}</div>
+            <div>
+              <input type="range" min="0" max="100" step="5" value="${line.simCutPct}" data-sim-cut="${line.id}" ${line.simEnabled ? "" : "disabled"} />
+              <div class="text-[10px] text-ink-muted text-center">−${line.simCutPct}%</div>
+            </div>
+            <div class="num text-right ${eff < line.amount ? "text-good" : ""}">${fmt(eff)}</div>
+          `;
+          list.appendChild(row);
+        }
+      }
+
+      /* Charts */
+      const chartDefaults = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "right",
+            labels: { boxWidth: 12, font: { family: "Schibsted Grotesk", size: 11 } },
+          },
+        },
+      };
+
+      function chartData() {
+        const lines = LINES.map((l) => ({ ...l, amount: effectiveAmount(l) })).filter((l) => l.amount > 0);
+        const byCat = {};
+        const byBank = {};
+        let rec = 0;
+        let one = 0;
+        for (const l of lines) {
+          byCat[l.category] = (byCat[l.category] || 0) + l.amount;
+          byBank[l.bankId] = (byBank[l.bankId] || 0) + l.amount;
+          if (l.recurring) rec += l.amount;
+          else one += l.amount;
+        }
+        const top = [...lines].sort((a, b) => b.amount - a.amount).slice(0, 8);
+        return { byCat, byBank, rec, one, top };
+      }
+
+      function initOrUpdateCharts() {
+        const { byCat, byBank, rec, one, top } = chartData();
+        const catLabels = Object.keys(byCat);
+        const bankLabels = Object.keys(byBank);
+
+        const mk = (id, cfg) => {
+          const canvas = document.getElementById(id);
+          if (charts[id.replace("chart-", "")]) {
+            const c = charts[id.replace("chart-", "")];
+            c.data = cfg.data;
+            c.update();
+            return c;
+          }
+          return new Chart(canvas, cfg);
+        };
+
+        charts.cat = mk("chart-cat", {
+          type: "doughnut",
+          data: {
+            labels: catLabels.map((k) => CAT_LABEL[k] || k),
+            datasets: [
+              {
+                data: catLabels.map((k) => byCat[k]),
+                backgroundColor: catLabels.map((k) => CAT_COLORS[k] || "#999"),
+                borderWidth: 0,
+              },
+            ],
+          },
+          options: { ...chartDefaults, cutout: "58%" },
+        });
+
+        charts.bank = mk("chart-bank", {
+          type: "bar",
+          data: {
+            labels: bankLabels.map((k) => BANKS[k].name),
+            datasets: [
+              {
+                label: "Gasto",
+                data: bankLabels.map((k) => byBank[k]),
+                backgroundColor: bankLabels.map((k) => BANKS[k].color),
+                borderRadius: 8,
+              },
+            ],
+          },
+          options: {
+            ...chartDefaults,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: {
+                ticks: {
+                  callback: (v) => "$" + (v / 1000).toFixed(0) + "k",
+                  font: { size: 10 },
+                },
+                grid: { color: "rgba(26,20,51,0.06)" },
+              },
+              x: { grid: { display: false } },
+            },
+          },
+        });
+
+        charts.type = mk("chart-type", {
+          type: "doughnut",
+          data: {
+            labels: ["Recurrente", "Puntual"],
+            datasets: [
+              {
+                data: [rec, one],
+                backgroundColor: ["#b8f06e", "#ffc596"],
+                borderWidth: 0,
+              },
+            ],
+          },
+          options: { ...chartDefaults, cutout: "58%" },
+        });
+
+        charts.top = mk("chart-top", {
+          type: "bar",
+          data: {
+            labels: top.map((l) => (l.name.length > 18 ? l.name.slice(0, 16) + "…" : l.name)),
+            datasets: [
+              {
+                label: "Monto",
+                data: top.map((l) => l.amount),
+                backgroundColor: top.map((l) => (l.recurring ? "#7ec83a" : "#e0a03a")),
+                borderRadius: 6,
+              },
+            ],
+          },
+          options: {
+            indexAxis: "y",
+            ...chartDefaults,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: {
+                ticks: {
+                  callback: (v) => "$" + (v / 1000).toFixed(0) + "k",
+                  font: { size: 10 },
+                },
+                grid: { color: "rgba(26,20,51,0.06)" },
+              },
+              y: { grid: { display: false }, ticks: { font: { size: 11 } } },
+            },
+          },
+        });
+
+        chartsInited = true;
+      }
+
+      function refreshAll() {
+        updateKpis();
+        renderTable();
+        renderSimList();
+        if (mode === "charts" || chartsInited) initOrUpdateCharts();
+      }
+
+      /* Modes */
+      document.getElementById("mode-tabs").addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-mode]");
+        if (!btn) return;
+        mode = btn.dataset.mode;
+        document.querySelectorAll("#mode-tabs button").forEach((b) => b.classList.toggle("active", b === btn));
+        document.getElementById("view-table").classList.toggle("active", mode === "table");
+        document.getElementById("view-charts").classList.toggle("active", mode === "charts");
+        document.getElementById("view-sim").classList.toggle("active", mode === "sim");
+        closeFloat();
+        if (mode === "charts") initOrUpdateCharts();
+        if (mode === "sim") renderSimList();
+      });
+
+      /* Edit */
+      function startEdit(cell) {
+        const lineId = cell.dataset.lineId;
+        const field = cell.dataset.field;
+        const line = LINES.find((l) => l.id === lineId);
+        if (!line || !field) return;
+        if (!["name", "category", "type", "amount", "paid"].includes(field)) return;
+        if (cell.classList.contains("editing")) return;
+
+        closeFloat();
+        cell.classList.add("editing");
+        cell.classList.remove("ask-cell");
+
+        let input;
+        if (field === "category") {
+          input = document.createElement("select");
+          Object.entries(CAT_LABEL).forEach(([k, v]) => {
+            const opt = document.createElement("option");
+            opt.value = k;
+            opt.textContent = v;
+            if (k === line.category) opt.selected = true;
+            input.appendChild(opt);
+          });
+        } else if (field === "type") {
+          input = document.createElement("select");
+          [
+            ["true", "Recurrente"],
+            ["false", "Puntual"],
+          ].forEach(([val, label]) => {
+            const opt = document.createElement("option");
+            opt.value = val;
+            opt.textContent = label;
+            if (String(line.recurring) === val) opt.selected = true;
+            input.appendChild(opt);
+          });
+        } else if (field === "paid") {
+          line.paid = !line.paid;
+          toast(line.paid ? "Marcado como pagado" : "Marcado como pendiente");
+          cell.classList.remove("editing");
+          cell.classList.add("ask-cell");
+          refreshAll();
+          return;
+        } else if (field === "amount") {
+          input = document.createElement("input");
+          input.type = "number";
+          input.value = String(line.amount);
+        } else {
+          input = document.createElement("input");
+          input.type = "text";
+          input.value = line.name;
+        }
+
+        cell.innerHTML = "";
+        cell.appendChild(input);
+        input.focus();
+        if (input.select) input.select();
+
+        const commit = () => {
+          if (field === "name") {
+            const v = input.value.trim();
+            if (v) line.name = v;
+          } else if (field === "amount") {
+            const n = Number(input.value);
+            if (!Number.isNaN(n) && n >= 0) line.amount = Math.round(n);
+          } else if (field === "category") {
+            line.category = input.value;
+          } else if (field === "type") {
+            line.recurring = input.value === "true";
+          }
+          toast("Dato actualizado");
+          refreshAll();
+        };
+
+        const cancel = () => refreshAll();
+
+        input.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter") {
+            ev.preventDefault();
+            commit();
+          }
+          if (ev.key === "Escape") {
+            ev.preventDefault();
+            cancel();
+          }
+        });
+        input.addEventListener("blur", () => setTimeout(commit, 120));
+        input.addEventListener("change", () => {
+          if (field === "category" || field === "type") commit();
+        });
+      }
+
+      /* Float + chat (same as before, shortened replies still work) */
+      const floatEl = document.getElementById("float-ask");
+      const floatInput = document.getElementById("float-input");
+      const floatSend = document.getElementById("float-send");
+      const floatChip = document.getElementById("float-chip");
+      const floatHints = document.getElementById("float-hints");
+      const chatScroll = document.getElementById("chat-scroll");
+
+      function hintsForCtx(ctx) {
+        if (ctx?.kind === "line") {
+          return ["¿Es mucho?", "¿Qué pasa si lo saco?", "Comparalo con la categoría"];
+        }
+        if (ctx?.kind === "bank" || ctx?.kind === "bank-total") {
+          return ["¿En qué se me va más?", "Tip para bajar"];
+        }
+        return ["¿Dónde ahorrar?", "Desglosame"];
+      }
+
+      function openFloat(ctx, clientX, clientY, anchorEl) {
+        askCtx = ctx;
+        clearAskHighlights();
+        if (anchorEl) {
+          anchorEl.classList.add("ask-active");
+          anchorEl.closest("tr.line")?.classList.add("ask-row");
+        }
+        floatChip.textContent = ctx.label;
+        document.getElementById("chat-context-bar").textContent = `Contexto · ${ctx.label}`;
+        floatHints.innerHTML = "";
+        hintsForCtx(ctx).forEach((h) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = h;
+          b.addEventListener("click", () => {
+            floatInput.value = h;
+            syncSend();
+            floatInput.focus();
+          });
+          floatHints.appendChild(b);
+        });
+        floatInput.value = "";
+        syncSend();
+        const pad = 12;
+        const w = Math.min(420, window.innerWidth - 24);
+        let left = clientX - 24;
+        let top = clientY + 14;
+        if (left + w > window.innerWidth - pad) left = window.innerWidth - w - pad;
+        if (left < pad) left = pad;
+        if (top + 180 > window.innerHeight - pad) top = Math.max(pad, clientY - 190);
+        floatEl.style.left = left + "px";
+        floatEl.style.top = top + "px";
+        floatEl.classList.add("open");
+        requestAnimationFrame(() => floatInput.focus());
+      }
+
+      function closeFloat() {
+        floatEl.classList.remove("open");
+        clearAskHighlights();
+      }
+
+      function syncSend() {
+        floatSend.disabled = !floatInput.value.trim();
+      }
+
+      floatInput.addEventListener("input", () => {
+        floatInput.style.height = "auto";
+        floatInput.style.height = Math.min(96, floatInput.scrollHeight) + "px";
+        syncSend();
+      });
+      floatInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          submitAsk();
+        }
+        if (e.key === "Escape") closeFloat();
+      });
+      floatSend.addEventListener("click", submitAsk);
+      document.getElementById("float-close").addEventListener("click", closeFloat);
+      document.addEventListener("mousedown", (e) => {
+        if (!floatEl.classList.contains("open")) return;
+        if (floatEl.contains(e.target)) return;
+        if (e.target.closest(".ask-cell") || e.target.closest("[data-ask-kpi]")) return;
+        closeFloat();
+      });
+
+      function ensureChatReady() {
+        if (!chatHasMessages) {
+          document.getElementById("chat-empty")?.remove();
+          chatHasMessages = true;
+        }
+      }
+
+      function appendUser(text, meta) {
+        ensureChatReady();
+        const div = document.createElement("div");
+        div.className = "bubble-user";
+        div.innerHTML = `${escapeHtml(text)}${meta ? `<div class="bubble-meta">${escapeHtml(meta)}</div>` : ""}`;
+        chatScroll.appendChild(div);
+        chatScroll.scrollTop = chatScroll.scrollHeight;
+      }
+
+      function appendClaraTyping() {
+        ensureChatReady();
+        const div = document.createElement("div");
+        div.className = "bubble-clara";
+        div.id = "typing-bubble";
+        div.innerHTML = `<div class="who"><span class="size-5 rounded-full bg-ink text-cream-soft display text-[10px] font-bold flex items-center justify-center">C</span> Clara</div><span class="typing"><i></i><i></i><i></i></span>`;
+        chatScroll.appendChild(div);
+        chatScroll.scrollTop = chatScroll.scrollHeight;
+      }
+
+      function appendClara(html) {
+        document.getElementById("typing-bubble")?.remove();
+        ensureChatReady();
+        const div = document.createElement("div");
+        div.className = "bubble-clara";
+        div.innerHTML = `<div class="who"><span class="size-5 rounded-full bg-ink text-cream-soft display text-[10px] font-bold flex items-center justify-center">C</span> Clara</div><div>${html}</div>`;
+        chatScroll.appendChild(div);
+        chatScroll.scrollTop = chatScroll.scrollHeight;
+      }
+
+      function mockReply(question, ctx) {
+        const q = question.toLowerCase();
+        const { total, one } = monthTotals(true);
+        const base = monthTotals(false);
+        const saved = base.total - total;
+
+        if (/saco|quito|sin |simular|pasa si/i.test(q) && ctx?.line) {
+          const l = ctx.line;
+          const after = base.total - l.amount;
+          return `Si sacás <em>${escapeHtml(l.name)}</em> (${fmt(l.amount)}), el mes baja a <strong class="num">${fmt(after)}</strong> — te ahorrás ${fmt(l.amount)}.
+            <br/><br/>Andá a la pestaña <strong>Simular</strong> y desmarcá el gasto (o bajá el %) para verlo en los gráficos.`;
+        }
+
+        if (ctx?.kind === "line" && ctx.line) {
+          const l = ctx.line;
+          const bank = BANKS[l.bankId];
+          const catSum = LINES.filter((x) => x.category === l.category).reduce((s, x) => s + effectiveAmount(x), 0);
+          if (/delivery|pedidos|rappi|café/i.test(q + l.name)) {
+            const del = LINES.filter((x) => /pedidos|rappi|café/i.test(x.name));
+            const dSum = del.reduce((s, x) => s + x.amount, 0);
+            return `Ese grupo suma <strong class="num">${fmt(dSum)}</strong> en ${del.length} movimientos. En <em>Simular</em> podés probar “sin delivery” con un click.`;
+          }
+          return `<em>${escapeHtml(l.name)}</em>: <strong class="num">${fmt(l.amount)}</strong> · ${l.recurring ? "recurrente" : "puntual"} · ${bank.name}.
+            <br/>Es parte de ${CAT_LABEL[l.category]} (${fmt(catSum)}). Doble click para corregir si hay error.`;
+        }
+
+        if (saved > 0 && /ahor|sim/i.test(q)) {
+          return `Con la simulación actual el total es ${fmt(total)} (real ${fmt(base.total)}). Te estás “ahorrando” ${fmt(saved)} en el escenario.`;
+        }
+
+        return `Total efectivo: <strong class="num">${fmt(total)}</strong> (${Math.round((one / (total || 1)) * 100)}% puntual). Mirás Gráficos o Simular para jugar con escenarios.`;
+      }
+
+      function submitAsk(preset) {
+        const text = (typeof preset === "string" ? preset : floatInput.value).trim();
+        if (!text) return;
+        const ctx = askCtx;
+        appendUser(text, ctx?.label);
+        closeFloat();
+        appendClaraTyping();
+        setTimeout(() => appendClara(mockReply(text, ctx)), 500 + Math.random() * 350);
+      }
+
+      function buildCtxFromTarget(el) {
+        const kind = el.dataset.askKind;
+        if (kind === "line") {
+          const line = LINES.find((l) => l.id === el.dataset.lineId);
+          if (!line) return null;
+          const field = el.dataset.field || "amount";
+          const fieldLabel =
+            field === "amount"
+              ? fmt(effectiveAmount(line))
+              : field === "type"
+                ? line.recurring
+                  ? "Recurrente"
+                  : "Puntual"
+                : field === "category"
+                  ? CAT_LABEL[line.category]
+                  : field === "paid"
+                    ? line.paid
+                      ? "Pagado"
+                      : "Pendiente"
+                    : field === "date"
+                      ? fmtDate(line.date)
+                      : line.name;
+          return { kind: "line", line, field, label: `${line.name} · ${fieldLabel}` };
+        }
+        if (kind === "bank" || kind === "bank-total") {
+          const bank = BANKS[el.dataset.bankId];
+          const sum = LINES.filter((l) => l.bankId === bank.id).reduce((s, l) => s + effectiveAmount(l), 0);
+          return { kind, bankId: bank.id, label: `${bank.name} · ${fmt(sum)}` };
+        }
+        if (kind === "grand") {
+          return { kind: "kpi", field: "total", label: `Total · ${fmt(monthTotals(true).total)}` };
+        }
+        return null;
+      }
+
+      document.getElementById("table-body").addEventListener("click", (e) => {
+        const toggle = e.target.closest("[data-toggle-bank]");
+        if (toggle) {
+          const bankId = toggle.dataset.toggleBank;
+          if (collapsed.has(bankId)) collapsed.delete(bankId);
+          else collapsed.add(bankId);
+          renderTable();
+          return;
+        }
+
+        const cell = e.target.closest(".ask-cell");
+        if (!cell || cell.classList.contains("editing")) return;
+
+        // Distinguish single vs double click
+        if (clickTimer) {
+          clearTimeout(clickTimer);
+          clickTimer = null;
+          return; // dblclick will handle
+        }
+        const { clientX, clientY } = e;
+        clickTimer = setTimeout(() => {
+          clickTimer = null;
+          const ctx = buildCtxFromTarget(cell);
+          if (ctx) openFloat(ctx, clientX, clientY, cell);
+        }, 220);
+      });
+
+      document.getElementById("table-body").addEventListener("dblclick", (e) => {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+        const cell = e.target.closest(".ask-cell.editable");
+        if (!cell) return;
+        e.preventDefault();
+        startEdit(cell);
+      });
+
+      document.getElementById("grand-total").addEventListener("click", (e) => {
+        const ctx = buildCtxFromTarget(e.currentTarget);
+        openFloat(ctx, e.clientX, e.clientY, e.currentTarget);
+      });
+
+      document.querySelectorAll("[data-ask-kpi]").forEach((kpi) => {
+        kpi.addEventListener("click", (e) => {
+          const field = kpi.dataset.askKpi;
+          const { total, rec, one } = monthTotals(true);
+          const map = {
+            total: { label: `Total · ${fmt(total)}`, field: "total" },
+            recurring: { label: `Recurrente · ${fmt(rec)}`, field: "recurring" },
+            oneoff: { label: `Puntual · ${fmt(one)}`, field: "oneoff" },
+            banks: { label: `Bancos`, field: "banks" },
+          };
+          const m = map[field];
+          openFloat({ kind: "kpi", field: m.field, label: m.label }, e.clientX, e.clientY, kpi);
+        });
+      });
+
+      document.getElementById("clear-chat").addEventListener("click", () => {
+        chatScroll.innerHTML = `<div class="chat-empty" id="chat-empty"><p class="display font-semibold text-ink mb-1">¿Sobre qué querés preguntar?</p><p>Clickeá un valor.</p></div>`;
+        chatHasMessages = false;
+        document.getElementById("chat-context-bar").textContent = "Sin contexto";
+        askCtx = null;
+        closeFloat();
+      });
+
+      /* Sim controls */
+      document.getElementById("sim-list").addEventListener("input", (e) => {
+        const toggle = e.target.closest("[data-sim-toggle]");
+        if (toggle) {
+          const line = LINES.find((l) => l.id === toggle.dataset.simToggle);
+          if (line) {
+            line.simEnabled = toggle.checked;
+            if (!line.simEnabled) line.simCutPct = 0;
+            refreshAll();
+          }
+          return;
+        }
+        const cut = e.target.closest("[data-sim-cut]");
+        if (cut) {
+          const line = LINES.find((l) => l.id === cut.dataset.simCut);
+          if (line) {
+            line.simCutPct = Number(cut.value);
+            refreshAll();
+          }
+        }
+      });
+
+      document.getElementById("sim-reset").addEventListener("click", () => {
+        LINES.forEach((l) => {
+          l.simEnabled = true;
+          l.simCutPct = 0;
+        });
+        toast("Simulación reseteada");
+        refreshAll();
+      });
+
+      document.getElementById("sim-apply-zero-delivery").addEventListener("click", () => {
+        LINES.forEach((l) => {
+          if (/pedidos|rappi/i.test(l.name)) {
+            l.simEnabled = false;
+            l.simCutPct = 0;
+          }
+        });
+        toast("Simulación: sin delivery");
+        refreshAll();
+      });
+
+      document.querySelectorAll(".filter-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          filter = btn.dataset.filter;
+          document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          renderTable();
+        });
+      });
+
+      document.getElementById("expand-all").addEventListener("click", () => {
+        collapsed.clear();
+        renderTable();
+      });
+      document.getElementById("collapse-all").addEventListener("click", () => {
+        bankOrder().forEach((id) => collapsed.add(id));
+        renderTable();
+      });
+
+      refreshAll();
+    </script>
+  </body>
+</html>

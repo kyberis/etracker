@@ -14,13 +14,13 @@ describe("buildImportPreferencesUserMessage", () => {
   });
 
   it("returns a user-role message with delimiters and English framing", () => {
-    const msg = buildImportPreferencesUserMessage("Always categorize Uber as transport", "en");
+    const msg = buildImportPreferencesUserMessage("Always categorize taxis as transport", "en");
     expect(msg).not.toBeNull();
     expect(msg!.role).toBe("user");
     expect(msg!.content).toContain(IMPORT_PREF_START);
     expect(msg!.content).toContain(IMPORT_PREF_END);
     expect(msg!.content).toContain("Settings (import / categorisation preferences)");
-    expect(msg!.content).toContain("Always categorize Uber as transport");
+    expect(msg!.content).toContain("Always categorize taxis as transport");
   });
 
   it("uses Spanish framing for non-en locales", () => {

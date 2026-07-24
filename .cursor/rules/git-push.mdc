@@ -6,7 +6,7 @@ alwaysApply: true
 
 # Git Push & Commit
 
-This is a personal / open-source repo, **not** an Uber project. Author
+This is a personal / open-source repo, **not** a work project. Author
 identity is enforced by [`git-author.mdc`](git-author.mdc); this rule covers
 the corporate hook + GPG bypass that goes alongside it.
 

@@ -338,8 +338,8 @@ Copiar a `cross-month-crud-act-first-qa.md` al empezar Fase 5.
 
 ### Act-first
 
-- [ ] "Borrá el último gasto de Uber" con un solo match → borra sin pregunta previa.
-- [ ] "Borrá Uber" con 3 matches → una pregunta corta con opciones.
+- [ ] "Borrá el último gasto del supermercado" con un solo match → borra sin pregunta previa.
+- [ ] "Borrá el supermercado" con 3 matches → una pregunta corta con opciones.
 
 ### Regresión
 

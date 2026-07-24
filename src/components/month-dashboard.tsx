@@ -2,6 +2,7 @@
 
 import { format, parse } from "date-fns";
 import { Plus } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -23,7 +24,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { defaultOccurredOnForMonthView } from "@/lib/month-default-occurred-on";
+import {
+  isMonthDesktopGridEnabled,
+  MONTH_DESKTOP_MQ,
+  MONTH_VIEW_STORAGE_KEY,
+} from "@/lib/month-desktop-grid-flag";
 import { formatCurrency } from "@/lib/format";
 import { dateLocale } from "@/lib/i18n/format";
 import { useLocale, useT, useTx } from "@/lib/i18n/client";
@@ -33,6 +40,13 @@ import type {
   MonthPageDataWithRecord,
 } from "@/lib/month-page-types";
 import { isInvestmentCategory } from "@/lib/validators";
+import { cn } from "@/lib/utils";
+
+const MonthExcelGrid = dynamic(
+  () =>
+    import("@/components/month/month-excel-grid").then((m) => m.MonthExcelGrid),
+  { ssr: false },
+);
 
 type MonthDashboardProps = {
   data: MonthPageDataWithRecord;
@@ -49,6 +63,32 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
   const t = useT();
   const tx = useTx();
   const balanceCtx = useBalance();
+  const gridFlag = isMonthDesktopGridEnabled();
+  const isDesktop = useMediaQuery(MONTH_DESKTOP_MQ);
+  const showGridToggle = gridFlag && isDesktop;
+  const [monthViewPreference, setMonthViewPreference] = useState<"chrono" | "table">(
+    () => {
+      if (typeof window === "undefined") return "chrono";
+      try {
+        const stored = localStorage.getItem(MONTH_VIEW_STORAGE_KEY);
+        if (stored === "table" || stored === "chrono") return stored;
+      } catch {
+        /* ignore */
+      }
+      return "chrono";
+    },
+  );
+  const monthView = showGridToggle ? monthViewPreference : "chrono";
+
+  function selectMonthView(next: "chrono" | "table") {
+    setMonthViewPreference(next);
+    try {
+      localStorage.setItem(MONTH_VIEW_STORAGE_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  }
+
   // Keep the sticky balance header in sync with the month being shown here.
   // We use a ref-like state guard so we only call setMonth on changes.
   const [lastSyncedMonth, setLastSyncedMonth] = useState<string | null>(null);
@@ -956,15 +996,64 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
         primaryCurrency={data.primaryCurrency}
       />
 
-      <MonthLinesChronological
-        expenses={expenses}
-        primaryCurrency={data.primaryCurrency}
-        banks={data.banks}
-        editable
-        onTogglePaid={toggleLinePaid}
-        onLineEventChanged={() => router.refresh()}
-        onMutated={() => router.refresh()}
-      />
+      {showGridToggle ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="bg-cream/80 inline-flex gap-0.5 rounded-full border border-[color:var(--border)] p-1">
+            <button
+              type="button"
+              className={cn(
+                "rounded-full px-3 py-1.5 text-sm font-semibold",
+                monthView === "chrono"
+                  ? "bg-ink text-cream-soft"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => selectMonthView("chrono")}
+            >
+              {t.monthGrid.viewChrono}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded-full px-3 py-1.5 text-sm font-semibold",
+                monthView === "table"
+                  ? "bg-ink text-cream-soft"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => selectMonthView("table")}
+            >
+              {t.monthGrid.viewTable}
+            </button>
+          </div>
+          {monthView === "chrono" ? (
+            <p className="text-muted-foreground text-xs">{t.monthGrid.discovery}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showGridToggle && monthView === "table" ? (
+        <MonthExcelGrid
+          key={data.month}
+          month={data.month}
+          primaryCurrency={data.primaryCurrency}
+          expenses={expenses}
+          bankTotals={liveBankTotals}
+          onExpensesChange={setExpenses}
+          onRefresh={() => {
+            refreshBalance();
+            router.refresh();
+          }}
+        />
+      ) : (
+        <MonthLinesChronological
+          expenses={expenses}
+          primaryCurrency={data.primaryCurrency}
+          banks={data.banks}
+          editable
+          onTogglePaid={toggleLinePaid}
+          onLineEventChanged={() => router.refresh()}
+          onMutated={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }

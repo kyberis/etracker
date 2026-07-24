@@ -9,6 +9,7 @@ import {
 import { formatMonthKey, isCurrentMonthKey, parseMonthKey, toMonthStart } from "@/lib/months";
 
 import { db } from "./db";
+import { resolveMonthLineKind } from "./month-line-kind";
 import type {
   CarryoverPrompt,
   MonthIncomeLinePayload,
@@ -32,7 +33,11 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
         // ya ordenado, y los grupos por banco que se calculan después
         // heredan ese orden dentro de cada banco.
         lines: {
-          include: { bank: true, event: true },
+          include: {
+            bank: true,
+            event: true,
+            template: { select: { id: true, isRecurring: true } },
+          },
           orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
         },
         incomeLines: {
@@ -116,6 +121,11 @@ export async function loadMonthPageData(userId: string, monthKey: string): Promi
     bankName: line.bank.name,
     paid: line.paid,
     category: line.category,
+    templateId: line.templateId,
+    kind: resolveMonthLineKind({
+      templateId: line.templateId,
+      templateIsRecurring: line.template?.isRecurring ?? null,
+    }),
     event: line.event
       ? {
           id: line.event.id,
