@@ -558,7 +558,7 @@ describe("addMonthLine — eventId validation", () => {
     } as never);
   });
 
-  it("rejects when occurredOn falls outside the event date range", async () => {
+  it("falls back to a standalone line when occurredOn is outside the event range (REGULAR)", async () => {
     // The shared-event refactor switched to findUnique + a participant
     // check. The owner is implicitly an active participant via the
     // backfilled OWNER row, so the mock returns `{ removedAt: null }`.
@@ -573,6 +573,9 @@ describe("addMonthLine — eventId validation", () => {
     vi.mocked(db.eventParticipant.findUnique).mockResolvedValue({
       removedAt: null,
     } as never);
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue(
+      mockMonthExpenseLine({ name: "Hotel", eventId: null }) as never,
+    );
 
     const result = (await tools().addMonthLine.execute!(
       {
@@ -586,12 +589,20 @@ describe("addMonthLine — eventId validation", () => {
         paid: true,
       },
       execOpts,
-    )) as { error?: string; outOfRange?: boolean; eventName?: string };
+    )) as {
+      ok?: boolean;
+      note?: string;
+      line?: { eventId?: string | null };
+    };
 
-    expect(result.error).toMatch(/outside/i);
-    expect(result.outOfRange).toBe(true);
-    expect(result.eventName).toBe("Trip to Mendoza");
-    expect(db.monthExpenseLine.create).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.note).toMatch(/outside/i);
+    expect(result.line?.eventId).toBeNull();
+    expect(db.monthExpenseLine.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventId: null }),
+      }),
+    );
   });
 
   it("falls back to a standalone line when the event is closed (REGULAR)", async () => {

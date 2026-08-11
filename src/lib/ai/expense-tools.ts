@@ -548,7 +548,9 @@ export function buildExpenseTools(
         "Lines are unique by (user, date, description, amount, currency): " +
         "if an identical one already exists the tool returns `duplicate=true` without creating anything. " +
         "Pass `eventId` to attach the line to an event wallet (e.g. a trip). If `occurredOn` falls outside " +
-        "the event's date range, the tool returns `error` so you can ask the user before tagging.",
+        "the event's date range for a REGULAR user, the line is still created as a standalone expense " +
+        "(no event tag) and a `note` tells you to stop re-passing that eventId (or extend the event first). " +
+        "GUEST users scoped to an event still get `error` + `outOfRange` because they cannot create standalone lines.",
       inputSchema: z.object({
         name: z.string().min(1).max(120),
         amount: z.number().positive(),
@@ -598,8 +600,8 @@ export function buildExpenseTools(
             "ONLY pass this when you have a real id from a prior `getActiveEvents` / `listEvents` / `getEvent` " +
             "call that matched. If `getActiveEvents` returned an empty list, OMIT this field entirely — " +
             "do not invent placeholders ('/', '.', ',', 'MISSING'), do not pass the event name, and do not " +
-            "guess. If `occurredOn` is outside the event's [startDate, endDate], the tool errors out so you " +
-            "can confirm with the user before tagging.",
+            "guess. If `occurredOn` is outside the event's [startDate, endDate], REGULAR users get a " +
+            "standalone line + `note` (do not keep re-passing the same eventId); GUEST users get `error`/`outOfRange`.",
           ),
         paidByUserId: cuidIdSchema
           .optional()
@@ -694,6 +696,27 @@ export function buildExpenseTools(
               `Event "${event.name}" is closed. Created the line as a standalone expense. Use reopenEvent first if the user wants to add more expenses to that trip.`;
             event = null;
           }
+          // Date-range check BEFORE flipping storageUserId to the event
+          // owner. For REGULAR users an out-of-range tag must not block the
+          // line (CSV imports often re-pass a trip eventId the user already
+          // said to ignore); create standalone in the caller's books. GUEST
+          // users have no standalone concept — they must stay on the event.
+          if (event && !isDateInEventRange(event, occurredOn)) {
+            const dateStr = occurredOn.toISOString().slice(0, 10);
+            if (isGuest) {
+              return {
+                error: `The expense date (${dateStr}) is outside the event "${event.name}" range. Confirm with the user whether to extend the event or leave the expense unattached.`,
+                outOfRange: true as const,
+                eventName: event.name,
+              };
+            }
+            droppedEventNote =
+              `The expense date (${dateStr}) is outside the event "${event.name}" range. Created as a standalone expense (no event tag). ` +
+              "DATE RULE: only expenses inside [startDate, endDate] belong on the wallet. " +
+              "Do NOT re-pass this eventId. If the user explicitly wants it on the trip, call updateEvent to extend dates first, " +
+              "or attachLineToEvent with confirmOutOfRange=true after they say yes.";
+            event = null;
+          }
           if (event) {
             eventOwnerId = event.userId;
             storageUserId = event.userId; // line lives in the owner's books
@@ -752,14 +775,6 @@ export function buildExpenseTools(
         let eventId: string | null = null;
         let paidByUserId: string | null = null;
         if (event) {
-          if (!isDateInEventRange(event, occurredOn)) {
-            return {
-              error:
-                `The expense date (${occurredOn.toISOString().slice(0, 10)}) is outside the event "${event.name}" range. Confirm with the user whether to extend the event or leave the expense unattached.`,
-              outOfRange: true as const,
-              eventName: event.name,
-            };
-          }
           eventId = event.id;
           eventName = event.name;
 
@@ -2553,16 +2568,40 @@ export function buildExpenseTools(
     attachLineToEvent: tool({
       description:
         "Attaches an existing month line to an OPEN event wallet. Useful when the user just registered an expense and then " +
-        "remembers it was part of a trip. If the line's `occurredOn` is outside the event's date range the tool still " +
-        "attaches it but returns `outOfRange: true` so you can confirm with the user.",
+        "remembers it was part of a trip. HARD RULE: if the line's date is outside the event's [startDate, endDate], the " +
+        "tool REFUSES unless you pass `confirmOutOfRange=true` AFTER the user explicitly asked to put that out-of-trip " +
+        "expense on the wallet (or to extend the trip). Never set that flag on your own.",
       inputSchema: z.object({
         eventId: z.string().min(1),
         lineId: z.string().min(1),
+        confirmOutOfRange: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "Must be true ONLY after the user explicitly confirmed attaching an expense whose date is outside the trip. Default false.",
+          ),
       }),
-      execute: async ({ eventId, lineId }) => {
+      execute: async ({ eventId, lineId, confirmOutOfRange }) => {
         try {
-          const result = await attachLineToEvent({ userId, eventId, lineId });
-          if (!result.ok) return { error: "Event or line not found." };
+          const result = await attachLineToEvent({
+            userId,
+            eventId,
+            lineId,
+            allowOutOfRange: confirmOutOfRange === true,
+          });
+          if (!result.ok) {
+            if (result.needsConfirmation) {
+              return {
+                error:
+                  "That expense date is outside the event range. Do NOT attach it unless the user explicitly asks. " +
+                  "Ask: extend endDate with updateEvent, or attach anyway with confirmOutOfRange=true only after they say yes.",
+                outOfRange: true as const,
+                needsConfirmation: true as const,
+              };
+            }
+            return { error: "Event or line not found." };
+          }
           return {
             ok: true as const,
             outOfRange: result.outOfRange ?? false,

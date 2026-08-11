@@ -5,9 +5,10 @@ import { eventAttachLineSchema } from "@/lib/validators";
 
 /**
  * POST /api/events/[id]/lines — engancha una `MonthExpenseLine` al evento.
- * Cuando la fecha del gasto cae fuera del rango del evento devuelve un
- * `outOfRange: true` informativo (igual lo asocia, pero la UI / agente
- * pueden destacar que está fuera del viaje).
+ * A click in the UI is explicit user intent, so out-of-range attaches are
+ * allowed and returned with `outOfRange: true` for the UI to highlight.
+ * The chat agent / MCP must not auto-attach out-of-range lines (see
+ * `attachLineToEvent` / `allowOutOfRange`).
  */
 export async function POST(
   request: Request,
@@ -23,6 +24,8 @@ export async function POST(
         userId,
         eventId: id,
         lineId: payload.lineId,
+        // Dashboard / month list: the user picked the wallet themselves.
+        allowOutOfRange: true,
       });
       if (!result.ok) return jsonError("Event or line not found.", 404);
       return { ok: true, outOfRange: result.outOfRange ?? false };

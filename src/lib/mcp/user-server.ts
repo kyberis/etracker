@@ -1407,7 +1407,8 @@ export function registerUserMcp(server: McpServer): void {
     {
       title: "Sumar un gasto a una billetera de evento",
       description:
-        "Engancha una `MonthExpenseLine` existente al evento. Si la fecha del gasto cae fuera del rango, la asocia igual y devuelve `outOfRange: true` (la UI / agente debería destacarlo). " +
+        "Engancha una `MonthExpenseLine` existente al evento. Si la fecha del gasto cae fuera del rango del viaje, " +
+        "NO la asocia a menos que pases `confirmOutOfRange: true` (además de `confirm: true`) después de que el humano lo pida. " +
         "Tool de mutación: requiere `confirm: true`.",
       inputSchema: {
         eventId: z.string().min(1),
@@ -1417,9 +1418,15 @@ export function registerUserMcp(server: McpServer): void {
           .describe(
             "Must be true after explicit human confirmation; otherwise the tool refuses.",
           ),
+        confirmOutOfRange: z
+          .boolean()
+          .optional()
+          .describe(
+            "Required when the expense date is outside the event range — only after the human asked to attach it anyway (or extend the trip first).",
+          ),
       },
     },
-    async ({ eventId, lineId, confirm }, extra) => {
+    async ({ eventId, lineId, confirm, confirmOutOfRange }, extra) => {
       const userId = getUserIdFromExtra(extra);
       if (!userId) return errContent("Unauthorized.");
       if (confirm !== true) {
@@ -1428,8 +1435,21 @@ export function registerUserMcp(server: McpServer): void {
         );
       }
       try {
-        const result = await attachLineToEvent({ userId, eventId, lineId });
-        if (!result.ok) return errContent("Evento o línea no encontrados.");
+        const result = await attachLineToEvent({
+          userId,
+          eventId,
+          lineId,
+          allowOutOfRange: confirmOutOfRange === true,
+        });
+        if (!result.ok) {
+          if (result.needsConfirmation) {
+            return errContent(
+              "La fecha del gasto está fuera del rango del viaje. No se asoció. " +
+                "Pedí confirmación humana y reintentá con confirmOutOfRange=true, o extendé endDate primero.",
+            );
+          }
+          return errContent("Evento o línea no encontrados.");
+        }
         return jsonContent({
           ok: true,
           outOfRange: result.outOfRange ?? false,

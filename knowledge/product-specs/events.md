@@ -100,10 +100,21 @@ Agent tools (`buildExpenseTools`):
 - `listEvents`, `getActiveEvents`, `getEvent` — read-only.
 - `createEvent`, `updateEvent`, `closeEvent`, `reopenEvent`, `deleteEvent`,
   `attachLineToEvent`, `detachLineFromEvent` — write.
-- `addMonthLine` accepts an optional `eventId`. When the line's
-  `occurredOn` is outside the event's range, the tool refuses with
-  `error: "...outside the event ... range..."` so the agent can ask the
-  user before tagging.
+- `addMonthLine` accepts an optional `eventId`. **Date rule:** a line
+  belongs on the wallet iff `occurredOn` ∈ [startDate, endDate].
+  - **Inside range:** attach with `eventId` (agent may ask once if the
+    description looks unrelated to the trip).
+  - **Outside range — REGULAR:** create as a **standalone** expense (no
+    `eventId`) + `note`. Never auto-tag out-of-range lines from chat/CSV
+    context. To put it on the wallet the user must explicitly ask →
+    `updateEvent` to extend dates, or `attachLineToEvent` with
+    `confirmOutOfRange=true`.
+  - **Outside range — GUEST:** refuse with `error` + `outOfRange` (no
+    standalone lines for guests).
+- `attachLineToEvent` / MCP `attachExpenseToEvent`: refuse out-of-range
+  attaches unless `allowOutOfRange` / `confirmOutOfRange` is set after
+  explicit user intent. The dashboard REST route passes
+  `allowOutOfRange: true` because a UI click is already explicit.
 
 MCP per-user (`/api/mcp/user`, bearer-auth): same surface as agent tools,
 with destructive operations (`closeEvent`, `attachExpenseToEvent`,
@@ -137,6 +148,9 @@ convention for MCP write tools.
   looks unrelated to a trip (e.g. recurring template names, categories
   like `VIVIENDA` / `SUSCRIPCIONES`) even when the date matches — see the
   prompt block in `run-expense-agent.ts`.
+- **Date membership is authoritative:** an expense outside
+  [startDate, endDate] must not receive `eventId` unless the user
+  explicitly opts in (extend dates or confirm out-of-range attach).
 
 ## Known gaps / TODOs
 

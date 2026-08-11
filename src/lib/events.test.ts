@@ -244,6 +244,12 @@ const dbClient = {
     ),
   },
   monthExpenseLine: {
+    findFirst: vi.fn(async ({ where }: { where: Where }) => {
+      for (const l of store.lines.values()) {
+        if (matchLine(l, where)) return l;
+      }
+      return null;
+    }),
     findMany: vi.fn(
       async ({
         where,
@@ -423,6 +429,7 @@ function seedParticipant(args: {
 
 // Now import the module under test (after the mocks are wired).
 import {
+  attachLineToEvent,
   closeEvent,
   computeSettlement,
   createEvent,
@@ -467,6 +474,64 @@ describe("isDateInEventRange", () => {
         utcDate("2030-01-01"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("attachLineToEvent — out-of-range gate", () => {
+  async function seedOpenEventAndLine(occurredOn: string) {
+    seedUser({ id: USER, name: "Owner", email: "owner@example.com" });
+    const month = seedMonth(USER, "2026-05-01");
+    const event = await createEvent({
+      userId: USER,
+      name: "Málaga",
+      startDate: utcDate("2026-04-01"),
+      endDate: utcDate("2026-04-10"),
+    });
+    const line = seedLine({
+      userId: USER,
+      monthRecordId: month.id,
+      occurredOn,
+      amountConverted: 100,
+    });
+    return { eventId: event.id, lineId: line.id };
+  }
+
+  it("refuses out-of-range attach without allowOutOfRange", async () => {
+    const { eventId, lineId } = await seedOpenEventAndLine("2026-05-15");
+    const result = await attachLineToEvent({
+      userId: USER,
+      eventId,
+      lineId,
+    });
+    expect(result).toEqual({
+      ok: false,
+      outOfRange: true,
+      needsConfirmation: true,
+    });
+    expect(store.lines.get(lineId)?.eventId).toBeNull();
+  });
+
+  it("attaches out-of-range when allowOutOfRange is true", async () => {
+    const { eventId, lineId } = await seedOpenEventAndLine("2026-05-15");
+    const result = await attachLineToEvent({
+      userId: USER,
+      eventId,
+      lineId,
+      allowOutOfRange: true,
+    });
+    expect(result).toEqual({ ok: true, outOfRange: true });
+    expect(store.lines.get(lineId)?.eventId).toBe(eventId);
+  });
+
+  it("attaches in-range without allowOutOfRange", async () => {
+    const { eventId, lineId } = await seedOpenEventAndLine("2026-04-05");
+    const result = await attachLineToEvent({
+      userId: USER,
+      eventId,
+      lineId,
+    });
+    expect(result).toEqual({ ok: true, outOfRange: false });
+    expect(store.lines.get(lineId)?.eventId).toBe(eventId);
   });
 });
 

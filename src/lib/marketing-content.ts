@@ -185,6 +185,24 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.14.4",
+      date: "2026-08-11",
+      title: "Cambiar el banco al editar una plantilla",
+      highlights: [
+        "Al editar una plantilla de gasto podés cambiar el banco, no solo el nombre y el monto.",
+      ],
+    },
+    {
+      version: "0.14.3",
+      date: "2026-08-11",
+      title: "Import CSV sin trabarse en billeteras de viaje",
+      highlights: [
+        "Regla de fecha: si el gasto cae dentro del viaje va a la billetera; si cae afuera, queda suelto (salvo que lo pidas explícitamente).",
+        "Si Clara te pega un eventId de un viaje cuya fecha no matchea, el gasto se carga igual como suelto en vez de rechazar toda la tanda.",
+        "Si pedís «sin billetera» / «ignorá el viaje», Clara deja de auto-etiquetar esa importación.",
+      ],
+    },
+    {
       version: "0.14.2",
       date: "2026-07-25",
       title: "Vista tabla en la home y SEO",
@@ -982,6 +1000,24 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.14.4",
+      date: "2026-08-11",
+      title: "Change bank when editing a template",
+      highlights: [
+        "When editing an expense template you can change the bank, not only the name and amount.",
+      ],
+    },
+    {
+      version: "0.14.3",
+      date: "2026-08-11",
+      title: "CSV import no longer blocked by trip wallets",
+      highlights: [
+        "Date rule: expenses inside the trip dates go on the wallet; outside stay standalone (unless you explicitly ask otherwise).",
+        "If Clara reuses a trip eventId whose dates don't match, the expense is still saved as a standalone line instead of rejecting the whole batch.",
+        "When you say \"skip the wallet\" / \"ignore the trip\", Clara stops auto-tagging that import.",
+      ],
+    },
     {
       version: "0.14.2",
       date: "2026-07-25",

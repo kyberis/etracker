@@ -282,8 +282,25 @@ describe("addMonthLine — paidByUserId enforcement on shared events", () => {
     expect(createCall.paidByUserId).toBe(GUEST);
   });
 
-  it("rejects when occurredOn is outside the event range", async () => {
+  it("falls back to standalone when occurredOn is outside the event range (REGULAR)", async () => {
     setupSharedEvent({ callerIsOwner: true, paidByUserId: OWNER });
+    vi.mocked(db.monthExpenseLine.create).mockResolvedValue(
+      {
+        id: "line_oor",
+        userId: OWNER,
+        name: "Lunch",
+        amount: 50,
+        currency: "USD",
+        fxRate: 1,
+        amountConverted: 50,
+        category: "OTROS",
+        paid: true,
+        eventId: null,
+        paidByUserId: null,
+        occurredOn: new Date(Date.UTC(2026, 4, 15)),
+        occurredOnSource: "ARTIFACT",
+      } as never,
+    );
     const t = buildExpenseTools(OWNER);
     const result = await t.addMonthLine.execute!(
       {
@@ -294,6 +311,31 @@ describe("addMonthLine — paidByUserId enforcement on shared events", () => {
         paid: true,
         eventId: EVENT,
         paidByUserId: OWNER,
+        occurredOn: "2026-05-15", // after event.endDate
+      },
+      execOpts,
+    );
+    expect(result).toMatchObject({ ok: true });
+    expect((result as { note?: string }).note).toMatch(/outside/i);
+    const createCall = vi.mocked(db.monthExpenseLine.create).mock.calls[0][0]
+      .data as { eventId: string | null; userId: string };
+    expect(createCall.eventId).toBeNull();
+    expect(createCall.userId).toBe(OWNER);
+  });
+
+  it("GUEST rejects when occurredOn is outside the scoped event range", async () => {
+    setupSharedEvent({ callerIsOwner: false, paidByUserId: GUEST });
+    const t = buildExpenseTools(GUEST, {
+      userKind: UserKind.GUEST,
+      scopedEventId: EVENT,
+    });
+    const result = await t.addMonthLine.execute!(
+      {
+        name: "Lunch",
+        amount: 50,
+        bankId: BANK,
+        category: "OTROS",
+        paid: true,
         occurredOn: "2026-05-15", // after event.endDate
       },
       execOpts,

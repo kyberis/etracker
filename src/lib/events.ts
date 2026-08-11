@@ -466,7 +466,18 @@ export async function attachLineToEvent(args: {
   userId: string;
   eventId: string;
   lineId: string;
-}): Promise<{ ok: boolean; outOfRange?: boolean }> {
+  /**
+   * Required to attach a line whose `occurredOn` falls outside the event's
+   * [startDate, endDate]. Default false — expenses outside the trip stay
+   * standalone unless the user (or UI) explicitly opts in.
+   */
+  allowOutOfRange?: boolean;
+}): Promise<{
+  ok: boolean;
+  outOfRange?: boolean;
+  /** True when the attach was refused because the date is outside the range. */
+  needsConfirmation?: boolean;
+}> {
   const [event, line] = await Promise.all([
     db.event.findFirst({
       where: { id: args.eventId, userId: args.userId },
@@ -482,6 +493,9 @@ export async function attachLineToEvent(args: {
     throw new Error("EVENT_CLOSED");
   }
   const outOfRange = !isDateInEventRange(event, line.occurredOn);
+  if (outOfRange && !args.allowOutOfRange) {
+    return { ok: false, outOfRange: true, needsConfirmation: true };
+  }
   await db.monthExpenseLine.update({
     where: { id: line.id },
     data: { eventId: event.id },
