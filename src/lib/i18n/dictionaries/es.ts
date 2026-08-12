@@ -539,6 +539,7 @@ export const es = {
     save: "Guardar",
     saving: "Guardando…",
     edit: "Editar",
+    editTitle: "Editar plantilla",
     delete: "Borrar",
     deleteConfirm: (name: string) =>
       `¿Borrar la plantilla ${name}? Las líneas mensuales que ya estén creadas no se borran.`,

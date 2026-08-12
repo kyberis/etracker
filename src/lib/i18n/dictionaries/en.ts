@@ -536,6 +536,7 @@ export const en: Dict = {
     save: "Save",
     saving: "Saving…",
     edit: "Edit",
+    editTitle: "Edit template",
     delete: "Delete",
     deleteConfirm: (name: string) =>
       `Delete the template ${name}? Existing monthly lines won't be deleted.`,

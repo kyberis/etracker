@@ -8,7 +8,15 @@ import { expenseCategoryOptions, isInvestmentCategory } from "@/lib/validators";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -86,6 +94,13 @@ export function ExpensesManager({
   const [bankFilter, setBankFilter] = useState("all");
   const [recurringFilter, setRecurringFilter] = useState("all");
 
+  const [editing, setEditing] = useState<Expense | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editBankId, setEditBankId] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   async function loadData() {
     const [banksResponse, expensesResponse] = await Promise.all([
       fetch("/api/banks"),
@@ -120,6 +135,25 @@ export function ExpensesManager({
     return banks.find((bank) => bank.id === bankFilter)?.name ?? allBanksLabel;
   }, [bankFilter, banks, allBanksLabel]);
 
+  const editBankName = useMemo(
+    () => banks.find((bank) => bank.id === editBankId)?.name ?? "",
+    [banks, editBankId],
+  );
+
+  function openEdit(expense: Expense) {
+    setEditing(expense);
+    setEditName(expense.name);
+    setEditAmount(String(expense.amount));
+    setEditBankId(expense.bankId);
+    setEditError(null);
+  }
+
+  function closeEdit() {
+    setEditing(null);
+    setEditError(null);
+    setEditSaving(false);
+  }
+
   async function createExpense(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -152,29 +186,35 @@ export function ExpensesManager({
     await loadData();
   }
 
-  async function editExpense(expense: Expense) {
-    const newName = window.prompt(t.expenses.name, expense.name);
-    if (!newName) return;
-    const newAmount = window.prompt(t.expenses.amount, String(expense.amount));
-    if (!newAmount) return;
+  async function saveEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editing) return;
+    setEditSaving(true);
+    setEditError(null);
 
-    const response = await fetch(`/api/expenses/${expense.id}`, {
+    const response = await fetch(`/api/expenses/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: newName,
-        amount: Number(newAmount),
-        bankId: expense.bankId,
-        isRecurring: expense.isRecurring,
-        startMonth: expense.startMonth.slice(0, 7),
-        endMonth: expense.endMonth ? expense.endMonth.slice(0, 7) : undefined,
-        category: expense.category,
+        name: editName.trim(),
+        amount: Number(editAmount),
+        bankId: editBankId,
+        isRecurring: editing.isRecurring,
+        startMonth: editing.startMonth.slice(0, 7),
+        endMonth: editing.endMonth ? editing.endMonth.slice(0, 7) : undefined,
+        category: editing.category,
       }),
     });
 
-    if (response.ok) {
-      await loadData();
+    if (!response.ok) {
+      const data = (await response.json()) as { error?: string };
+      setEditError(data.error ?? t.expenses.saveError);
+      setEditSaving(false);
+      return;
     }
+
+    closeEdit();
+    await loadData();
   }
 
   async function removeExpense(expense: Expense) {
@@ -343,7 +383,7 @@ export function ExpensesManager({
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => editExpense(expense)}>
+                <Button size="sm" variant="outline" onClick={() => openEdit(expense)}>
                   {t.expenses.edit}
                 </Button>
                 <Button size="sm" variant="destructive" onClick={() => removeExpense(expense)}>
@@ -357,6 +397,84 @@ export function ExpensesManager({
           ) : null}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open) closeEdit();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={saveEdit} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>{t.expenses.editTitle}</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label htmlFor="expense-edit-name">{t.expenses.name}</Label>
+              <Input
+                id="expense-edit-name"
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expense-edit-amount">{t.expenses.amount}</Label>
+              <Input
+                id="expense-edit-amount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editAmount}
+                onChange={(event) => setEditAmount(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>{t.expenses.bank}</Label>
+              <Select
+                value={editBankId}
+                onValueChange={(value) => setEditBankId(value ?? "")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={selectBankPlaceholder}>
+                    {editBankName || undefined}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {banks.map((bank) => (
+                    <SelectItem key={bank.id} value={bank.id}>
+                      {bank.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {editError ? <p className="text-sm text-red-600">{editError}</p> : null}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeEdit}
+                disabled={editSaving}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button
+                type="submit"
+                disabled={editSaving || !editName.trim() || !editBankId}
+              >
+                {editSaving ? t.expenses.saving : t.expenses.save}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
