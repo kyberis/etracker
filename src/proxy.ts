@@ -50,6 +50,8 @@ const PUBLIC_PREFIXES = [
   // Warren Agent Office server-to-server calls (Bearer IDP_SERVICE_TOKEN).
   // Route handlers validate the token; skip NextAuth or Warren gets 307 → /login.
   "/api/internal/office",
+  // IdP ops digest (`/snapshot`) — Bearer IDP_SERVICE_TOKEN in the handler.
+  "/api/internal/ops-metrics",
 ];
 
 /**
