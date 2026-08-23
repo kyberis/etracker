@@ -1,0 +1,12 @@
+{
+  "session_id": "sess_sandbox_123",
+  "accounts": [
+    {
+      "uid": "acc_1",
+      "name": "Current",
+      "currency": "EUR",
+      "identification": { "iban": "FI7473834510057469" }
+    }
+  ],
+  "access": { "valid_until": "2026-09-01T12:00:00.000Z" }
+}

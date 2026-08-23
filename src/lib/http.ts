@@ -21,6 +21,15 @@ const BUSINESS_ERRORS: Record<string, { status: number; message: string }> = {
     message: "The source month does not exist or is not set up yet.",
   },
   NO_RECORD: { status: 404, message: "This month is not set up yet." },
+  ENABLE_BANKING_NOT_CONFIGURED: {
+    status: 503,
+    message: "Open Banking is not configured.",
+  },
+  OPEN_BANKING_DISABLED: {
+    status: 403,
+    message: "Open Banking is not enabled.",
+  },
+  CONNECTION_NOT_FOUND: { status: 404, message: "Bank connection not found." },
 };
 
 type ApiHandler<T> = () => Promise<T>;

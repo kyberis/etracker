@@ -54,6 +54,7 @@ export async function GET() {
       activeDays,
       featureFlagOverrides,
       contactMessages,
+      bankConnections,
     ] = await Promise.all([
       db.user.findUnique({
         where: { id: userId },
@@ -153,6 +154,38 @@ export async function GET() {
           archivedAt: true,
         },
       }),
+      db.bankConnection.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          provider: true,
+          institutionName: true,
+          institutionCountry: true,
+          status: true,
+          validUntil: true,
+          lastSyncAt: true,
+          createdAt: true,
+          accounts: {
+            select: {
+              id: true,
+              ibanMasked: true,
+              name: true,
+              currency: true,
+              bankId: true,
+            },
+          },
+          importedTx: {
+            select: {
+              id: true,
+              externalId: true,
+              monthLineId: true,
+              lineType: true,
+              ignored: true,
+              importedAt: true,
+            },
+          },
+        },
+      }),
     ]);
 
     if (!user) {
@@ -171,7 +204,7 @@ export async function GET() {
         },
         notes: [
           "Clara dump per GDPR Art. 15 / Art. 20.",
-          "Authentication secrets (passwordHash, OAuth tokens, MCP token hashes, WebAuthn public keys) are intentionally omitted.",
+          "Authentication secrets (passwordHash, OAuth tokens, MCP token hashes, WebAuthn public keys, Open Banking session ids) are intentionally omitted.",
           "Decimals are serialised as strings to preserve precision.",
         ],
       },
@@ -193,6 +226,7 @@ export async function GET() {
       activeDays,
       featureFlagOverrides,
       contactMessages,
+      bankConnections,
     };
 
     const filename = `clara-export-${userId}-${exportedAt.slice(0, 10)}.json`;

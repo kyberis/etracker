@@ -55,6 +55,7 @@ describe("feature-flags", () => {
   describe("registry", () => {
     it("isFeatureFlagKey accepts known keys", () => {
       expect(isFeatureFlagKey("quota_upsell")).toBe(true);
+      expect(isFeatureFlagKey("open_banking")).toBe(true);
       expect(isFeatureFlagKey("nope")).toBe(false);
     });
 

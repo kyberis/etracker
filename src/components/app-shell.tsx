@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/app-header";
 import { BalanceProvider } from "@/components/balance-provider";
 import { DevTools } from "@/components/dev-tools";
 import { MonthDrawerProvider } from "@/components/month-drawer";
+import type { OpenBankingCtaKind } from "@/lib/enable-banking/cta";
 import { LocaleProvider } from "@/lib/i18n/client";
 import type { Locale } from "@/lib/i18n/locale";
 
@@ -21,10 +22,12 @@ export function AppShell({
   children,
   isAdmin = false,
   locale = "es",
+  openBankingCta = null,
 }: {
   children: ReactNode;
   isAdmin?: boolean;
   locale?: Locale;
+  openBankingCta?: OpenBankingCtaKind | null;
 }) {
   return (
     <LocaleProvider locale={locale}>
@@ -32,7 +35,7 @@ export function AppShell({
         <BalanceProvider>
           <MonthDrawerProvider>
             <div className="flex min-h-dvh flex-col">
-              <AppHeader isAdmin={isAdmin} />
+              <AppHeader isAdmin={isAdmin} openBankingCta={openBankingCta} />
               <div className="flex min-h-0 flex-1 flex-col">{children}</div>
             </div>
             <DevTools />

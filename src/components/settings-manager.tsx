@@ -4,6 +4,8 @@ import { AlertTriangle, CheckCircle2, Download, Info, Send, Trash2, XCircle } fr
 import { FormEvent, useState } from "react";
 
 import { ApiTokensCard } from "@/components/api-tokens-card";
+import { OpenBankingCard } from "@/components/open-banking-card";
+import type { PublicBankConnection } from "@/lib/bank-sync/public-connection";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { PasskeysCard } from "@/components/passkeys-card";
@@ -72,6 +74,9 @@ type SettingsManagerProps = {
   ecosystemPatManageUrl?: string | null;
   /** Unified IdP account hub — profile, OAuth, passkeys, password live here. */
   unifiedIdpAccountUrl?: string | null;
+  openBankingEnabled?: boolean;
+  openBankingConnections?: PublicBankConnection[];
+  openBankingCallback?: string | null;
 };
 
 /** Inline feedback for forms — consistent success/error/info styling. */
@@ -127,6 +132,9 @@ export function SettingsManager({
   googleAuthConfigured,
   ecosystemPatManageUrl = null,
   unifiedIdpAccountUrl = null,
+  openBankingEnabled = false,
+  openBankingConnections = [],
+  openBankingCallback = null,
 }: SettingsManagerProps) {
   const t = useT();
   const tx = useTx();
@@ -488,13 +496,25 @@ export function SettingsManager({
       <section className="space-y-4">
         <SectionHeader
           title={tx({ es: "Integraciones", en: "Integrations" })}
-          description={tx({
-            es: "Vinculá Telegram y conectá clientes MCP.",
-            en: "Link Telegram and connect MCP clients.",
-          })}
+          description={tx(
+            openBankingEnabled
+              ? {
+                  es: "Vinculá Telegram, conectá tu banco europeo o clientes MCP.",
+                  en: "Link Telegram, connect a European bank, or MCP clients.",
+                }
+              : {
+                  es: "Vinculá Telegram o clientes MCP.",
+                  en: "Link Telegram or MCP clients.",
+                },
+          )}
         />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
           <TelegramLinkCard initial={initialTelegram} />
+          <OpenBankingCard
+            enabled={openBankingEnabled}
+            initialConnections={openBankingConnections}
+            callbackFlag={openBankingCallback}
+          />
         </div>
         <ApiTokensCard
           initialTokens={initialApiTokens}

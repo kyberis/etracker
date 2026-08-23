@@ -1,7 +1,7 @@
 -- Onboarding wizard fields on User.
 -- - country: ISO-3166 alpha-2 of the user's residence (CHAR(2)). Capturado en
 --   el wizard, lo usamos para sugerir moneda principal y, más adelante, para
---   semillar las instituciones de Revolut por país.
+--   semillar instituciones de open banking por país.
 -- - usageReasons: chips multi-select del wizard ("personal", "couple_family",
 --   "freelance", "business", "other"). Hint para el agente, no gating.
 -- - onboardingCompletedAt: NULL hasta que el wizard termina o se saltea. El

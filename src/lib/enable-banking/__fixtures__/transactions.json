@@ -1,0 +1,21 @@
+{
+  "transactions": [
+    {
+      "transaction_id": { "transaction_id": "tx-debit-1" },
+      "booking_date": "2026-08-20",
+      "transaction_amount": { "amount": "-12.50", "currency": "EUR" },
+      "credit_debit_indicator": "DBIT",
+      "remittance_information": ["Cafe Martinez"],
+      "bank_transaction_code": { "description": "restaurant" }
+    },
+    {
+      "transaction_id": "tx-credit-1",
+      "value_date": "2026-08-19",
+      "transaction_amount": { "amount": "1500.00", "currency": "EUR" },
+      "credit_debit_indicator": "CRDT",
+      "debtor": { "name": "Acme Ltd" },
+      "remittance_information": ["August salary"]
+    }
+  ],
+  "continuation_key": null
+}

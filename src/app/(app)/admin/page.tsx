@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Inbox, LineChart } from "lucide-react";
+import { Inbox, Landmark, LineChart } from "lucide-react";
 
 import {
   AdminFeatureFlagsTable,
@@ -135,6 +135,23 @@ export default async function AdminPage() {
               <div className="flex-1">
                 <CardTitle>{t.admin.analyticsLink}</CardTitle>
                 <CardDescription>{t.admin.analyticsLinkDesc}</CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
+
+        <Link
+          href="/admin/open-banking"
+          className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-xl"
+        >
+          <Card className="hover:bg-muted/40 transition-colors">
+            <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+              <div className="bg-foreground/5 flex size-10 items-center justify-center rounded-lg">
+                <Landmark className="size-5" aria-hidden />
+              </div>
+              <div className="flex-1">
+                <CardTitle>{t.admin.openBankingLink}</CardTitle>
+                <CardDescription>{t.admin.openBankingLinkDesc}</CardDescription>
               </div>
             </CardHeader>
           </Card>

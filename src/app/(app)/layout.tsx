@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { touchActivity } from "@/lib/activity";
 import { getAuthSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getOpenBankingCtaKind } from "@/lib/enable-banking/access";
 import { getLocale } from "@/lib/i18n/server";
 import { hasCurrentConsent } from "@/lib/legal";
 
@@ -18,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // even for users who only browse the dashboard without hitting any API.
   void touchActivity(session.user.id);
 
-  const [user, locale] = await Promise.all([
+  const [user, locale, openBankingCta] = await Promise.all([
     db.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -29,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       },
     }),
     getLocale(),
+    getOpenBankingCtaKind(session.user.id),
   ]);
 
   // Soft-delete gate runs before every other guard so a user who clicks
@@ -56,7 +58,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <AppShell isAdmin={session.user.isAdmin} locale={locale}>
+    <AppShell
+      isAdmin={session.user.isAdmin}
+      locale={locale}
+      openBankingCta={openBankingCta}
+    >
       {children}
     </AppShell>
   );

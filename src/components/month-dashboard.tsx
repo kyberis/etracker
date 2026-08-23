@@ -92,12 +92,12 @@ export function MonthDashboard({ data }: MonthDashboardProps) {
       : panelPreference;
 
   // Deep link (`?view=table|overview|chrono|incomes`) — persist and strip query.
+  // Panel state is already seeded from `?view=` in useState above.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const view = parseMonthPanel(params.get("view"));
     if (!view) return;
-    setPanelPreference(view);
     try {
       localStorage.setItem(MONTH_VIEW_STORAGE_KEY, view);
     } catch {

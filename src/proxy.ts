@@ -52,6 +52,9 @@ const PUBLIC_PREFIXES = [
   "/api/internal/office",
   // IdP ops digest (`/snapshot`) — Bearer IDP_SERVICE_TOKEN in the handler.
   "/api/internal/ops-metrics",
+  // Enable Banking bank redirect lands here with no session cookie on some
+  // ASPSPs. The handler validates the signed `state` itself.
+  "/api/open-banking/callback",
 ];
 
 /**

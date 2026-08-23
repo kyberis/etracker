@@ -8,6 +8,9 @@ short and useful.
 
 ## Active plans
 
+- [`enable-banking`](enable-banking.md) — Open Banking vía Enable Banking
+  (sandbox + producción restringida). Spec:
+  [`../../product-specs/open-banking.md`](../../product-specs/open-banking.md).
 - [`month-desktop-grid`](month-desktop-grid.md) — Vista desktop tipo planilla
   del mes (Tabla / Gráficos / Simular), edición inline, chat contextual por
   celda. PRD: [`../../product-specs/month-desktop-grid.md`](../../product-specs/month-desktop-grid.md);

@@ -95,6 +95,7 @@ includes:
 | Audio (voice notes / TTS) | transcoded audio | Vercel Blob | TTL bucket |
 | AI logs | last N agent turns (if any) | Postgres / log stream | bounded |
 | MCP PATs | sha-256 hashed token, expiry, last-used | Postgres | until revoked |
+| Open Banking | Enable Banking session (encrypted), linked accounts, imported movements | Postgres | account lifetime; admin API logs 30d |
 | Savings ledger | signed amount, kind, currency snapshot, optional note, occurredOn | Postgres | account lifetime |
 | Consent record | `acceptedTermsAt`, `acceptedTermsVersion` on User | Postgres | account lifetime |
 | Contact form messages | kind, name, email, body, ip, user-agent | Postgres `ContactMessage` | 24 months body / 90 days metadata |

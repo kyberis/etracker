@@ -21,6 +21,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { OpenBankingConnectCta } from "@/components/open-banking-connect-cta";
 import { useBalance } from "@/components/balance-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useMonthDrawer } from "@/components/month-drawer";
@@ -32,6 +33,7 @@ import {
   isMonthDesktopGridEnabled,
   MONTH_VIEW_STORAGE_KEY,
 } from "@/lib/month-desktop-grid-flag";
+import type { OpenBankingCtaKind } from "@/lib/enable-banking/cta";
 import { cn } from "@/lib/utils";
 
 function shortMonthLabel(monthKey: string, locale: ReturnType<typeof useLocale>): string {
@@ -44,7 +46,13 @@ function shortMonthLabel(monthKey: string, locale: ReturnType<typeof useLocale>)
   return `${month} '${year}`;
 }
 
-export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
+export function AppHeader({
+  isAdmin = false,
+  openBankingCta = null,
+}: {
+  isAdmin?: boolean;
+  openBankingCta?: OpenBankingCtaKind | null;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const balance = useBalance();
@@ -291,6 +299,13 @@ export function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
                   <p className="text-muted-foreground/80 px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.18em]">
                     {t.header.menuTitle}
                   </p>
+                  {openBankingCta ? (
+                    <OpenBankingConnectCta
+                      kind={openBankingCta}
+                      variant="menu"
+                      onNavigate={() => setMenuOpen(false)}
+                    />
+                  ) : null}
                   {showTableCta ? (
                     <button
                       type="button"

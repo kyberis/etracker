@@ -29,6 +29,8 @@ import Image from "next/image";
 
 import { useBalance } from "@/components/balance-provider";
 import { ChatChart } from "@/components/chat-chart";
+import { OpenBankingConnectCta } from "@/components/open-banking-connect-cta";
+import type { OpenBankingCtaKind } from "@/lib/enable-banking/cta";
 import {
   QuotaLimitDialog,
   type QuotaUpsellPayload,
@@ -91,6 +93,8 @@ export type ChatExperienceProps = {
   activeMonth?: string;
   /** `fullscreen`: fills parent (chat home, drawer). Default: card with fixed height. */
   layout?: "default" | "fullscreen";
+  /** Invite to connect/reconnect a bank when Open Banking is available. */
+  openBankingCta?: OpenBankingCtaKind | null;
 };
 
 /** Tools whose results should trigger a balance refresh in the sticky header. */
@@ -197,6 +201,7 @@ async function dataUrlToPngFile(dataUrl: string, filename: string): Promise<File
 export function ChatExperience({
   activeMonth,
   layout = "default",
+  openBankingCta = null,
 }: ChatExperienceProps = {}) {
   const balance = useBalance();
   const locale = useLocale();
@@ -927,6 +932,7 @@ export function ChatExperience({
               ) : null}
               <EmptyState
                 suggestions={suggestions}
+                openBankingCta={openBankingCta}
                 onPick={(prompt) => {
                   setInput(prompt);
                   void submitText(prompt);
@@ -1272,9 +1278,11 @@ function useClaraGreetingMode(): "first" | "subsequent" | null {
 function EmptyState({
   suggestions,
   onPick,
+  openBankingCta,
 }: {
   suggestions: Suggestion[];
   onPick: (prompt: string) => void;
+  openBankingCta?: OpenBankingCtaKind | null;
 }) {
   const tr = useTx();
   const greetingMode = useClaraGreetingMode();
@@ -1361,6 +1369,11 @@ function EmptyState({
           })}
         </p>
       </div>
+      {openBankingCta ? (
+        <div className="w-full max-w-md text-left clara-greet-stagger-3">
+          <OpenBankingConnectCta kind={openBankingCta} />
+        </div>
+      ) : null}
       <div className="grid w-full max-w-2xl grid-cols-1 gap-2.5 clara-greet-stagger-3 sm:grid-cols-2">
         {suggestions.map((s) => (
           <button

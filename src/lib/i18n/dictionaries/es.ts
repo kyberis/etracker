@@ -523,6 +523,32 @@ export const es = {
     empty: "Todavía no agregaste bancos.",
   },
 
+  openBankingCta: {
+    connectTitle: "Conectá tu banco",
+    connectBody:
+      "Clara trae los movimientos sola. Solo lectura: nunca mueve plata.",
+    connectAction: "Conectar cuenta",
+    reauthTitle: "Reconectá tu banco",
+    reauthBody:
+      "El consentimiento venció. Sin eso Clara no puede seguir trayendo movimientos.",
+    reauthAction: "Reconectar",
+    badge: "Nuevo",
+  },
+
+  openBanking: {
+    callback: {
+      connected:
+        "Listo, el banco quedó conectado. Clara ya está trayendo los movimientos.",
+      denied: "Cancelaste la autorización en el banco. No toqué nada.",
+      empty:
+        "El banco no devolvió cuentas. En producción restringida solo entran las cuentas que whitelistaste.",
+      failed: "No pude terminar la conexión. Probá de nuevo en un rato.",
+      invalid:
+        "El enlace de vuelta del banco expiró o no es válido. Empezá de nuevo.",
+      unavailable: "Open Banking no está configurado en este entorno.",
+    },
+  },
+
   expenses: {
     pageTitle: "Plantillas de gasto",
     pageDescription:
@@ -793,6 +819,41 @@ export const es = {
       `¿Borrar ${email} de forma permanente? Cancela la ventana de gracia y borra en cascada. No se puede deshacer.`,
     pendingPurgeForceSuccess: "Cuenta borrada de forma permanente.",
     pendingPurgeForceError: "No se pudo borrar la cuenta.",
+    openBankingLink: "Open Banking",
+    openBankingLinkDesc: "Conexiones, syncs y logs de Enable Banking.",
+    openBanking: {
+      pageTitle: "Open Banking",
+      pageDescription:
+        "Observabilidad de conexiones PSD2: estado, syncs e historial de llamadas a Enable Banking.",
+      statActive: "Conexiones activas",
+      statReauth: "Piden reconectar",
+      statError: "Con error",
+      statSyncOk: "Syncs OK (24h)",
+      statSyncErr: "Syncs con error (24h)",
+      statImported: "Movimientos (7 días)",
+      topAspsps: "Bancos más conectados",
+      expiringSoon: "Consentimientos que vencen en 7 días",
+      connectionsTitle: "Conexiones",
+      connectionsDescription: "Estado actual por usuario y banco.",
+      runsTitle: "Syncs",
+      runsDescription: "Cada corrida manual, cron o post-callback.",
+      logsTitle: "API logs",
+      logsDescription: "Llamadas a Enable Banking (sin IBANs ni descripciones).",
+      emptyConnections: "Todavía no hay conexiones.",
+      emptyRuns: "Todavía no hay syncs.",
+      emptyLogs: "Todavía no hay logs de API.",
+      colEmail: "Usuario",
+      colBank: "Banco",
+      colStatus: "Estado",
+      colValidUntil: "Vence",
+      colLastSync: "Última sync",
+      colAccounts: "Cuentas",
+      colTime: "Cuándo",
+      colTrigger: "Origen",
+      colImported: "Importados",
+      colAction: "Acción",
+      colDuration: "Duración",
+    },
   },
 
   analytics: {

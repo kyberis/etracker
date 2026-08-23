@@ -20,7 +20,7 @@ import { log } from "@/lib/log";
  * migration is needed because rows are created lazily on first toggle.
  */
 
-export type FeatureFlagKey = "quota_upsell";
+export type FeatureFlagKey = "quota_upsell" | "open_banking";
 
 type FeatureFlagDefinition = {
   description: string;
@@ -32,6 +32,11 @@ export const FEATURE_FLAGS: Record<FeatureFlagKey, FeatureFlagDefinition> = {
   quota_upsell: {
     description:
       "Mostrar el modal de donación + suscripción cuando un usuario llega al límite diario del agente. Requiere que las variables STRIPE_* estén configuradas.",
+    defaultEnabled: false,
+  },
+  open_banking: {
+    description:
+      "Conectar bancos europeos vía Enable Banking (PSD2). Requiere ENABLE_BANKING_* y BANK_SYNC_ENCRYPTION_KEY. Default off; activar por entorno o override de usuario.",
     defaultEnabled: false,
   },
 };
