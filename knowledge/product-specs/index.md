@@ -53,6 +53,9 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
   vista desktop tipo planilla del mes: tabla por banco, gráficos, edición
   inline, simulación “qué pasa si…”, chat contextual por celda. Desktop ≥1100px.
   Mockup: `.cursor/mockups/month-excel-grid.html`. Incluye métricas, testing y DoD.
+- [`open-banking`](open-banking.md) — Enable Banking PSD2: connect a European
+  bank, auto-import accounts/balances/movements into month lines, cron sync,
+  consent re-auth, admin observability. Feature flag `open_banking`.
 - [`months-and-templates`](months-and-templates.md) — core data model:
   `Expense` template + `MonthRecord` + `MonthExpenseLine`. `amountConverted`
   in primary currency, frozen `fxRate`, partial-unique dedupe on imports,

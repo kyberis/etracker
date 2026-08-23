@@ -41,6 +41,10 @@ const IGNORED_FILES = new Set<string>([
   "src/app/(marketing)/[lang]/events/share/[token]/share-accept-form.tsx",
   "src/app/(marketing)/[lang]/upgrade-guest/page.tsx",
   "src/app/(marketing)/[lang]/upgrade-guest/guest-upgrade-form.tsx",
+  // Month spreadsheet keeps bilingual category labels next to the grid so
+  // the table can render without pulling the full dictionary into the
+  // dynamic chunk. ES+EN maps stay in lockstep in the same file.
+  "src/components/month/month-excel-grid.tsx",
 ]);
 
 function listTsxFiles(): string[] {

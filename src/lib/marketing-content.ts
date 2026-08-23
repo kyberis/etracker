@@ -155,7 +155,7 @@ const ES: LocalisedMarketingContent = {
     {
       question: "¿Qué bancos soporta?",
       answer:
-        "Cualquier banco del mundo: importás PDFs/CSVs o registrás gastos manualmente vía chat o nota de voz. Clara nunca tiene acceso a tu dinero — solo procesa los archivos o mensajes que vos le pasés.",
+        "Cualquier banco del mundo: importás PDFs/CSVs o registrás gastos manualmente vía chat o nota de voz. En Europa, si está habilitado en tu cuenta, también podés conectar el banco por Open Banking (solo lectura, vía Enable Banking). Clara nunca inicia pagos ni mueve plata.",
     },
     {
       question: "¿Qué hace con mis datos?",
@@ -184,6 +184,17 @@ const ES: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.15.0",
+      date: "2026-08-23",
+      title: "Open Banking con Enable Banking",
+      highlights: [
+        "Conectá tu banco europeo desde Configuración: Clara trae cuentas, saldos y movimientos sola.",
+        "Hay un atajo en el chat, el menú, Bancos y el mes para conectar la cuenta e importar sola.",
+        "El consentimiento dura hasta 180 días según el banco; cuando vence te pedimos reconectar.",
+        "Sandbox y producción restringida (solo tus cuentas) para probar sin contrato.",
+      ],
+    },
     {
       version: "0.14.4",
       date: "2026-08-11",
@@ -601,16 +612,6 @@ const ES: LocalisedMarketingContent = {
       ],
     },
     {
-      version: "0.0.9",
-      date: "2026-04-15",
-      title: "Open Banking con Revolut",
-      highlights: [
-        "Conexión automática de solo lectura con bancos europeos vía Open Banking.",
-        "Sincronización por mes y matching contra plantillas planificadas.",
-        "UI nueva en Configuración para conectar/desconectar y configurar el banco por defecto.",
-      ],
-    },
-    {
       version: "0.0.8",
       date: "2026-04-01",
       title: "WhatsApp como inbox principal",
@@ -636,6 +637,7 @@ const ES: LocalisedMarketingContent = {
         "Cuenta y autenticación: email, contraseña hasheada (bcrypt), nombre y avatar opcionales sincronizados desde Google si entrás con Google, marca de email verificado, passkeys (WebAuthn) que registres, idioma preferido, país declarado en el onboarding.",
         "Tipo de cuenta (`User.kind`): por defecto REGULAR. Si entraste a Clara aceptando la invitación a un viaje compartido sin crear cuenta, tu cuenta es GUEST: solo tiene tu nombre de pantalla, el chat de Telegram vinculado y acceso a ese único viaje. No tiene contraseña, ni email obligatorio, ni acceso al panel ni a tus propios meses; podés convertirla en REGULAR en cualquier momento desde /upgrade-guest.",
         "Datos financieros: bancos que registres, plantillas de gastos e ingresos, líneas mensuales (monto, descripción, categoría, fecha, moneda, tipo de cambio congelado), y, en gastos cargados dentro de una billetera de evento compartida, qué participante pagó esa línea (`paidByUserId`); pila global de ahorro y su ledger de movimientos, instrucciones para el agente.",
+        "Open Banking (opt-in): si conectás un banco europeo vía Enable Banking, guardamos el identificador de sesión cifrado, el nombre del banco, país, fecha de vencimiento del consentimiento, cuentas linkeadas (IBAN enmascarado) y un registro de los movimientos importados. Los logs de API de admin no guardan IBANs ni descripciones.",
         "Billeteras de evento compartidas: si invitás a alguien a un viaje vía un share-link, guardamos por cada participante su nombre de pantalla a nivel evento, su rol (organizador o invitado) y, en el caso de invitados nuevos por Telegram, un código de un solo uso para vincular el bot. Los share-links se guardan como hash sha256 — nunca el link en claro — y los podés revocar desde la pantalla del viaje cuando quieras; revocación, expiración y último uso son visibles para vos.",
         "Conversaciones: mensajes del chat web (texto + adjuntos como JSON estructurado), mensajes de Telegram si vinculás el bot, contadores de uso del agente y modelos consumidos por día.",
         "Preferencia de recordatorios por Telegram y fecha del último recordatorio enviado (solo aplica si tenés Telegram vinculado; se usa para no mandarte más de un mensaje por día y para que puedas apagarlos cuando quieras desde Configuración).",
@@ -651,7 +653,7 @@ const ES: LocalisedMarketingContent = {
         "Ejecución del contrato (Art. 6(1)(b)): operar la cuenta, persistir tus gastos, ingresos y mensajes, procesar PDFs/audios/screenshots que vos nos mandás, ejecutar el agente con tus tools, cobrar la suscripción Supporter o donaciones que elijas hacer.",
         "Obligación legal (Art. 6(1)(c)): conservar registros de pagos y donaciones por el plazo que exija la normativa fiscal aplicable, verificar el email antes de habilitar contraseña.",
         "Interés legítimo (Art. 6(1)(f)): proteger Clara y sus usuarios contra abuso (Cloudflare Turnstile, rate-limits con IP), monitorear errores (Sentry si está configurado), auditar accesos administrativos.",
-        "Consentimiento (Art. 6(1)(a)): aceptación explícita de estos Términos y esta Política al registrarte (queda guardada en `User.acceptedTermsAt` con la versión). Vincular Telegram es en sí mismo una acción voluntaria que activa el canal bidireccional con el bot — incluidos los recordatorios diarios proactivos que Clara te manda a las 20:00 locales si en el día no cargaste nada. Podés apagarlos en cualquier momento desde Configuración → Integraciones → Telegram, sin perder el vínculo con el bot.",
+        "Consentimiento (Art. 6(1)(a)): aceptación explícita de estos Términos y esta Política al registrarte (queda guardada en `User.acceptedTermsAt` con la versión). Vincular Telegram es en sí mismo una acción voluntaria que activa el canal bidireccional con el bot — incluidos los recordatorios diarios proactivos que Clara te manda a las 20:00 locales si en el día no cargaste nada. Podés apagarlos en cualquier momento desde Configuración → Integraciones → Telegram, sin perder el vínculo con el bot. Conectar un banco vía Open Banking es otro consentimiento explícito (PSD2): Clara solo lee cuentas, saldos y movimientos; nunca inicia pagos. Podés desconectar en cualquier momento desde Configuración.",
         "Nunca vendemos datos. Nunca corremos analytics de comportamiento. Nunca usamos tus datos financieros para entrenar modelos.",
       ],
     },
@@ -666,6 +668,7 @@ const ES: LocalisedMarketingContent = {
         "Stripe Inc. / Stripe Payments Europe Ltd (US/IE) — procesamiento de pagos si elegís suscribirte o donar. Recibe email, país, datos de la tarjeta. Clara nunca ve el número de tarjeta.",
         "Upstash Inc. (US) — Redis para rate-limits. Recibe IP y contadores; no contenido de los mensajes.",
         "Telegram FZ-LLC (AE) — Bot API, sólo si linkeás Telegram. Recibe los mensajes que vos enviás al bot.",
+        "Enable Banking Oy (FI) — Open Banking / PSD2, sólo si conectás un banco desde Configuración. Recibe el flujo de autorización con tu banco y, con tu consentimiento, cuentas, saldos y movimientos. Clara nunca inicia pagos.",
         "Google LLC (US) — OAuth 2.0, sólo si elegís entrar con Google. Recibe el flujo de autenticación estándar.",
         "Sentry GmbH (DE) — agregación de errores, sólo si el operador configuró `SENTRY_DSN`. Recibe stack traces y contexto técnico, sin payloads de mensajes.",
         "Cuando self-hosteás, vos elegís qué sub-encargados usar (todos son opcionales y degradan con gracia).",
@@ -689,6 +692,7 @@ const ES: LocalisedMarketingContent = {
         "Tokens de share-link de eventos compartidos: hasta el momento de expiración o revocación; revocados o expirados se purgan a los 30 días. Las cuentas de invitado (User.kind = GUEST) creadas a partir de uno de esos links siguen las reglas generales: viven mientras vos no las borres, o se purgan en cascada cuando el organizador del viaje borra el evento o su propia cuenta.",
         "Mensajes del chat (web y Telegram): hasta que borres la cuenta o le pidas al agente que los purgue.",
         "Mensajes del formulario /contact: 24 meses; los metadatos técnicos (IP / user-agent del envío) máx 90 días o hasta que se archive el mensaje, lo que ocurra primero.",
+        "Open Banking: la conexión, las cuentas linkeadas y los movimientos importados viven con la cuenta (o hasta que desconectes el banco). Los logs de API de admin se purgan a los 30 días.",
       ],
     },
     {
@@ -788,6 +792,7 @@ const ES: LocalisedMarketingContent = {
       body: [
         "Tus extractos, mensajes, fotos del banco y datos financieros son tuyos. Vos retenés todos los derechos.",
         "Nos das una licencia limitada para procesar ese contenido sólo en la medida necesaria para entregarte el servicio (mostrarlo en la UI, mandarlo a los modelos vía AI Gateway con ZDR, mostrártelo en otros dispositivos donde estés logueado).",
+        "Si conectás un banco vía Open Banking, autorizás a Clara a leer cuentas, saldos y movimientos e importarlos automáticamente. Clara nunca inicia pagos. Podés desconectar cuando quieras; los movimientos ya importados se quedan en tu cuenta.",
         "Nunca usamos tu contenido para entrenar modelos. Nunca lo vendemos.",
       ],
     },
@@ -795,7 +800,7 @@ const ES: LocalisedMarketingContent = {
       heading: "6. Garantías y limitación de responsabilidad",
       body: [
         "Clara NO es una asesora financiera, ni una entidad regulada, ni una contadora. La información que muestra es para tu organización personal; las decisiones de inversión, fiscales o crediticias son tuyas y, si son importantes, consultá a un profesional.",
-        "El servicio se presta \"AS-IS\" y \"AS AVAILABLE\". No garantizamos disponibilidad ininterrumpida, ausencia de errores, ni que la IA acierte siempre — el agente confirma antes de mutar tu base de datos justamente por eso.",
+        "El servicio se presta \"AS-IS\" y \"AS AVAILABLE\". No garantizamos disponibilidad ininterrumpida, ausencia de errores, ni que la IA acierte siempre — el agente confirma antes de mutar tu base de datos justamente por eso. La excepción es Open Banking: al conectar un banco autorizás el auto-import en cada sync.",
         "Hasta donde lo permita la ley aplicable: nuestra responsabilidad agregada por cualquier reclamo se limita al mayor entre (a) los importes que nos pagaste en los últimos 12 meses y (b) cero. No respondemos por daños indirectos, lucro cesante, ni pérdida de datos cuando el self-host está bajo tu control.",
       ],
     },
@@ -971,7 +976,7 @@ const EN: LocalisedMarketingContent = {
     {
       question: "Which banks are supported?",
       answer:
-        "Any bank in the world: import PDFs/CSVs or register expenses manually via chat or voice note. Clara never has access to your money — she only processes the files or messages you explicitly share with her.",
+        "Any bank in the world: import PDFs/CSVs or register expenses manually via chat or voice note. In Europe, if enabled on your account, you can also connect the bank via Open Banking (read-only, through Enable Banking). Clara never initiates payments or moves money.",
     },
     {
       question: "What does she do with my data?",
@@ -1000,6 +1005,17 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.15.0",
+      date: "2026-08-23",
+      title: "Open Banking with Enable Banking",
+      highlights: [
+        "Connect a European bank from Settings: Clara pulls accounts, balances and movements automatically.",
+        "A shortcut in chat, the menu, Banks and the month view lets you connect the account so Clara imports on her own.",
+        "Consent lasts up to 180 days depending on the bank; when it expires we ask you to reconnect.",
+        "Sandbox and restricted production (your own accounts only) so you can test without a contract.",
+      ],
+    },
     {
       version: "0.14.4",
       date: "2026-08-11",
@@ -1417,16 +1433,6 @@ const EN: LocalisedMarketingContent = {
       ],
     },
     {
-      version: "0.0.9",
-      date: "2026-04-15",
-      title: "Open Banking with Revolut",
-      highlights: [
-        "Read-only automatic connection with European banks via Open Banking.",
-        "Per-month sync and matching against planned templates.",
-        "New Settings UI to connect/disconnect and configure the default import bank.",
-      ],
-    },
-    {
       version: "0.0.8",
       date: "2026-04-01",
       title: "WhatsApp as the main inbox",
@@ -1452,6 +1458,7 @@ const EN: LocalisedMarketingContent = {
         "Account and authentication: email, hashed password (bcrypt), optional name and avatar synced from Google if you sign in with Google, email-verified flag, passkeys (WebAuthn) you register, preferred language, country declared during onboarding.",
         "Account kind (`User.kind`): REGULAR by default. If you joined Clara by accepting a shared-trip invite without creating an account, your account is a GUEST: it only holds your display name, the linked Telegram chat, and access to that one trip. It has no password, no required email, and no access to the dashboard or to your own months; you can convert it to REGULAR at any time at /upgrade-guest.",
         "Financial data: banks you register, expense and income templates, monthly lines (amount, description, category, date, currency, frozen FX rate) and, for expenses logged inside a shared event wallet, which participant paid that line (`paidByUserId`); the global savings pile and its movement ledger, agent instructions.",
+        "Open Banking (opt-in): if you connect a European bank via Enable Banking we store an encrypted session id, bank name, country, consent expiry, linked accounts (masked IBAN) and a record of imported movements. Admin API logs never store IBANs or descriptions.",
         "Shared event wallets: if you invite someone to a trip via a share-link, we store per participant their event-scoped display name, their role (organiser or guest) and, for fresh Telegram-only invitees, a single-use code to bind the bot. Share-links are stored as a sha256 hash — never the plaintext link — and you can revoke them from the trip screen at any time; revocation, expiration and last-use timestamps are visible to you.",
         "Conversations: web chat messages (text + structured attachments as JSON), Telegram messages if you link the bot, agent usage counters and per-day model usage.",
         "Telegram reminder preference and the timestamp of the last reminder we sent (only applies if you linked Telegram; used to avoid more than one outbound message per day and so you can turn reminders off whenever you want from Settings).",
@@ -1467,7 +1474,7 @@ const EN: LocalisedMarketingContent = {
         "Performance of the contract (Art. 6(1)(b)): operating your account, persisting your expenses, incomes and messages, processing PDFs/audio/screenshots you send us, running the agent with your tools, charging the Supporter subscription or donations you choose to make.",
         "Legal obligation (Art. 6(1)(c)): keeping payment and donation records for the period required by applicable tax law, verifying your email before enabling password sign-in.",
         "Legitimate interest (Art. 6(1)(f)): protecting Clara and its users from abuse (Cloudflare Turnstile, IP rate-limits), monitoring errors (Sentry if configured), auditing administrative access.",
-        "Consent (Art. 6(1)(a)): explicit acceptance of these Terms and this Policy at signup (stored in `User.acceptedTermsAt` with the version). Linking Telegram is itself a voluntary action that activates the two-way channel with the bot — including the daily proactive reminders Clara sends at 20:00 local time when you haven't logged anything that day. You can turn these reminders off any time from Settings → Integrations → Telegram without breaking the link.",
+        "Consent (Art. 6(1)(a)): explicit acceptance of these Terms and this Policy at signup (stored in `User.acceptedTermsAt` with the version). Linking Telegram is itself a voluntary action that activates the two-way channel with the bot — including the daily proactive reminders Clara sends at 20:00 local time when you haven't logged anything that day. You can turn these reminders off any time from Settings → Integrations → Telegram without breaking the link. Connecting a bank via Open Banking is a separate explicit PSD2 consent: Clara only reads accounts, balances and movements; she never initiates payments. You can disconnect any time from Settings.",
         "We never sell data. We do not run behavioural analytics. We do not use your financial data to train models.",
       ],
     },
@@ -1482,6 +1489,7 @@ const EN: LocalisedMarketingContent = {
         "Stripe Inc. / Stripe Payments Europe Ltd (US/IE) — payment processing if you subscribe or donate. Receives email, country, card details. Clara never sees the card number.",
         "Upstash Inc. (US) — Redis for rate-limits. Receives IP and counters; no message content.",
         "Telegram FZ-LLC (AE) — Bot API, only if you link Telegram. Receives the messages you send to the bot.",
+        "Enable Banking Oy (FI) — Open Banking / PSD2, only if you connect a bank from Settings. Receives the bank authorisation flow and, with your consent, accounts, balances and movements. Clara never initiates payments.",
         "Google LLC (US) — OAuth 2.0, only if you sign in with Google. Standard authentication flow.",
         "Sentry GmbH (DE) — error aggregation, only if the operator configured `SENTRY_DSN`. Receives stack traces and technical context, no message payloads.",
         "When you self-host, you choose which sub-processors to use (all are optional and degrade gracefully).",
@@ -1505,6 +1513,7 @@ const EN: LocalisedMarketingContent = {
         "Shared-event share-link tokens: until expiration or revocation; revoked or expired ones are purged after 30 days. Guest accounts (User.kind = GUEST) created from one of those links follow the general rules: they live until you delete them, or are purged in cascade when the trip's organiser deletes the event or their own account.",
         "Chat messages (web and Telegram): until you delete the account or ask the agent to purge them.",
         "Contact form messages: 24 months; technical metadata (IP / user-agent of the submission) max 90 days or until the message is archived, whichever comes first.",
+        "Open Banking: the connection, linked accounts and imported movements live with the account (or until you disconnect the bank). Admin API logs are purged after 30 days.",
       ],
     },
     {
@@ -1604,6 +1613,7 @@ const EN: LocalisedMarketingContent = {
       body: [
         "Your statements, messages, bank photos and financial data are yours. You retain all rights.",
         "You grant us a limited license to process that content only as needed to deliver the service (display it in the UI, send it to models via AI Gateway with ZDR, show it on other devices where you're signed in).",
+        "If you connect a bank via Open Banking, you authorise Clara to read accounts, balances and movements and import them automatically. Clara never initiates payments. You can disconnect any time; already imported movements stay in your account.",
         "We never use your content to train models. We never sell it.",
       ],
     },
@@ -1611,7 +1621,7 @@ const EN: LocalisedMarketingContent = {
       heading: "6. Warranty disclaimer and limitation of liability",
       body: [
         "Clara is NOT a financial advisor, regulated entity or accountant. The information shown is for personal organisation; investment, tax or credit decisions are yours and, if material, should be discussed with a professional.",
-        "The service is provided \"AS-IS\" and \"AS AVAILABLE\". We do not warrant uninterrupted availability, absence of errors, or that the AI is always correct — the agent confirms before mutating your database precisely for that reason.",
+        "The service is provided \"AS-IS\" and \"AS AVAILABLE\". We do not warrant uninterrupted availability, absence of errors, or that the AI is always correct — the agent confirms before mutating your database precisely for that reason. Open Banking is the exception: connecting a bank authorises auto-import on every sync.",
         "To the maximum extent permitted by applicable law: our aggregate liability for any claim is limited to the greater of (a) the amounts you paid us in the previous 12 months and (b) zero. We are not liable for indirect damages, lost profits, or data loss when self-hosting is under your control.",
       ],
     },

@@ -14,12 +14,14 @@ import { db } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
 import { isLocale } from "@/lib/i18n/locale";
 import { getLocale } from "@/lib/i18n/server";
+import { listUserConnections, serializePublicConnection } from "@/lib/db/bank-connections";
+import { isOpenBankingAvailable } from "@/lib/enable-banking/access";
 import { requireUserId } from "@/lib/session";
 
 async function loadSettingsData() {
   const userId = await requireUserId();
   const now = new Date();
-  const [user, apiTokens, donationCount, passkeys] =
+  const [user, apiTokens, donationCount, passkeys, openBankingEnabled, openBankingRows] =
     await Promise.all([
     db.user.findUnique({
       where: { id: userId },
@@ -70,6 +72,8 @@ async function loadSettingsData() {
         backedUp: true,
       },
     }),
+    isOpenBankingAvailable(userId),
+    listUserConnections(userId),
   ]);
 
   if (!user) {
@@ -147,11 +151,23 @@ async function loadSettingsData() {
     },
     ecosystemPatManageUrl,
     unifiedIdpAccountUrl,
+    openBankingEnabled,
+    openBankingConnections: openBankingEnabled
+      ? openBankingRows.map((row) => serializePublicConnection(row))
+      : [],
   } as const;
 }
 
-export default async function SettingsPage() {
-  const [data, locale] = await Promise.all([loadSettingsData(), getLocale()]);
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ openBanking?: string }>;
+}) {
+  const [data, locale, params] = await Promise.all([
+    loadSettingsData(),
+    getLocale(),
+    searchParams,
+  ]);
   const t = getDict(locale);
 
   // Unified IdP: subscription UI is links to user.trefolio.com. Donations-only
@@ -184,6 +200,9 @@ export default async function SettingsPage() {
         googleAuthConfigured={isGoogleAuthConfigured()}
         ecosystemPatManageUrl={data.ecosystemPatManageUrl}
         unifiedIdpAccountUrl={data.unifiedIdpAccountUrl}
+        openBankingEnabled={data.openBankingEnabled}
+        openBankingConnections={data.openBankingConnections}
+        openBankingCallback={params.openBanking ?? null}
       />
     </PageContainer>
   );

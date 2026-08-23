@@ -67,6 +67,7 @@ Current set:
 - Telegram (AE) — Bot API (opt-in via linking).
 - Google (US) — OAuth (opt-in via Google sign-in).
 - Sentry (DE) — opt-in via `SENTRY_DSN`.
+- Enable Banking Oy (FI) — Open Banking / PSD2 (opt-in via Settings connect).
 
 ## Retention
 

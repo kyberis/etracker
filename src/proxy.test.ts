@@ -43,6 +43,11 @@ describe("isPublicPathname", () => {
     expect(isPublicPathname("/api/internal/ops-metrics")).toBe(true);
   });
 
+  it("treats the Enable Banking callback as public (signed state)", () => {
+    expect(isPublicPathname("/api/open-banking/callback")).toBe(true);
+    expect(isPublicPathname("/api/open-banking/connect")).toBe(false);
+  });
+
   it("treats /api/events/share/* (preview + accept) as public", () => {
     // `GET /api/events/share/[token]` — anonymous preview.
     expect(isPublicPathname("/api/events/share/sometoken")).toBe(true);

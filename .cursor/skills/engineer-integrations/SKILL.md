@@ -25,6 +25,7 @@ talking to.
 | Rate limiting | Upstash Redis | [`src/lib/rate-limit.ts`](../../../src/lib/rate-limit.ts) |
 | Error reporting | Sentry (optional, via `SENTRY_DSN`) | [`src/lib/log.ts`](../../../src/lib/log.ts) forwards |
 | MCP transport | `@modelcontextprotocol/sdk` + `mcp-handler` | [`src/lib/mcp/`](../../../src/lib/mcp), `src/app/api/mcp/**` |
+| Open Banking (PSD2) | Enable Banking | [`src/lib/enable-banking/`](../../../src/lib/enable-banking), [`src/lib/bank-sync/`](../../../src/lib/bank-sync) |
 
 ## Vercel AI Gateway (chat + classification)
 

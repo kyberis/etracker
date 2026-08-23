@@ -4,11 +4,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CreateMonthSection } from "@/components/create-month-section";
+import { OpenBankingConnectCta } from "@/components/open-banking-connect-cta";
 import { MonthDashboard } from "@/components/month-dashboard";
 import { MonthPicker } from "@/components/month-picker";
 import { PageContainer } from "@/components/page-container";
 import { YearNavigation } from "@/components/year-navigation";
 import { YearTimeline } from "@/components/year-timeline";
+import { getOpenBankingCtaKind } from "@/lib/enable-banking/access";
 import { pick } from "@/lib/i18n";
 import { dateLocale } from "@/lib/i18n/format";
 import { getLocale } from "@/lib/i18n/server";
@@ -43,11 +45,12 @@ export default async function MonthPage({ params }: PageProps) {
   const userId = await requireUserId();
   const year = monthStart.getUTCFullYear();
 
-  const [data, previousRecord, yearTimeline, locale] = await Promise.all([
+  const [data, previousRecord, yearTimeline, locale, openBankingCta] = await Promise.all([
     loadMonthPageData(userId, month),
     findPreviousMonthWithRecord(userId, monthStart),
     getYearTimelineData(userId, year),
     getLocale(),
+    getOpenBankingCtaKind(userId),
   ]);
   const suggestedCopyFrom = previousRecord ? formatMonthKey(previousRecord.month) : null;
   const monthDescription = pick(locale, {
@@ -101,6 +104,8 @@ export default async function MonthPage({ params }: PageProps) {
           currency={data.primaryCurrency}
         />
       </div>
+
+      {openBankingCta ? <OpenBankingConnectCta kind={openBankingCta} /> : null}
 
       {data.hasRecord ? (
         <MonthDashboard data={data} />

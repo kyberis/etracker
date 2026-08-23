@@ -5,7 +5,7 @@
 --    poder indexar por usuario sin un join. Se necesita para el índice único
 --    de deduplicación global (un usuario no puede tener dos líneas iguales).
 -- 2. `MonthExpenseLine.occurredOn`: fecha real del gasto (sin hora, en UTC).
---    Para Revolut: bookingDate ?? valueDate ?? hoy. Para cargas manuales
+--    Para imports bancarios: bookingDate ?? valueDate ?? hoy. Para cargas manuales
 --    (chat / foto / formulario): hoy salvo que el usuario indique otra.
 -- 3. Borrado de duplicados pre-existentes: para usuarios que vienen del flujo
 --    anterior (sin dedup) puede haber dos líneas idénticas. Se conserva la

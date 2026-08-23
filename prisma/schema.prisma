@@ -245,6 +245,8 @@ model User {
   /// Share-tokens que este usuario creó para invitar a sus eventos.
   eventShareTokens             EventShareToken[]      @relation("ShareTokenCreator")
   contactMessages              ContactMessage[]
+  bankConnections              BankConnection[]
+  enableBankingApiLogs         EnableBankingApiLog[]
   /// GDPR Art. 7(1) — demonstrable consent. Stamped when the user actively
   /// accepts the current Terms + Privacy version. NULL means the user has
   /// never accepted (legacy account or signup mid-deploy); the `(app)`
@@ -402,6 +404,7 @@ model Bank {
   incomes           Income[]
   monthExpenseLines MonthExpenseLine[]
   monthIncomeLines  MonthIncomeLine[]
+  linkedAccounts    BankLinkedAccount[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -934,4 +937,107 @@ model ContactMessage {
   @@index([createdAt])
   @@index([kind])
   @@index([userId])
+}
+
+enum BankConnectionProvider {
+  ENABLE_BANKING
+}
+
+enum BankConnectionStatus {
+  PENDING
+  ACTIVE
+  NEEDS_REAUTH
+  ERROR
+  DISCONNECTED
+}
+
+/// Open Banking connection (Enable Banking session + consent window).
+/// `sessionId` is AES-256-GCM ciphertext (see `src/lib/crypto.ts`).
+model BankConnection {
+  id                   String                 @id @default(cuid())
+  userId               String
+  provider             BankConnectionProvider @default(ENABLE_BANKING)
+  institutionName      String
+  institutionCountry   String                 @db.Char(2)
+  sessionId            String
+  status               BankConnectionStatus   @default(PENDING)
+  validUntil           DateTime?
+  lastSyncAt           DateTime?
+  lastSyncError        String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts             BankLinkedAccount[]
+  importedTx           BankImportedTransaction[]
+  syncRuns             BankSyncRun[]
+
+  @@unique([userId, provider, sessionId])
+  @@index([userId, status])
+}
+
+model BankLinkedAccount {
+  id           String         @id @default(cuid())
+  connectionId String
+  externalUid  String
+  ibanMasked   String?
+  name         String?
+  currency     String
+  bankId       String?
+  bank         Bank?          @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  connection   BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([connectionId, externalUid])
+  @@index([bankId])
+}
+
+model BankImportedTransaction {
+  id           String         @id @default(cuid())
+  connectionId String
+  externalId   String
+  monthLineId  String?
+  lineType     String?
+  rawPayload   Json?
+  ignored      Boolean        @default(false)
+  importedAt   DateTime       @default(now())
+  connection   BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, externalId])
+  @@index([monthLineId])
+}
+
+model BankSyncRun {
+  id                    String         @id @default(cuid())
+  connectionId          String
+  trigger               String
+  status                String
+  transactionsFound     Int            @default(0)
+  transactionsImported  Int            @default(0)
+  transactionsSkipped   Int            @default(0)
+  errorCode             String?
+  errorMessage          String?
+  durationMs            Int
+  startedAt             DateTime       @default(now())
+  connection            BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, startedAt])
+}
+
+model EnableBankingApiLog {
+  id              String   @id @default(cuid())
+  userId          String
+  connectionId    String?
+  action          String
+  status          String
+  httpStatus      Int?
+  requestSummary  Json?
+  responseSummary Json?
+  errorMessage    String?
+  durationMs      Int
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
 }

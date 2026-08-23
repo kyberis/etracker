@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/account-purge",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/bank-sync",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

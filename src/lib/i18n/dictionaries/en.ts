@@ -520,6 +520,31 @@ export const en: Dict = {
     empty: "You haven't added any banks yet.",
   },
 
+  openBankingCta: {
+    connectTitle: "Connect your bank",
+    connectBody:
+      "Clara pulls the movements on her own. Read-only: she never moves money.",
+    connectAction: "Connect account",
+    reauthTitle: "Reconnect your bank",
+    reauthBody:
+      "Consent expired. Without it Clara cannot keep pulling movements.",
+    reauthAction: "Reconnect",
+    badge: "New",
+  },
+
+  openBanking: {
+    callback: {
+      connected:
+        "Done — the bank is connected. Clara is already pulling movements.",
+      denied: "You cancelled bank authorisation. Nothing was changed.",
+      empty:
+        "The bank returned no accounts. In restricted production only whitelisted accounts come through.",
+      failed: "Could not finish the connection. Try again in a bit.",
+      invalid: "The bank return link expired or is invalid. Start again.",
+      unavailable: "Open Banking is not configured in this environment.",
+    },
+  },
+
   expenses: {
     pageTitle: "Expense templates",
     pageDescription:
@@ -789,6 +814,41 @@ export const en: Dict = {
       `Permanently delete ${email}? This cancels the grace window and cascades to every row. Cannot be undone.`,
     pendingPurgeForceSuccess: "Account permanently deleted.",
     pendingPurgeForceError: "Could not purge the account.",
+    openBankingLink: "Open Banking",
+    openBankingLinkDesc: "Connections, syncs and Enable Banking API logs.",
+    openBanking: {
+      pageTitle: "Open Banking",
+      pageDescription:
+        "PSD2 connection observability: status, syncs and Enable Banking API history.",
+      statActive: "Active connections",
+      statReauth: "Need re-auth",
+      statError: "In error",
+      statSyncOk: "Syncs OK (24h)",
+      statSyncErr: "Failed syncs (24h)",
+      statImported: "Movements (7 days)",
+      topAspsps: "Most connected banks",
+      expiringSoon: "Consents expiring in 7 days",
+      connectionsTitle: "Connections",
+      connectionsDescription: "Current status per user and bank.",
+      runsTitle: "Syncs",
+      runsDescription: "Each manual, cron or post-callback run.",
+      logsTitle: "API logs",
+      logsDescription: "Enable Banking calls (no IBANs or descriptions).",
+      emptyConnections: "No connections yet.",
+      emptyRuns: "No syncs yet.",
+      emptyLogs: "No API logs yet.",
+      colEmail: "User",
+      colBank: "Bank",
+      colStatus: "Status",
+      colValidUntil: "Expires",
+      colLastSync: "Last sync",
+      colAccounts: "Accounts",
+      colTime: "When",
+      colTrigger: "Trigger",
+      colImported: "Imported",
+      colAction: "Action",
+      colDuration: "Duration",
+    },
   },
 
   analytics: {
