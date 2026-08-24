@@ -25,10 +25,12 @@ Clara then:
    sections, extracts each transaction with description, amount,
    currency, and **transaction date**.
 3. Replies with a compact list grouped by bank ("28/04 - Café
-   Martínez - ARS 4.500") and asks the user to confirm before any
-   tool call.
-4. On confirmation: calls `addMonthLine` (or `updateMonthLine` if a
-   matching line already exists) for each row, with `occurredOn` =
+   Martínez - ARS 4.500"). If dates/banks are clear (or the user
+   already asked to import), loads **all** clear rows via
+   `addMonthLines` without mid-batch "¿sigo?" questions. Only asks
+   about rows with real doubts (ambiguous date, unknown bank, …).
+4. On write: calls `addMonthLines` (preferred) or `addMonthLine` /
+   `updateMonthLine` for each row, with `occurredOn` =
    the real transaction date.
 5. Respects the user's
    [`expenseImportInstructions`](../../prisma/schema.prisma) — free-text
@@ -88,10 +90,12 @@ The agent's system prompt includes these rules verbatim (see
 4. **Personal instructions win.** Apply the user's
    `expenseImportInstructions` when categorising / deciding what to
    ignore / how to mark paid.
-5. **Confirm before writing.** Always present a compact list and ask
-   "¿Lo cargo?" before invoking tools.
-6. **Group by bank in the confirmation list.** Easier to scan
-   multi-source statements.
+5. **Load all clear rows.** Prefer `addMonthLines` for statement
+   imports. Never stop mid-list to ask "siguiente tanda / shall I
+   continue?". Ask only about rows with real doubts; omit those from
+   the batch.
+6. **Group by bank in the list.** Easier to scan multi-source
+   statements.
 
 ### Voice ingest (Telegram)
 
@@ -122,8 +126,12 @@ The agent's system prompt includes these rules verbatim (see
 
 - **Real transaction date or ask.** No silent `todayUtcDate()` for
   artefact-derived lines.
-- **Confirmation gate.** No `addMonthLine` call without an explicit
-  user yes per import.
+- **Confirmation gate for doubts only.** Clear statement rows go
+  straight to `addMonthLines` after the preview list (or when the
+  user already asked to import). Ambiguous rows and deletions still
+  need an explicit user answer.
+- **Finish the list in one turn.** No "siguiente tanda" pauses —
+  use `addMonthLines` (≤80) and call again in the same turn if needed.
 - **Personal rules in the prompt, not in code.** Don't inline
   user-specific logic into the agent code; let the user own it via
   `updateExpenseImportInstructions`.

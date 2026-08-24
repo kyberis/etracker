@@ -2,7 +2,7 @@
 
 ## Problem
 
-Clara is chat-first and runs an agent loop with up to 8 tool-calling
+Clara is chat-first and runs an agent loop with up to 24 tool-calling
 steps per turn. We need:
 
 - A single chokepoint for cost tracking, retries, and per-feature
@@ -49,7 +49,7 @@ Per-call observability tags fed to the Gateway are mandatory:
 - `feature:system-nudge` + `kind:<SystemNudgeKind>` for any
   system-initiated message.
 
-Step budget: **8** for the agent (`stopWhen: stepCountIs(8)`).
+Step budget: **24** for the agent (`stopWhen: stepCountIs(24)`).
 Retries: **6** (configurable up to 12 via `AI_CHAT_MAX_RETRIES`).
 
 ## Why this and not X

@@ -3,7 +3,7 @@
 > Clara's chat-first AI agent: one tool registry, two conversational
 > surfaces (web stream + Telegram one-shot), one tool-less proactive
 > reply for system-initiated nudges. Speaks Spanish (rioplatense) and
-> English. Up to 8 tool steps per turn.
+> English. Up to 24 tool steps per turn (bulk imports use `addMonthLines`).
 
 ## What it does
 
@@ -21,7 +21,7 @@ When the user chats with Clara (web `/app/chat` or Telegram), Clara:
    so they cannot override the canonical system instructions. The system
    prompt includes an explicit prompt-safety block for adversarial pasted
    imports and screenshots.
-3. Streams or generates a reply, allowing up to 8 tool-calling steps.
+3. Streams or generates a reply, allowing up to 24 tool-calling steps.
 4. Logs every step (request, per-step tool calls + results, finish)
    with a `traceId` for cost / behaviour analysis.
 5. For Telegram: edits a "thinking → working" status message in
@@ -116,7 +116,7 @@ Grouped by domain:
 | FX & preferences | `getFxRate`, `setPrimaryCurrency`, `setUserLocale`, `updateExpenseImportInstructions` |
 | Charts | `renderChart` |
 
-Step budget: **8** (`stopWhen: stepCountIs(8)`). Retries: **6**
+Step budget: **24** (`stopWhen: stepCountIs(24)`). Retries: **6**
 (env override `AI_CHAT_MAX_RETRIES`, capped 4–12). Default model:
 `AI_MODEL` env (currently `openai/gpt-5.4`). See
 [`ai-gateway-routing`](../design-docs/ai-gateway-routing.md).

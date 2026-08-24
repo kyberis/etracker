@@ -117,6 +117,72 @@ const cuidIdSchema = z
       "If you don't have one, OMIT this field entirely — never invent placeholders, names, or single characters.",
   );
 
+
+/** Shared fields for addMonthLine / addMonthLines. */
+const monthLineCreateInputSchema = z.object({
+        name: z.string().min(1).max(120),
+        amount: z.number().positive(),
+        bankId: z.string().min(1),
+        category: categoryEnum.optional().default("OTROS"),
+        paid: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Whether the expense is already paid. Default true because users usually report expenses already made.",
+          ),
+        currency: currencySchema
+          .optional()
+          .describe(
+            "ISO 4217 (3 letters). Default = user's primary currency. Pass it when the user says 'I paid in USD/ARS/EUR'.",
+          ),
+        fxRate: z
+          .number()
+          .positive()
+          .optional()
+          .describe(
+            "Manual override of the exchange rate. Useful for cases like parallel-market rates. If omitted, we use the live rate.",
+          ),
+        occurredOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
+          .optional()
+          .describe(
+            "Actual date of the expense (yyyy-MM-dd, with day). Default = today only when the user is typing in chat and does NOT mention a date. " +
+            "When the line comes from a bank screenshot, photo, receipt, PDF or CSV, you MUST pass the date you read off the source for THAT specific transaction (not today). " +
+            "If the date in the source is missing, cropped, ambiguous or has no year, ask the user before calling this tool — do not silently default to today.",
+          ),
+        occurredOnSource: occurredOnSourceEnum
+          .optional()
+          .describe(
+            "USER when the user stated the date; ARTIFACT when read from CSV/PDF/image; omit for chat without date → server sets ESTIMATED (today).",
+          ),
+        month: optionalMonthKey.describe(
+          "Optional yyyy-MM bucket hint; must match the month of `occurredOn` if provided. Usually omit and let the server derive from `occurredOn`.",
+        ),
+        eventId: cuidIdSchema
+          .optional()
+          .describe(
+            "Optional event wallet id (CUID, e.g. 'cmofvkulj0004njis6x1voyzw') to attach the line to. " +
+            "The event must be OPEN. " +
+            "ONLY pass this when you have a real id from a prior `getActiveEvents` / `listEvents` / `getEvent` " +
+            "call that matched. If `getActiveEvents` returned an empty list, OMIT this field entirely — " +
+            "do not invent placeholders ('/', '.', ',', 'MISSING'), do not pass the event name, and do not " +
+            "guess. If `occurredOn` is outside the event's [startDate, endDate], REGULAR users get a " +
+            "standalone line + `note` (do not keep re-passing the same eventId); GUEST users get `error`/`outOfRange`.",
+          ),
+        paidByUserId: cuidIdSchema
+          .optional()
+          .describe(
+            "Required ONLY when the event has more than one active participant: who actually " +
+            "paid for this line. Pass the userId (CUID) returned by `listEventParticipants`. " +
+            "If the user said 'I paid' / 'me' / 'yo', use the current user's id from " +
+            "`listEventParticipants` -> `currentUserId`. OMIT this field if there is no event in scope " +
+            "or if you only have one participant — never invent it.",
+          ),
+      });
+type MonthLineCreateInput = z.infer<typeof monthLineCreateInputSchema>;
+
 /** Matches DB practical limit; avoids oversized prompts. */
 const MAX_EXPENSE_IMPORT_INSTRUCTIONS_CHARS = 12_000;
 
@@ -162,6 +228,263 @@ export function buildExpenseTools(
   const userKind = options.userKind ?? UserKind.REGULAR;
   const scopedEventId = options.scopedEventId ?? null;
   const isGuest = userKind === UserKind.GUEST;
+
+  async function executeAddMonthLine(input: MonthLineCreateInput) {
+        const { occurredOn, occurredOnSource } = resolveCreateOccurredOn({
+          occurredOn: input.occurredOn,
+          occurredOnSource: input.occurredOnSource,
+        });
+        const bucketMonthKey =
+          input.month ?? formatMonthKey(toMonthStart(occurredOn));
+
+        // For GUEST users, the tool is locked to a single event and the
+        // line must live under the event OWNER's userId (so it shows up
+        // in the owner's dashboard and counts towards the event total).
+        // The owner's bank list is what's resolvable.
+        const requestedEventId = scopedEventId ?? input.eventId ?? null;
+
+        let storageUserId = userId;
+        let eventOwnerId: string | null = null;
+        let event: {
+          id: string;
+          name: string;
+          status: EventStatus;
+          startDate: Date;
+          endDate: Date | null;
+          userId: string;
+        } | null = null;
+        // Hint surfaced back to the agent when we silently dropped a bad
+        // eventId / paidByUserId. The model needs a structured note so it
+        // stops re-using the wrong id on follow-up turns. We never error
+        // out of the line creation because of an invalid event reference
+        // for REGULAR users — the user explicitly asked for the line and
+        // it must land in their month, just untagged. GUEST users are the
+        // exception: they have no concept of "standalone" lines.
+        let droppedEventNote: string | null = null;
+
+        if (requestedEventId) {
+          // Look up the event without restricting on userId so participants
+          // (not just owners) can attach lines.
+          event = await db.event.findUnique({
+            where: { id: requestedEventId },
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              startDate: true,
+              endDate: true,
+              userId: true,
+            },
+          });
+          if (!event) {
+            if (isGuest) {
+              return { error: "The specified event doesn't exist." };
+            }
+            droppedEventNote =
+              `eventId "${requestedEventId}" did not match any event. Created the line as a standalone expense (no event tag). ` +
+              "Do NOT pass eventId on follow-up calls unless you have a real event id from getActiveEvents/listEvents/getEvent. " +
+              "Bank ids and user ids are NOT event ids — even if they look like CUIDs.";
+          } else if (event.userId !== userId) {
+            // Authorization: owner OR active participant.
+            const part = await db.eventParticipant.findUnique({
+              where: {
+                eventId_userId: { eventId: event.id, userId },
+              },
+              select: { removedAt: true },
+            });
+            if (!part || part.removedAt) {
+              if (isGuest) {
+                return { error: "You are not a participant of this event." };
+              }
+              droppedEventNote =
+                `You are not a participant of event "${event.name}" (${event.id}). Created the line as a standalone expense.`;
+              event = null;
+            }
+          }
+          if (event && event.status !== EventStatus.OPEN) {
+            if (isGuest) {
+              return {
+                error:
+                  "That event is closed. Reopen it before adding more expenses.",
+              };
+            }
+            droppedEventNote =
+              `Event "${event.name}" is closed. Created the line as a standalone expense. Use reopenEvent first if the user wants to add more expenses to that trip.`;
+            event = null;
+          }
+          // Date-range check BEFORE flipping storageUserId to the event
+          // owner. For REGULAR users an out-of-range tag must not block the
+          // line (CSV imports often re-pass a trip eventId the user already
+          // said to ignore); create standalone in the caller's books. GUEST
+          // users have no standalone concept — they must stay on the event.
+          if (event && !isDateInEventRange(event, occurredOn)) {
+            const dateStr = occurredOn.toISOString().slice(0, 10);
+            if (isGuest) {
+              return {
+                error: `The expense date (${dateStr}) is outside the event "${event.name}" range. Confirm with the user whether to extend the event or leave the expense unattached.`,
+                outOfRange: true as const,
+                eventName: event.name,
+              };
+            }
+            droppedEventNote =
+              `The expense date (${dateStr}) is outside the event "${event.name}" range. Created as a standalone expense (no event tag). ` +
+              "DATE RULE: only expenses inside [startDate, endDate] belong on the wallet. " +
+              "Do NOT re-pass this eventId. If the user explicitly wants it on the trip, call updateEvent to extend dates first, " +
+              "or attachLineToEvent with confirmOutOfRange=true after they say yes.";
+            event = null;
+          }
+          if (event) {
+            eventOwnerId = event.userId;
+            storageUserId = event.userId; // line lives in the owner's books
+          }
+        } else if (isGuest) {
+          // Defensive: a GUEST without scopedEventId shouldn't happen
+          // (loadGuestEventScope returns null before we get here), but
+          // refuse loose-line creation just in case.
+          return {
+            error:
+              "As a guest of a shared event, you can only log expenses for that event.",
+          };
+        }
+
+        const storageUser = await db.user.findUnique({
+          where: { id: storageUserId },
+          select: { primaryCurrency: true },
+        });
+        if (!storageUser) return { error: "User not found." };
+
+        let monthRecordId: string;
+        try {
+          monthRecordId = await resolveMonthRecordId(storageUserId, occurredOn);
+        } catch {
+          return {
+            error: isGuest
+              ? "The event owner's month could not be set up. Ask them to open the dashboard once."
+              : "Could not set up the target month. Ask the user to retry or use createMonthIfNeeded.",
+          };
+        }
+        // Bank must belong to the storage user (event owner for shared events).
+        const bank = await db.bank.findFirst({
+          where: { id: input.bankId, userId: storageUserId },
+          select: { id: true, name: true },
+        });
+        if (!bank) return { error: "The specified bank doesn't exist." };
+
+        let converted;
+        try {
+          converted = await convertToPrimary({
+            amount: input.amount,
+            currency: input.currency ?? storageUser.primaryCurrency,
+            primary: storageUser.primaryCurrency,
+            fxRate: input.fxRate,
+          });
+        } catch (error) {
+          if (error instanceof FxUnavailableError) {
+            return {
+              error: `Couldn't fetch the exchange rate ${error.from}->${error.to}. Ask the user for a rate and retry passing "fxRate".`,
+            };
+          }
+          throw error;
+        }
+
+        let eventName: string | null = null;
+        let eventId: string | null = null;
+        let paidByUserId: string | null = null;
+        if (event) {
+          eventId = event.id;
+          eventName = event.name;
+
+          // Validate paidByUserId: must be an active participant of the event.
+          // Forgiving for the same reason as the event lookup above: the
+          // model frequently passes the wrong CUID here (often a bank id
+          // or its own user id repeated). When the explicit value is
+          // bogus we fall back to the current user, who is guaranteed to
+          // be a participant by the authorization check above. The note
+          // tells the model to fix it next turn.
+          const explicit = input.paidByUserId;
+          if (explicit && explicit !== userId) {
+            const payer = await db.eventParticipant.findUnique({
+              where: {
+                eventId_userId: { eventId: event.id, userId: explicit },
+              },
+              select: { removedAt: true },
+            });
+            if (!payer || payer.removedAt) {
+              droppedEventNote =
+                (droppedEventNote ? droppedEventNote + " " : "") +
+                `paidByUserId "${explicit}" is not an active participant of "${event.name}". ` +
+                "Defaulted to the current user. Call listEventParticipants to get valid userIds before retrying.";
+              paidByUserId = userId;
+            } else {
+              paidByUserId = explicit;
+            }
+          } else {
+            paidByUserId = userId;
+          }
+        }
+
+        let line;
+        try {
+          line = await db.monthExpenseLine.create({
+            data: {
+              userId: storageUserId,
+              monthRecordId,
+              templateId: null,
+              bankId: input.bankId,
+              name: input.name.trim(),
+              occurredOn,
+              occurredOnSource,
+              amount: converted.amount,
+              currency: converted.currency,
+              fxRate: converted.fxRate,
+              amountConverted: converted.amountConverted,
+              category: input.category as ExpenseCategory,
+              paid: input.paid,
+              eventId,
+              paidByUserId,
+            },
+          });
+        } catch (error) {
+          if (isUniqueViolation(error)) {
+            return {
+              ok: true as const,
+              duplicate: true as const,
+              note:
+                "An expense with that date, description, and amount already existed. Did not duplicate it." +
+                (droppedEventNote ? ` Also: ${droppedEventNote}` : ""),
+            };
+          }
+          throw error;
+        }
+        await expireYearTimeline(userId, occurredOn.getUTCFullYear());
+
+        return {
+          ok: true as const,
+          duplicate: false as const,
+          ...(droppedEventNote ? { note: droppedEventNote } : {}),
+          line: {
+            id: line.id,
+            month: bucketMonthKey,
+            occurredOn: line.occurredOn.toISOString().slice(0, 10),
+            occurredOnSource: line.occurredOnSource,
+            name: line.name,
+            amount: line.amount.toString(),
+            currency: line.currency,
+            fxRate: line.fxRate.toString(),
+            amountConverted: line.amountConverted.toString(),
+            primaryCurrency: storageUser.primaryCurrency,
+            bankName: bank.name,
+            category: line.category,
+            paid: line.paid,
+            eventId,
+            eventName,
+            paidByUserId,
+            ownedBy: eventOwnerId,
+          },
+        };
+      
+  }
+
   const fullToolset = {
     getMonthState: tool({
       description:
@@ -551,320 +874,61 @@ export function buildExpenseTools(
         "the event's date range for a REGULAR user, the line is still created as a standalone expense " +
         "(no event tag) and a `note` tells you to stop re-passing that eventId (or extend the event first). " +
         "GUEST users scoped to an event still get `error` + `outOfRange` because they cannot create standalone lines.",
+      inputSchema: monthLineCreateInputSchema,
+      execute: executeAddMonthLine,
+    }),
+
+    addMonthLines: tool({
+      description:
+        "Bulk-create one-off expense lines (same rules as addMonthLine). Use this for bank PDF/CSV/image imports " +
+        "after the user confirmed the list, or when they asked to import and every row is clear — pass ALL clear rows " +
+        "in one call (up to 80). Never stop mid-import to ask 'shall I continue / siguiente tanda'; call this again " +
+        "for any remaining rows in the same turn. Rows with ambiguous dates must be omitted here and asked about separately. " +
+        "Returns per-line results plus created/duplicate/error counts.",
       inputSchema: z.object({
-        name: z.string().min(1).max(120),
-        amount: z.number().positive(),
-        bankId: z.string().min(1),
-        category: categoryEnum.optional().default("OTROS"),
-        paid: z
-          .boolean()
-          .optional()
-          .default(true)
-          .describe(
-            "Whether the expense is already paid. Default true because users usually report expenses already made.",
-          ),
-        currency: currencySchema
-          .optional()
-          .describe(
-            "ISO 4217 (3 letters). Default = user's primary currency. Pass it when the user says 'I paid in USD/ARS/EUR'.",
-          ),
-        fxRate: z
-          .number()
-          .positive()
-          .optional()
-          .describe(
-            "Manual override of the exchange rate. Useful for cases like parallel-market rates. If omitted, we use the live rate.",
-          ),
-        occurredOn: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/u, "Date in yyyy-MM-dd format.")
-          .optional()
-          .describe(
-            "Actual date of the expense (yyyy-MM-dd, with day). Default = today only when the user is typing in chat and does NOT mention a date. " +
-            "When the line comes from a bank screenshot, photo, receipt, PDF or CSV, you MUST pass the date you read off the source for THAT specific transaction (not today). " +
-            "If the date in the source is missing, cropped, ambiguous or has no year, ask the user before calling this tool — do not silently default to today.",
-          ),
-        occurredOnSource: occurredOnSourceEnum
-          .optional()
-          .describe(
-            "USER when the user stated the date; ARTIFACT when read from CSV/PDF/image; omit for chat without date → server sets ESTIMATED (today).",
-          ),
-        month: optionalMonthKey.describe(
-          "Optional yyyy-MM bucket hint; must match the month of `occurredOn` if provided. Usually omit and let the server derive from `occurredOn`.",
-        ),
-        eventId: cuidIdSchema
-          .optional()
-          .describe(
-            "Optional event wallet id (CUID, e.g. 'cmofvkulj0004njis6x1voyzw') to attach the line to. " +
-            "The event must be OPEN. " +
-            "ONLY pass this when you have a real id from a prior `getActiveEvents` / `listEvents` / `getEvent` " +
-            "call that matched. If `getActiveEvents` returned an empty list, OMIT this field entirely — " +
-            "do not invent placeholders ('/', '.', ',', 'MISSING'), do not pass the event name, and do not " +
-            "guess. If `occurredOn` is outside the event's [startDate, endDate], REGULAR users get a " +
-            "standalone line + `note` (do not keep re-passing the same eventId); GUEST users get `error`/`outOfRange`.",
-          ),
-        paidByUserId: cuidIdSchema
-          .optional()
-          .describe(
-            "Required ONLY when the event has more than one active participant: who actually " +
-            "paid for this line. Pass the userId (CUID) returned by `listEventParticipants`. " +
-            "If the user said 'I paid' / 'me' / 'yo', use the current user's id from " +
-            "`listEventParticipants` -> `currentUserId`. OMIT this field if there is no event in scope " +
-            "or if you only have one participant — never invent it.",
-          ),
+        lines: z
+          .array(monthLineCreateInputSchema)
+          .min(1)
+          .max(80)
+          .describe("Every clear transaction to log in this batch."),
       }),
-      execute: async (input) => {
-        const { occurredOn, occurredOnSource } = resolveCreateOccurredOn({
-          occurredOn: input.occurredOn,
-          occurredOnSource: input.occurredOnSource,
-        });
-        const bucketMonthKey =
-          input.month ?? formatMonthKey(toMonthStart(occurredOn));
-
-        // For GUEST users, the tool is locked to a single event and the
-        // line must live under the event OWNER's userId (so it shows up
-        // in the owner's dashboard and counts towards the event total).
-        // The owner's bank list is what's resolvable.
-        const requestedEventId = scopedEventId ?? input.eventId ?? null;
-
-        let storageUserId = userId;
-        let eventOwnerId: string | null = null;
-        let event: {
-          id: string;
-          name: string;
-          status: EventStatus;
-          startDate: Date;
-          endDate: Date | null;
-          userId: string;
-        } | null = null;
-        // Hint surfaced back to the agent when we silently dropped a bad
-        // eventId / paidByUserId. The model needs a structured note so it
-        // stops re-using the wrong id on follow-up turns. We never error
-        // out of the line creation because of an invalid event reference
-        // for REGULAR users — the user explicitly asked for the line and
-        // it must land in their month, just untagged. GUEST users are the
-        // exception: they have no concept of "standalone" lines.
-        let droppedEventNote: string | null = null;
-
-        if (requestedEventId) {
-          // Look up the event without restricting on userId so participants
-          // (not just owners) can attach lines.
-          event = await db.event.findUnique({
-            where: { id: requestedEventId },
-            select: {
-              id: true,
-              name: true,
-              status: true,
-              startDate: true,
-              endDate: true,
-              userId: true,
-            },
-          });
-          if (!event) {
-            if (isGuest) {
-              return { error: "The specified event doesn't exist." };
-            }
-            droppedEventNote =
-              `eventId "${requestedEventId}" did not match any event. Created the line as a standalone expense (no event tag). ` +
-              "Do NOT pass eventId on follow-up calls unless you have a real event id from getActiveEvents/listEvents/getEvent. " +
-              "Bank ids and user ids are NOT event ids — even if they look like CUIDs.";
-          } else if (event.userId !== userId) {
-            // Authorization: owner OR active participant.
-            const part = await db.eventParticipant.findUnique({
-              where: {
-                eventId_userId: { eventId: event.id, userId },
-              },
-              select: { removedAt: true },
-            });
-            if (!part || part.removedAt) {
-              if (isGuest) {
-                return { error: "You are not a participant of this event." };
-              }
-              droppedEventNote =
-                `You are not a participant of event "${event.name}" (${event.id}). Created the line as a standalone expense.`;
-              event = null;
-            }
-          }
-          if (event && event.status !== EventStatus.OPEN) {
-            if (isGuest) {
-              return {
-                error:
-                  "That event is closed. Reopen it before adding more expenses.",
-              };
-            }
-            droppedEventNote =
-              `Event "${event.name}" is closed. Created the line as a standalone expense. Use reopenEvent first if the user wants to add more expenses to that trip.`;
-            event = null;
-          }
-          // Date-range check BEFORE flipping storageUserId to the event
-          // owner. For REGULAR users an out-of-range tag must not block the
-          // line (CSV imports often re-pass a trip eventId the user already
-          // said to ignore); create standalone in the caller's books. GUEST
-          // users have no standalone concept — they must stay on the event.
-          if (event && !isDateInEventRange(event, occurredOn)) {
-            const dateStr = occurredOn.toISOString().slice(0, 10);
-            if (isGuest) {
-              return {
-                error: `The expense date (${dateStr}) is outside the event "${event.name}" range. Confirm with the user whether to extend the event or leave the expense unattached.`,
-                outOfRange: true as const,
-                eventName: event.name,
-              };
-            }
-            droppedEventNote =
-              `The expense date (${dateStr}) is outside the event "${event.name}" range. Created as a standalone expense (no event tag). ` +
-              "DATE RULE: only expenses inside [startDate, endDate] belong on the wallet. " +
-              "Do NOT re-pass this eventId. If the user explicitly wants it on the trip, call updateEvent to extend dates first, " +
-              "or attachLineToEvent with confirmOutOfRange=true after they say yes.";
-            event = null;
-          }
-          if (event) {
-            eventOwnerId = event.userId;
-            storageUserId = event.userId; // line lives in the owner's books
-          }
-        } else if (isGuest) {
-          // Defensive: a GUEST without scopedEventId shouldn't happen
-          // (loadGuestEventScope returns null before we get here), but
-          // refuse loose-line creation just in case.
-          return {
-            error:
-              "As a guest of a shared event, you can only log expenses for that event.",
-          };
-        }
-
-        const storageUser = await db.user.findUnique({
-          where: { id: storageUserId },
-          select: { primaryCurrency: true },
-        });
-        if (!storageUser) return { error: "User not found." };
-
-        let monthRecordId: string;
-        try {
-          monthRecordId = await resolveMonthRecordId(storageUserId, occurredOn);
-        } catch {
-          return {
-            error: isGuest
-              ? "The event owner's month could not be set up. Ask them to open the dashboard once."
-              : "Could not set up the target month. Ask the user to retry or use createMonthIfNeeded.",
-          };
-        }
-        // Bank must belong to the storage user (event owner for shared events).
-        const bank = await db.bank.findFirst({
-          where: { id: input.bankId, userId: storageUserId },
-          select: { id: true, name: true },
-        });
-        if (!bank) return { error: "The specified bank doesn't exist." };
-
-        let converted;
-        try {
-          converted = await convertToPrimary({
-            amount: input.amount,
-            currency: input.currency ?? storageUser.primaryCurrency,
-            primary: storageUser.primaryCurrency,
-            fxRate: input.fxRate,
-          });
-        } catch (error) {
-          if (error instanceof FxUnavailableError) {
-            return {
-              error: `Couldn't fetch the exchange rate ${error.from}->${error.to}. Ask the user for a rate and retry passing "fxRate".`,
-            };
-          }
-          throw error;
-        }
-
-        let eventName: string | null = null;
-        let eventId: string | null = null;
-        let paidByUserId: string | null = null;
-        if (event) {
-          eventId = event.id;
-          eventName = event.name;
-
-          // Validate paidByUserId: must be an active participant of the event.
-          // Forgiving for the same reason as the event lookup above: the
-          // model frequently passes the wrong CUID here (often a bank id
-          // or its own user id repeated). When the explicit value is
-          // bogus we fall back to the current user, who is guaranteed to
-          // be a participant by the authorization check above. The note
-          // tells the model to fix it next turn.
-          const explicit = input.paidByUserId;
-          if (explicit && explicit !== userId) {
-            const payer = await db.eventParticipant.findUnique({
-              where: {
-                eventId_userId: { eventId: event.id, userId: explicit },
-              },
-              select: { removedAt: true },
-            });
-            if (!payer || payer.removedAt) {
-              droppedEventNote =
-                (droppedEventNote ? droppedEventNote + " " : "") +
-                `paidByUserId "${explicit}" is not an active participant of "${event.name}". ` +
-                "Defaulted to the current user. Call listEventParticipants to get valid userIds before retrying.";
-              paidByUserId = userId;
-            } else {
-              paidByUserId = explicit;
-            }
-          } else {
-            paidByUserId = userId;
+      execute: async ({ lines }) => {
+        const results: unknown[] = [];
+        let created = 0;
+        let duplicates = 0;
+        let errors = 0;
+        for (const line of lines) {
+          const result = await executeAddMonthLine(line);
+          results.push(result);
+          if (result && typeof result === "object" && "error" in result) {
+            errors += 1;
+          } else if (
+            result &&
+            typeof result === "object" &&
+            "duplicate" in result &&
+            (result as { duplicate?: boolean }).duplicate
+          ) {
+            duplicates += 1;
+          } else if (
+            result &&
+            typeof result === "object" &&
+            "ok" in result &&
+            (result as { ok?: boolean }).ok
+          ) {
+            created += 1;
           }
         }
-
-        let line;
-        try {
-          line = await db.monthExpenseLine.create({
-            data: {
-              userId: storageUserId,
-              monthRecordId,
-              templateId: null,
-              bankId: input.bankId,
-              name: input.name.trim(),
-              occurredOn,
-              occurredOnSource,
-              amount: converted.amount,
-              currency: converted.currency,
-              fxRate: converted.fxRate,
-              amountConverted: converted.amountConverted,
-              category: input.category as ExpenseCategory,
-              paid: input.paid,
-              eventId,
-              paidByUserId,
-            },
-          });
-        } catch (error) {
-          if (isUniqueViolation(error)) {
-            return {
-              ok: true as const,
-              duplicate: true as const,
-              note:
-                "An expense with that date, description, and amount already existed. Did not duplicate it." +
-                (droppedEventNote ? ` Also: ${droppedEventNote}` : ""),
-            };
-          }
-          throw error;
-        }
-        await expireYearTimeline(userId, occurredOn.getUTCFullYear());
-
         return {
           ok: true as const,
-          duplicate: false as const,
-          ...(droppedEventNote ? { note: droppedEventNote } : {}),
-          line: {
-            id: line.id,
-            month: bucketMonthKey,
-            occurredOn: line.occurredOn.toISOString().slice(0, 10),
-            occurredOnSource: line.occurredOnSource,
-            name: line.name,
-            amount: line.amount.toString(),
-            currency: line.currency,
-            fxRate: line.fxRate.toString(),
-            amountConverted: line.amountConverted.toString(),
-            primaryCurrency: storageUser.primaryCurrency,
-            bankName: bank.name,
-            category: line.category,
-            paid: line.paid,
-            eventId,
-            eventName,
-            paidByUserId,
-            ownedBy: eventOwnerId,
-          },
+          created,
+          duplicates,
+          errors,
+          total: lines.length,
+          results,
+          note:
+            errors > 0
+              ? "Some rows failed — fix those individually. Do not re-ask the user to continue the successful ones."
+              : "Batch finished. If any rows from the statement were left out because of doubts, ask only about those.",
         };
       },
     }),
@@ -2656,6 +2720,7 @@ export function buildExpenseTools(
   // other tool because they're not in this object.
   const guestAllowed = [
     "addMonthLine",
+    "addMonthLines",
     "listEventParticipants",
     "getEvent",
     "listEvents",

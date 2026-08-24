@@ -131,7 +131,7 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
     pdfExtractFailed:
       "No pude leer el PDF (¿escaneo sin OCR, contraseña o archivo dañado?). Probá una captura o un export CSV.",
     pdfAttachmentIntro:
-      "Te adjunto un PDF: texto cuando el archivo tiene capa de texto, y/o páginas renderizadas como imagen si era escaneo. Tratalo como extracto bancario; respetá mis instrucciones personales y pedí confirmación antes de cargar o marcar pagos.",
+      "Te adjunto un PDF: texto cuando el archivo tiene capa de texto, y/o páginas renderizadas como imagen si era escaneo. Tratalo como extracto bancario; respetá mis instrucciones personales. Si está claro, cargá todos los movimientos claros de una (sin preguntar '¿sigo con la siguiente tanda?'); preguntá solo si tenés dudas reales.",
     csvTooLarge:
       "El CSV supera los 12 MB. Mandame uno más chico o pegá el extracto como texto en el chat.",
     csvDownloadFailed:
@@ -139,7 +139,7 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
     csvReadFailed:
       "No pude leer el CSV (¿encoding raro o archivo dañado?). Probá re-exportarlo en UTF-8 o pegá las filas como texto.",
     csvAttachmentIntro:
-      "Te adjunto movimientos exportados del banco (CSV). Usá la lista que sigue; respetá mis instrucciones personales si las hay. Pedí confirmación antes de cargar o marcar pagos.",
+      "Te adjunto movimientos exportados del banco (CSV). Usá la lista que sigue; respetá mis instrucciones personales si las hay. Si está claro, cargá todos los movimientos claros de una (sin preguntar '¿sigo con la siguiente tanda?'); preguntá solo si tenés dudas reales.",
   },
   en: {
     welcomeLinked:
@@ -181,14 +181,14 @@ const STRINGS: Record<Locale, Record<MenuStringKey, string>> = {
     pdfExtractFailed:
       "I couldn't read the PDF (scan without OCR, password-protected or corrupted file?). Try a screenshot or a CSV export.",
     pdfAttachmentIntro:
-      "I'm attaching a PDF: text when the file has a text layer, and/or pages rendered as images if it was a scan. Treat it as a bank statement; respect my personal instructions and ask for confirmation before loading or marking payments.",
+      "I'm attaching a PDF: text when the file has a text layer, and/or pages rendered as images if it was a scan. Treat it as a bank statement; respect my personal instructions. If it's clear, load every clear movement in one go (don't ask 'shall I continue with the next batch?'); ask only when you have real doubts.",
     csvTooLarge:
       "The CSV is over 12 MB. Send a smaller file or paste the statement as text in the chat.",
     csvDownloadFailed: "I couldn't download the CSV. Can you send it again?",
     csvReadFailed:
       "I couldn't read the CSV (unusual encoding or corrupted file?). Try re-exporting as UTF-8 or paste the rows as text.",
     csvAttachmentIntro:
-      "I'm attaching bank-exported movements (CSV). Use the list below; respect my personal instructions if any. Ask for confirmation before loading or marking payments.",
+      "I'm attaching bank-exported movements (CSV). Use the list below; respect my personal instructions if any. If it's clear, load every clear movement in one go (don't ask 'shall I continue with the next batch?'); ask only when you have real doubts.",
   },
 };
 

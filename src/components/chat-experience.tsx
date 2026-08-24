@@ -691,11 +691,12 @@ export function ChatExperience({
 
   // Auto-scroll to bottom on new outgoing/incoming messages and during
   // streaming. Skipped exactly once when older history is prepended.
-  // The first hydration jump uses `instant` and is repeated across two
-  // animation frames so markdown/avatars/images that settle late still
-  // end up with the last message visible — that's the expected landing
-  // point on desktop when reopening the chat.
+  //
+  // IMPORTANT: do not jump while `historyLoading` is true — that paints the
+  // skeleton, which is short; jumping then clears `initialJumpPendingRef` and
+  // leaves the real thread stuck at the top when it finally mounts.
   useEffect(() => {
+    if (historyLoading) return;
     if (skipNextAutoScrollRef.current) {
       skipNextAutoScrollRef.current = false;
       return;
@@ -714,10 +715,17 @@ export function ChatExperience({
         jump();
         requestAnimationFrame(jump);
       });
-      return;
+      // Markdown / images can grow after the first paints; keep pinned to
+      // the bottom for a short window after hydration.
+      const t1 = window.setTimeout(jump, 120);
+      const t2 = window.setTimeout(jump, 400);
+      return () => {
+        window.clearTimeout(t1);
+        window.clearTimeout(t2);
+      };
     }
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages, isStreaming, staleHistory]);
+  }, [messages, isStreaming, staleHistory, historyLoading]);
 
   function clearFiles() {
     setFiles(null);
@@ -836,8 +844,8 @@ export function ChatExperience({
     if (csvBlocks.length > 0) {
       const csvSection = csvBlocks.join("\n\n---\n\n");
       const intro = pick(locale, {
-        es: "Te adjunto movimientos exportados del banco (CSV). Usá la lista que sigue; respetá mis instrucciones personales si las hay. Pedí confirmación antes de cargar o marcar pagos.",
-        en: "I'm attaching bank-exported movements (CSV). Use the list below; respect my personal instructions if any. Ask for confirmation before loading or marking payments.",
+        es: "Te adjunto movimientos exportados del banco (CSV). Usá la lista que sigue; respetá mis instrucciones personales si las hay. Si está claro, cargá todos los movimientos claros de una (sin preguntar '¿sigo con la siguiente tanda?'); preguntá solo si tenés dudas reales.",
+        en: "I'm attaching bank-exported movements (CSV). Use the list below; respect my personal instructions if any. If it's clear, load every clear movement in one go (don't ask 'shall I continue with the next batch?'); ask only when you have real doubts.",
       });
       messageText = messageText
         ? `${messageText}\n\n${intro}\n\n${csvSection}`
@@ -846,8 +854,8 @@ export function ChatExperience({
     if (pdfBlocks.length > 0) {
       const pdfSection = pdfBlocks.join("\n\n---\n\n");
       const intro = pick(locale, {
-        es: "Te adjunto uno o más PDF: texto cuando el archivo tiene capa de texto, y/o páginas renderizadas como imagen si era escaneo u hoja visual. Tratalo como extracto o resumen bancario; respetá mis instrucciones personales. Pedí confirmación antes de cargar o marcar pagos.",
-        en: "I'm attaching one or more PDFs: text when the file has a text layer, and/or pages rendered as images if it was a scan or visual sheet. Treat it as a bank statement or summary; respect my personal instructions. Ask for confirmation before loading or marking payments.",
+        es: "Te adjunto uno o más PDF: texto cuando el archivo tiene capa de texto, y/o páginas renderizadas como imagen si era escaneo u hoja visual. Tratalo como extracto o resumen bancario; respetá mis instrucciones personales. Si está claro, cargá todos los movimientos claros de una (sin preguntar '¿sigo con la siguiente tanda?'); preguntá solo si tenés dudas reales.",
+        en: "I'm attaching one or more PDFs: text when the file has a text layer, and/or pages rendered as images if it was a scan or visual sheet. Treat it as a bank statement or summary; respect my personal instructions. If it's clear, load every clear movement in one go (don't ask 'shall I continue with the next batch?'); ask only when you have real doubts.",
       });
       messageText = messageText
         ? `${messageText}\n\n${intro}\n\n${pdfSection}`
