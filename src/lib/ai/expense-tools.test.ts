@@ -850,6 +850,32 @@ describe("addMonthLine — eventId validation", () => {
   });
 });
 
+describe("proposeRecurringTemplates", () => {
+  it("echoes the validated checklist spec for the chat widget", async () => {
+    const spec = {
+      title: "¿Cuáles son recurrentes?",
+      candidates: [
+        {
+          id: "netflix",
+          name: "Netflix",
+          amount: 15.99,
+          bankId: "bank_1",
+          startMonth: "2026-07",
+          category: "SUSCRIPCIONES" as const,
+        },
+      ],
+    };
+    const result = (await tools().proposeRecurringTemplates.execute!(
+      spec,
+      execOpts,
+    )) as { ok?: boolean; spec?: { title: string; candidates: unknown[] } };
+
+    expect(result.ok).toBe(true);
+    expect(result.spec?.title).toBe(spec.title);
+    expect(result.spec?.candidates).toHaveLength(1);
+  });
+});
+
 describe("addMonthLines — bulk import", () => {
   beforeEach(() => {
     vi.mocked(db.user.findUnique).mockResolvedValue({

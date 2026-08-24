@@ -12,6 +12,7 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
+import { recurringCandidatesSpecSchema } from "@/lib/ai/recurring-candidates-spec";
 import { getBanksCached, invalidateBanksCache } from "@/lib/cache/banks";
 import { db } from "@/lib/db";
 import { closeEventAndSettle } from "@/lib/event-close-settle";
@@ -2706,6 +2707,21 @@ export function buildExpenseTools(
       execute: async (spec) => {
         // The tool just echoes the validated spec. The chat UI picks
         // it up from the tool-result part and renders the chart.
+        return { ok: true as const, spec };
+      },
+    }),
+
+    proposeRecurringTemplates: tool({
+      description: [
+        "Shows an interactive checklist in the WEB chat so the user can mark which expenses should become recurring templates.",
+        "Use after a bank PDF/CSV/image import when several movements look like subscriptions/rent/utilities, OR when the user says things like 'estos son recurrentes' / 'marcá como recurrentes'.",
+        "Pass candidates with name, amount in the user's PRIMARY currency, bankId (from listBanks), startMonth (yyyy-MM), optional category/reason, suggested=true to pre-check.",
+        "Do NOT call createExpenseTemplate for those rows yourself on web — the widget creates them when the user confirms.",
+        "On Telegram (no widget): do NOT use this tool; instead list candidates in text and after the user picks, call createExpenseTemplate for each.",
+        "Skip rows that already match an existing template from listExpenseTemplates (same name+amount+bank).",
+      ].join(" "),
+      inputSchema: recurringCandidatesSpecSchema,
+      execute: async (spec) => {
         return { ok: true as const, spec };
       },
     }),
