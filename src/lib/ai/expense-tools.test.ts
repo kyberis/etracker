@@ -850,6 +850,109 @@ describe("addMonthLine — eventId validation", () => {
   });
 });
 
+describe("addMonthLines — bulk import", () => {
+  beforeEach(() => {
+    vi.mocked(db.user.findUnique).mockResolvedValue({
+      primaryCurrency: "USD",
+    } as never);
+    vi.mocked(db.bank.findFirst).mockResolvedValue({
+      id: "bank_1",
+      name: "Revolut",
+    } as never);
+  });
+
+  it("creates every clear row and counts duplicates", async () => {
+    vi.mocked(db.monthExpenseLine.create)
+      .mockResolvedValueOnce(
+        mockMonthExpenseLine({
+          id: "line_a",
+          name: "Coffee",
+          amount: new Prisma.Decimal("4.50"),
+        }) as never,
+      )
+      .mockRejectedValueOnce(uniqueViolation())
+      .mockResolvedValueOnce(
+        mockMonthExpenseLine({
+          id: "line_c",
+          name: "Metro",
+          amount: new Prisma.Decimal("2.00"),
+        }) as never,
+      );
+
+    const result = (await tools().addMonthLines.execute!(
+      {
+        lines: [
+          {
+            name: "Coffee",
+            amount: 4.5,
+            bankId: "bank_1",
+            occurredOn: "2026-07-01",
+            occurredOnSource: "ARTIFACT",
+            currency: "USD",
+            category: "ALIMENTACION",
+            paid: true,
+          },
+          {
+            name: "Coffee",
+            amount: 4.5,
+            bankId: "bank_1",
+            occurredOn: "2026-07-01",
+            occurredOnSource: "ARTIFACT",
+            currency: "USD",
+            category: "ALIMENTACION",
+            paid: true,
+          },
+          {
+            name: "Metro",
+            amount: 2,
+            bankId: "bank_1",
+            occurredOn: "2026-07-02",
+            occurredOnSource: "ARTIFACT",
+            currency: "USD",
+            category: "TRANSPORTE",
+            paid: true,
+          },
+        ],
+      },
+      execOpts,
+    )) as {
+      ok?: boolean;
+      created?: number;
+      duplicates?: number;
+      errors?: number;
+      total?: number;
+    };
+
+    expect(result.ok).toBe(true);
+    expect(result.total).toBe(3);
+    expect(result.created).toBe(2);
+    expect(result.duplicates).toBe(1);
+    expect(result.errors).toBe(0);
+    expect(db.monthExpenseLine.create).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects batches larger than 80", () => {
+    const schema = (
+      tools().addMonthLines as unknown as {
+        inputSchema: import("zod").ZodTypeAny;
+      }
+    ).inputSchema;
+    const line = {
+      name: "X",
+      amount: 1,
+      bankId: "bank_1",
+      currency: "USD",
+      paid: true,
+      category: "OTROS" as const,
+      occurredOn: "2026-07-01",
+    };
+    expect(
+      schema.safeParse({ lines: Array.from({ length: 81 }, () => line) })
+        .success,
+    ).toBe(false);
+  });
+});
+
 // ── deleteMonthLine ─────────────────────────────────────────────────────────
 
 describe("deleteMonthLine", () => {

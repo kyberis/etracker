@@ -185,6 +185,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.15.2",
+      date: "2026-08-25",
+      title: "Importaciones largas de una y chat al final",
+      highlights: [
+        "Si el extracto está claro, Clara carga todos los movimientos de una (sin preguntar '¿sigo con la siguiente tanda?'); solo frena si tiene dudas reales.",
+        "Al abrir el chat volvés a ver el último mensaje abajo, sin scrollear desde arriba.",
+      ],
+    },
+    {
       version: "0.15.1",
       date: "2026-08-24",
       title: "Importación de PDF en producción",
@@ -1014,6 +1023,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.15.2",
+      date: "2026-08-25",
+      title: "Full-batch imports and chat scroll",
+      highlights: [
+        "When a statement is clear, Clara loads every movement in one go (no 'shall I continue with the next batch?'); she only pauses on real doubts.",
+        "Opening chat lands on the latest message at the bottom instead of stuck at the top.",
+      ],
+    },
     {
       version: "0.15.1",
       date: "2026-08-24",

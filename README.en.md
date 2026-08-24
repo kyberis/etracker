@@ -60,7 +60,7 @@ Most are the same thing dressed up: rows, categories, reports — pretty for two
 
 ## 🧠 What makes Clara technically interesting
 
-- **Real tool-calling agent, not string parsing** — 33 Zod-typed tools execute directly against Prisma. The model plans, calls tools, and stops under a fixed step budget (`stopWhen: stepCountIs(8)`).
+- **Real tool-calling agent, not string parsing** — Zod-typed tools execute directly against Prisma. The model plans, calls tools (including `addMonthLines` for statements), and stops under a fixed step budget (`stopWhen: stepCountIs(24)`).
 - **MCP as a first-class surface** — public discovery at `/api/mcp` plus a per-user server at `/api/mcp/user` with PAT auth, destructive parity (`confirm: true`), and per-user rate limits so a leaked key cannot burn your quota silently.
 - **Production-grade multimodal** — PDFs, bank screenshots and Telegram voice notes share one extraction pipeline. Structured JSON logs carry `traceId`, tokens, and estimated USD per step for cost attribution via AI Gateway tags.
 

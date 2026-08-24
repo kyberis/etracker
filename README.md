@@ -170,7 +170,7 @@ El wrapper centralizado `withApi()` en [`src/lib/http.ts`](src/lib/http.ts) mane
 
 ## 🧠 Qué hace a Clara Lovelace técnicamente interesante
 
-- **Agente real con tool-calling, sin parseo de strings** — 33 tools tipadas con Zod ejecutan directo contra Prisma; el modelo planifica, llama tools y para bajo un presupuesto fijo de pasos (`stopWhen: stepCountIs(8)` en [`src/lib/ai/run-expense-agent.ts`](src/lib/ai/run-expense-agent.ts)).
+- **Agente real con tool-calling, sin parseo de strings** — tools tipadas con Zod ejecutan directo contra Prisma; el modelo planifica, llama tools (incl. `addMonthLines` para extractos) y para bajo un presupuesto fijo de pasos (`stopWhen: stepCountIs(24)` en [`src/lib/ai/run-expense-agent.ts`](src/lib/ai/run-expense-agent.ts)).
 - **MCP como superficie de primera clase** — discovery público en `/api/mcp` más un servidor por usuario en `/api/mcp/user` con auth PAT, paridad destructiva (`confirm: true`), y rate limits por usuario para que una clave filtrada no queme tu cuota en silencio.
 - **Multimodal de producción** — PDFs, capturas de banco y notas de voz de Telegram comparten un pipeline de extracción; los logs JSON estructurados llevan `traceId`, tokens y USD estimado por paso para atribuir costos vía AI Gateway tags.
 
