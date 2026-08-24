@@ -185,6 +185,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.16.0",
+      date: "2026-08-25",
+      title: "Widget de gastos recurrentes",
+      highlights: [
+        "Después de un extracto (o si pedís «estos son recurrentes»), Clara te muestra un checklist para marcar qué se convierte en plantilla.",
+        "Confirmás y se crean las plantillas al toque, sin volver a preguntar una por una.",
+      ],
+    },
+    {
       version: "0.15.3",
       date: "2026-08-25",
       title: "Burbujas cortas legibles",
@@ -1031,6 +1040,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.16.0",
+      date: "2026-08-25",
+      title: "Recurring expense widget",
+      highlights: [
+        "After a statement (or when you say these are recurring), Clara shows a checklist to pick which expenses become templates.",
+        "Confirm once and the templates are created immediately — no one-by-one follow-ups.",
+      ],
+    },
     {
       version: "0.15.3",
       date: "2026-08-25",

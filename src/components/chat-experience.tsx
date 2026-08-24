@@ -29,6 +29,7 @@ import Image from "next/image";
 
 import { useBalance } from "@/components/balance-provider";
 import { ChatChart } from "@/components/chat-chart";
+import { ChatRecurringPicker } from "@/components/chat-recurring-picker";
 import { OpenBankingConnectCta } from "@/components/open-banking-connect-cta";
 import type { OpenBankingCtaKind } from "@/lib/enable-banking/cta";
 import {
@@ -45,6 +46,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
+import { recurringCandidatesSpecSchema } from "@/lib/ai/recurring-candidates-spec";
 import { isCsvAttachment, isPdfAttachment } from "@/lib/chat/attachment-types";
 import { formatBankCsvForAgent } from "@/lib/chat/bank-csv-for-agent";
 import { intlLocale } from "@/lib/i18n/format";
@@ -1652,6 +1654,29 @@ function MessageBubble({
                   aria-label="render chart"
                 >
                   {tr({ es: "Preparando gráfico…", en: "Preparing chart…" })}
+                </p>
+              );
+            }
+            if (part.type === "tool-proposeRecurringTemplates") {
+              if (part.state === "output-available") {
+                const out = part.output as { ok?: boolean; spec?: unknown };
+                const parsed = recurringCandidatesSpecSchema.safeParse(
+                  out?.spec,
+                );
+                if (parsed.success) {
+                  return <ChatRecurringPicker key={i} spec={parsed.data} />;
+                }
+              }
+              return (
+                <p
+                  key={i}
+                  className="text-xs italic opacity-70"
+                  aria-label="recurring templates picker"
+                >
+                  {tr({
+                    es: "Preparando lista de recurrentes…",
+                    en: "Preparing recurring list…",
+                  })}
                 </p>
               );
             }
