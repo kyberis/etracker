@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  /**
+   * Keep pdf-parse (and its native canvas) outside the Next.js server bundle.
+   * Bundling them into `.next/server/chunks/` breaks the pdfjs fake-worker
+   * path on Vercel (`Cannot find module '.../pdf.worker.mjs'` → extract-pdf 500).
+   * See pdf-parse troubleshooting + `src/lib/pdf-extract.ts`.
+   */
+  serverExternalPackages: ["pdf-parse", "@napi-rs/canvas"],
   /** Local HTTPS hostname (see repo root `dev/Caddyfile`) — allows dev HMR when the browser uses `clara.trefolio-dev.com`. */
   allowedDevOrigins: ["clara.trefolio-dev.com"],
   async headers() {

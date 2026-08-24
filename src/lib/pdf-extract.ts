@@ -6,13 +6,16 @@
  * the first N pages as PNG data URLs so the agent can read them like a bank
  * screenshot. Returns `null` for both fields when neither extraction works.
  *
- * IMPORTANT: `pdf-parse` transitively loads `pdfjs-dist`, which references
- * `DOMMatrix` at module-evaluation time. In the Node.js serverless runtime
- * `DOMMatrix` doesn't exist, causing a crash on every request — even ones that
- * never touch PDFs — because the static import is evaluated eagerly. We avoid
- * this by (a) converting the import to a dynamic `import()` inside the function
- * body so the module is only evaluated when actually needed, and (b) polyfilling
- * `DOMMatrix` before that evaluation so pdfjs-dist doesn't throw.
+ * IMPORTANT — Vercel / Next.js serverless:
+ * 1. `pdf-parse` transitively loads `pdfjs-dist`, which references `DOMMatrix`
+ *    at module-evaluation time. We polyfill it before the dynamic import.
+ * 2. Next.js otherwise bundles pdf-parse into `.next/server/chunks/`, which
+ *    breaks the fake-worker lookup (`pdf.worker.mjs` not found → 500
+ *    "Internal error."). Fix: `serverExternalPackages` in next.config.ts
+ *    plus an explicit `PDFParse.setWorker(getData())` so the worker is
+ *    inlined as a data: URL instead of a filesystem path.
+ * 3. Screenshot fallback needs `@napi-rs/canvas`; pass `CanvasFactory` from
+ *    `pdf-parse/worker` so scanned PDFs still render on Node.
  */
 
 const MAX_TEXT_CHARS = 120_000;
@@ -63,8 +66,14 @@ export async function extractPdf(buffer: Buffer): Promise<PdfExtractResult> {
   if (typeof DOMMatrix === "undefined") {
     (globalThis as Record<string, unknown>).DOMMatrix = class DOMMatrix {};
   }
+
+  // Worker + canvas helpers must load before `pdf-parse` itself so pdfjs can
+  // resolve the fake worker without a broken Next.js chunk path.
+  const { getData, CanvasFactory } = await import("pdf-parse/worker");
   const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: buffer });
+  PDFParse.setWorker(getData());
+
+  const parser = new PDFParse({ data: buffer, CanvasFactory });
   try {
     const textResult = await parser.getText();
     let text = normalizePdfText(textResult.text);

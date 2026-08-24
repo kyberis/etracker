@@ -185,6 +185,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.15.1",
+      date: "2026-08-24",
+      title: "Importación de PDF en producción",
+      highlights: [
+        "Arreglamos el error interno al subir extractos PDF en el chat (el worker de lectura no llegaba al deploy de Vercel).",
+        "Volvé a mandar el PDF: Clara lo lee, te lista los movimientos y evita duplicados al confirmar.",
+      ],
+    },
+    {
       version: "0.15.0",
       date: "2026-08-23",
       title: "Open Banking con Enable Banking",
@@ -1005,6 +1014,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.15.1",
+      date: "2026-08-24",
+      title: "PDF import on production",
+      highlights: [
+        "Fixed the internal error when uploading bank PDF statements in chat (the PDF reader worker was missing from the Vercel deploy).",
+        "Re-send the PDF: Clara reads it, lists the movements, and skips duplicates on confirm.",
+      ],
+    },
     {
       version: "0.15.0",
       date: "2026-08-23",

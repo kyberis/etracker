@@ -32,7 +32,17 @@ export async function POST(request: Request) {
     }
 
     const buf = Buffer.from(await file.arrayBuffer());
-    const { text, images } = await extractPdf(buf);
+    let text: string | undefined;
+    let images: { dataUrl: string; pageNumber: number }[] | undefined;
+    try {
+      ({ text, images } = await extractPdf(buf));
+    } catch (err) {
+      console.error("[etracker.extract-pdf] extract failed", err);
+      return jsonError(
+        "Could not read this PDF (password-protected, corrupted, or unsupported?). Try a screenshot or a CSV export.",
+        422,
+      );
+    }
 
     if (!text && (!images || images.length === 0)) {
       return jsonError(

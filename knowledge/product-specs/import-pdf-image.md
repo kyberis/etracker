@@ -41,7 +41,7 @@ Clara then:
 |-------|------|
 | Attachment MIME helpers | [`src/lib/chat/attachment-types.ts`](../../src/lib/chat/attachment-types.ts) |
 | CSV formatting | [`src/lib/chat/bank-csv-for-agent.ts`](../../src/lib/chat/bank-csv-for-agent.ts) |
-| PDF extract (web + Telegram) | [`src/lib/pdf-extract.ts`](../../src/lib/pdf-extract.ts) |
+| PDF extract (web + Telegram) | [`src/lib/pdf-extract.ts`](../../src/lib/pdf-extract.ts) — Vercel needs `serverExternalPackages: ["pdf-parse", "@napi-rs/canvas"]` in `next.config.ts` plus `PDFParse.setWorker(getData())` so the pdfjs worker is not lost in Next chunks |
 | Whisper STT | [`src/lib/ai/transcribe-audio.ts`](../../src/lib/ai/transcribe-audio.ts) |
 | Agent loop (prompt rules for image / PDF / CSV / dates) | [`src/lib/ai/run-expense-agent.ts`](../../src/lib/ai/run-expense-agent.ts) |
 | Tool registry (`addMonthLine`, `updateMonthLine`) | [`src/lib/ai/expense-tools.ts`](../../src/lib/ai/expense-tools.ts) |
