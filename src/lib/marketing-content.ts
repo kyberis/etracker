@@ -185,6 +185,14 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.15.3",
+      date: "2026-08-25",
+      title: "Burbujas cortas legibles",
+      highlights: [
+        "Respuestas cortas como «Sí» ya se leen bien en el chat; la burbuja ya no se aplasta en una pastilla vertical.",
+      ],
+    },
+    {
       version: "0.15.2",
       date: "2026-08-25",
       title: "Importaciones largas de una y chat al final",
@@ -1023,6 +1031,14 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.15.3",
+      date: "2026-08-25",
+      title: "Short chat bubbles stay readable",
+      highlights: [
+        "Short replies like \"Yes\" no longer collapse into a thin vertical pill in chat.",
+      ],
+    },
     {
       version: "0.15.2",
       date: "2026-08-25",

@@ -1605,7 +1605,10 @@ function MessageBubble({
       ) : null}
       <div
         className={cn(
-          "max-w-[82%] px-4 py-3 text-sm",
+          // `w-fit shrink-0` keeps short replies (e.g. "Si") from collapsing
+          // in the flex row — overflow on the text wrapper otherwise zeroes
+          // the flex min-width and the bubble becomes a thin vertical pill.
+          "w-fit max-w-[82%] shrink-0 px-4 py-3 text-sm",
           isUser ? "bubble-user" : "bubble-clara",
         )}
       >
@@ -1613,8 +1616,11 @@ function MessageBubble({
           {message.parts.map((part, i) => {
             if (part.type === "text") {
               return isUser ? (
-                <div key={i} className="max-h-[min(70vh,28rem)] overflow-y-auto">
-                  <p className="whitespace-pre-wrap">{part.text}</p>
+                <div
+                  key={i}
+                  className="max-h-[min(70vh,28rem)] overflow-x-hidden overflow-y-auto"
+                >
+                  <p className="whitespace-pre-wrap break-words">{part.text}</p>
                 </div>
               ) : (
                 <MarkdownContent key={i} text={part.text} />
