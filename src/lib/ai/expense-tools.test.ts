@@ -112,6 +112,11 @@ vi.mock("@/lib/month-page-data", () => ({
   loadMonthPageData: vi.fn(),
 }));
 
+vi.mock("@/lib/office/warren-client", () => ({
+  fetchWarrenReply: vi.fn(),
+  getTrefolioSignupUrl: vi.fn(() => "https://trefolio.com/signup"),
+}));
+
 import { buildExpenseTools } from "@/lib/ai/expense-tools";
 import { db } from "@/lib/db";
 import { loadMonthPageData } from "@/lib/month-page-data";
@@ -130,6 +135,7 @@ import {
 import { SavingsMovementKind } from "@prisma/client";
 import { applyPrevMonthLeftoverDecision } from "@/lib/month-bucket";
 import { resolveMonthRecordId } from "@/lib/month-line-bucket";
+import { fetchWarrenReply } from "@/lib/office/warren-client";
 
 const USER_ID = "user_1";
 const OTHER_USER = "user_2";
@@ -192,6 +198,7 @@ describe("buildExpenseTools — registered surface", () => {
       "updateIncomeTemplate",
       "deleteIncomeTemplate",
       "addIncomeLine",
+      "consultWarren",
     ] as const) {
       expect(t[name]).toBeDefined();
       expect(typeof (t[name] as { execute: unknown }).execute).toBe("function");
@@ -1629,5 +1636,42 @@ describe("applyPrevMonthLeftover (agent tool, deficit modes)", () => {
     expect(schema.safeParse({ mode: "bogus" }).success).toBe(false);
     expect(schema.safeParse({ mode: "coverFromSavings" }).success).toBe(true);
     expect(schema.safeParse({ mode: "carryDebt" }).success).toBe(true);
+  });
+});
+
+describe("consultWarren", () => {
+  it("returns no_idp with signup URL when identity is missing", async () => {
+    const result = await tools().consultWarren.execute!(
+      { question: "mis inversiones" },
+      execOpts,
+    );
+    expect(result).toMatchObject({
+      available: false,
+      reason: "no_idp",
+      signupUrl: "https://trefolio.com/signup",
+    });
+    expect(fetchWarrenReply).not.toHaveBeenCalled();
+  });
+
+  it("forwards the question to Warren when identity is present", async () => {
+    vi.mocked(fetchWarrenReply).mockResolvedValue({
+      available: true,
+      text: "Tenés AAPL.",
+    });
+    const t = buildExpenseTools(USER_ID, {
+      officeIdentity: { idpSub: "sub-1", email: "a@test.com" },
+      locale: "es",
+    });
+    const result = await t.consultWarren.execute!(
+      { question: "hablá con warren" },
+      execOpts,
+    );
+    expect(fetchWarrenReply).toHaveBeenCalledWith({
+      idpSub: "sub-1",
+      email: "a@test.com",
+      message: "hablá con warren",
+      language: "es",
+    });
+    expect(result).toEqual({ available: true, text: "Tenés AAPL." });
   });
 });

@@ -185,6 +185,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.18.0",
+      date: "2026-08-26",
+      title: "Clara consulta a Warren",
+      highlights: [
+        "Si le pedís tus inversiones o que hable con Warren, Clara consulta tu cartera en trefolio y te resume lo que hay.",
+        "Si todavía no tenés cuenta en trefolio, te pasa el link para crearla: https://trefolio.com/signup",
+        "Cuenta contra tu cupo diario de Clara, no contra el de Warren en trefolio.",
+      ],
+    },
+    {
       version: "0.17.0",
       date: "2026-08-25",
       title: "Sesiones de chat con memoria",
@@ -694,6 +704,7 @@ const ES: LocalisedMarketingContent = {
         "Open Banking (opt-in): si conectás un banco europeo vía Enable Banking, guardamos el identificador de sesión cifrado, el nombre del banco, país, fecha de vencimiento del consentimiento, cuentas linkeadas (IBAN enmascarado) y un registro de los movimientos importados. Los logs de API de admin no guardan IBANs ni descripciones.",
         "Billeteras de evento compartidas: si invitás a alguien a un viaje vía un share-link, guardamos por cada participante su nombre de pantalla a nivel evento, su rol (organizador o invitado) y, en el caso de invitados nuevos por Telegram, un código de un solo uso para vincular el bot. Los share-links se guardan como hash sha256 — nunca el link en claro — y los podés revocar desde la pantalla del viaje cuando quieras; revocación, expiración y último uso son visibles para vos.",
         "Conversaciones: mensajes del chat web (texto + adjuntos como JSON estructurado), mensajes de Telegram si vinculás el bot, contadores de uso del agente y modelos consumidos por día.",
+        "Consulta a Warren (opt-in por mensaje): si le pedís a Clara tus inversiones o que hable con Warren, Clara envía tu identificador de cuenta unificada (IdP `sub` y email) y la pregunta a trefolio.com (misma organización). No se comparte tu ledger de gastos. Si self-hosteás, esto se desactiva cuando no configurás `TREFOLIO_BASE_URL`.",
         "Preferencia de recordatorios por Telegram y fecha del último recordatorio enviado (solo aplica si tenés Telegram vinculado; se usa para no mandarte más de un mensaje por día y para que puedas apagarlos cuando quieras desde Configuración).",
         "Pagos (sólo si te suscribís o donás): identificador de cliente de Stripe, estado de la suscripción y fecha de fin de periodo, registro de cada donación (id de Stripe, monto, fecha).",
         "Tokens de acceso para AI (MCP): nombre, prefijo de 12 caracteres, fecha de creación, último uso, expiración y revocación. El token completo se hashea con SHA-256 antes de guardarlo; el plaintext sólo se muestra una vez.",
@@ -704,7 +715,7 @@ const ES: LocalisedMarketingContent = {
     {
       heading: "3. Para qué los usamos y con qué base legal (Art. 6 GDPR)",
       body: [
-        "Ejecución del contrato (Art. 6(1)(b)): operar la cuenta, persistir tus gastos, ingresos y mensajes, procesar PDFs/audios/screenshots que vos nos mandás, ejecutar el agente con tus tools, cobrar la suscripción Supporter o donaciones que elijas hacer.",
+        "Ejecución del contrato (Art. 6(1)(b)): operar la cuenta, persistir tus gastos, ingresos y mensajes, procesar PDFs/audios/screenshots que vos nos mandás, ejecutar el agente con tus tools, consultar a Warren en trefolio cuando vos lo pedís, cobrar la suscripción Supporter o donaciones que elijas hacer.",
         "Obligación legal (Art. 6(1)(c)): conservar registros de pagos y donaciones por el plazo que exija la normativa fiscal aplicable, verificar el email antes de habilitar contraseña.",
         "Interés legítimo (Art. 6(1)(f)): proteger Clara y sus usuarios contra abuso (Cloudflare Turnstile, rate-limits con IP), monitorear errores (Sentry si está configurado), auditar accesos administrativos.",
         "Consentimiento (Art. 6(1)(a)): aceptación explícita de estos Términos y esta Política al registrarte (queda guardada en `User.acceptedTermsAt` con la versión). Vincular Telegram es en sí mismo una acción voluntaria que activa el canal bidireccional con el bot — incluidos los recordatorios diarios proactivos que Clara te manda a las 20:00 locales si en el día no cargaste nada. Podés apagarlos en cualquier momento desde Configuración → Integraciones → Telegram, sin perder el vínculo con el bot. Conectar un banco vía Open Banking es otro consentimiento explícito (PSD2): Clara solo lee cuentas, saldos y movimientos; nunca inicia pagos. Podés desconectar en cualquier momento desde Configuración.",
@@ -1059,6 +1070,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.18.0",
+      date: "2026-08-26",
+      title: "Clara asks Warren",
+      highlights: [
+        "Ask Clara about your investments or to talk to Warren — she queries your trefolio portfolio and summarises it.",
+        "If you do not have a trefolio account yet, she gives you the signup link: https://trefolio.com/signup",
+        "Counts against your Clara daily quota, not Warren’s monthly consults on trefolio.",
+      ],
+    },
     {
       version: "0.17.0",
       date: "2026-08-25",
@@ -1569,6 +1590,7 @@ const EN: LocalisedMarketingContent = {
         "Open Banking (opt-in): if you connect a European bank via Enable Banking we store an encrypted session id, bank name, country, consent expiry, linked accounts (masked IBAN) and a record of imported movements. Admin API logs never store IBANs or descriptions.",
         "Shared event wallets: if you invite someone to a trip via a share-link, we store per participant their event-scoped display name, their role (organiser or guest) and, for fresh Telegram-only invitees, a single-use code to bind the bot. Share-links are stored as a sha256 hash — never the plaintext link — and you can revoke them from the trip screen at any time; revocation, expiration and last-use timestamps are visible to you.",
         "Conversations: web chat messages (text + structured attachments as JSON), Telegram messages if you link the bot, agent usage counters and per-day model usage.",
+        "Warren consult (per-message opt-in): if you ask Clara about your investments or to talk to Warren, Clara sends your unified-account identifier (IdP `sub` and email) and the question to trefolio.com (same organisation). Your expense ledger is not shared. If you self-host, this is off unless you set `TREFOLIO_BASE_URL`.",
         "Telegram reminder preference and the timestamp of the last reminder we sent (only applies if you linked Telegram; used to avoid more than one outbound message per day and so you can turn reminders off whenever you want from Settings).",
         "Payments (only if you subscribe or donate): a Stripe customer id, subscription status and current period end, a record of each donation (Stripe id, amount, date).",
         "AI access tokens (MCP): name, 12-character prefix, creation date, last use, expiration and revocation. The full token is hashed with SHA-256 before storage; the plaintext is shown only once.",
@@ -1579,7 +1601,7 @@ const EN: LocalisedMarketingContent = {
     {
       heading: "3. What we use it for and the legal basis (Art. 6 GDPR)",
       body: [
-        "Performance of the contract (Art. 6(1)(b)): operating your account, persisting your expenses, incomes and messages, processing PDFs/audio/screenshots you send us, running the agent with your tools, charging the Supporter subscription or donations you choose to make.",
+        "Performance of the contract (Art. 6(1)(b)): operating your account, persisting your expenses, incomes and messages, processing PDFs/audio/screenshots you send us, running the agent with your tools, consulting Warren on trefolio when you ask, charging the Supporter subscription or donations you choose to make.",
         "Legal obligation (Art. 6(1)(c)): keeping payment and donation records for the period required by applicable tax law, verifying your email before enabling password sign-in.",
         "Legitimate interest (Art. 6(1)(f)): protecting Clara and its users from abuse (Cloudflare Turnstile, IP rate-limits), monitoring errors (Sentry if configured), auditing administrative access.",
         "Consent (Art. 6(1)(a)): explicit acceptance of these Terms and this Policy at signup (stored in `User.acceptedTermsAt` with the version). Linking Telegram is itself a voluntary action that activates the two-way channel with the bot — including the daily proactive reminders Clara sends at 20:00 local time when you haven't logged anything that day. You can turn these reminders off any time from Settings → Integrations → Telegram without breaking the link. Connecting a bank via Open Banking is a separate explicit PSD2 consent: Clara only reads accounts, balances and movements; she never initiates payments. You can disconnect any time from Settings.",

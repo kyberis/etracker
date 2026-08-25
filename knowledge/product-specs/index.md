@@ -12,7 +12,7 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`account-soft-delete`](account-soft-delete.md) — self-service "Borrar mi cuenta"
   with a 30-day grace queue and one-click restore. Daily cron hard-deletes past
   the window; chat, MCP and Telegram nudge are paused while pending.
-- [`ai-agent`](ai-agent.md) — chat-first AI agent: one tool registry (~45 tools),
+- [`ai-agent`](ai-agent.md) — chat-first AI agent: one tool registry (~46 tools),
   three entrypoints (web stream, Telegram one-shot, system-initiated tool-less
   reply), Spanish + English, 8-step budget, per-user-bound tools, guest-event
   scope variant.
