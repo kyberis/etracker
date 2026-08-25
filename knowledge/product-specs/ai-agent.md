@@ -4,6 +4,7 @@
 > surfaces (web stream + Telegram one-shot), one tool-less proactive
 > reply for system-initiated nudges. Speaks Spanish (rioplatense) and
 > English. Up to 24 tool steps per turn (bulk imports use `addMonthLines`).
+> Can consult Warren on trefolio for portfolio questions (`consultWarren`).
 
 ## What it does
 
@@ -37,7 +38,8 @@ When the user chats with Clara (web `/app/chat` or Telegram), Clara:
 | Layer | Path |
 |-------|------|
 | Agent loop (3 entrypoints) | [`src/lib/ai/run-expense-agent.ts`](../../src/lib/ai/run-expense-agent.ts) |
-| Tool registry (~45 tools) | [`src/lib/ai/expense-tools.ts`](../../src/lib/ai/expense-tools.ts) |
+| Tool registry (~46 tools) | [`src/lib/ai/expense-tools.ts`](../../src/lib/ai/expense-tools.ts) |
+| Warren client (Clara → trefolio) | [`src/lib/office/warren-client.ts`](../../src/lib/office/warren-client.ts) |
 | Per-tool tests | [`src/lib/ai/expense-tools.test.ts`](../../src/lib/ai/expense-tools.test.ts), [`src/lib/ai/expense-tools-shared.test.ts`](../../src/lib/ai/expense-tools-shared.test.ts) |
 | AI logger + trace ids | [`src/lib/ai/logger.ts`](../../src/lib/ai/logger.ts) |
 | Cost computation | [`src/lib/ai/cost.ts`](../../src/lib/ai/cost.ts) |
@@ -103,7 +105,7 @@ setupHint, guestEventScope, onStep })`:
 - See [`automated-user-comms`](../../.cursor/skills/automated-user-comms/SKILL.md)
   for the safety rules that govern these prompts.
 
-### Tool catalogue (web + Telegram, ~45 tools)
+### Tool catalogue (web + Telegram, ~46 tools)
 
 Grouped by domain:
 
@@ -119,6 +121,7 @@ Grouped by domain:
 | Events | `listEvents`, `getActiveEvents`, `getEvent`, `createEvent`, `updateEvent`, `closeEvent`, `reopenEvent`, `deleteEvent`, `createEventShareLink`, `attachLineToEvent`, `detachLineFromEvent`, `listEventParticipants` |
 | FX & preferences | `getFxRate`, `setPrimaryCurrency`, `setUserLocale`, `updateExpenseImportInstructions` |
 | Charts | `renderChart` |
+| Sister apps | `consultWarren` — delegates investment questions to Warren on trefolio (`POST {TREFOLIO_BASE_URL}/api/internal/office/warren-chat`, Bearer `IDP_SERVICE_TOKEN`, `billingSource: "clara"`). Does not consume trefolio `ai_consult`; already billed via Clara `consumeAgentQuota`. Missing trefolio account → `signupUrl`. Self-host without `TREFOLIO_BASE_URL` degrades. Not exposed to GUEST event-wallet users. |
 
 Step budget: **24** (`stopWhen: stepCountIs(24)`). Retries: **6**
 (env override `AI_CHAT_MAX_RETRIES`, capped 4–12). Default model:
@@ -187,3 +190,5 @@ event. Anything else is gently declined.
 - Spec: [`telegram`](telegram.md)
 - Spec: [`mcp-per-user`](mcp-per-user.md) — exposes (a subset of)
   the same tool surface to external MCP clients via PAT auth.
+- Sister app: Warren on trefolio (`consultWarren`). Cross-app contract
+  lives in trefolio `knowledge/design-docs/etracker-clara-integration.md`.

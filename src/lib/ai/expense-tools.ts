@@ -75,6 +75,11 @@ import {
   incomeSchema,
 } from "@/lib/validators";
 import { expireYearTimeline } from "@/lib/year-timeline-data";
+import {
+  fetchWarrenReply,
+  getTrefolioSignupUrl,
+} from "@/lib/office/warren-client";
+import type { Locale } from "@/lib/i18n/locale";
 
 /** Accepts 6-char hex with or without `#`. Mirrors `bankSchema` in validators. */
 const hexColorSchema = z
@@ -216,6 +221,16 @@ export type BuildExpenseToolsOptions = {
    * optional and defaults to this.
    */
   scopedEventId?: string | null;
+  /**
+   * Unified IdP identity so `consultWarren` can resolve the trefolio user.
+   * Optional: missing identity → tool returns `no_idp` + signup URL.
+   */
+  officeIdentity?: {
+    idpSub?: string | null;
+    email?: string | null;
+  };
+  /** Passed to Warren so it replies in the user's language. */
+  locale?: Locale;
 };
 
 /**
@@ -2796,6 +2811,41 @@ export function buildExpenseTools(
       inputSchema: recurringCandidatesSpecSchema,
       execute: async (spec) => {
         return { ok: true as const, spec };
+      },
+    }),
+
+    consultWarren: tool({
+      description: [
+        "Ask Warren (trefolio portfolio assistant) about the user's investments, holdings, allocation, or valuation.",
+        "Call in the SAME turn when they ask to talk to Warren, see stocks/ETFs/crypto on trefolio, or 'mis inversiones'.",
+        "Never invent holdings. Pass the user's question as `question`.",
+        "If the result includes signupUrl, paste that URL verbatim and invite them to create a trefolio account.",
+        "Do not use this for Clara monthly expenses. Local STOCK/CRYPTO categories are fallback only when Warren is unavailable.",
+      ].join(" "),
+      inputSchema: z.object({
+        question: z
+          .string()
+          .min(1)
+          .max(4000)
+          .describe("The user's investment/portfolio question, in their language."),
+      }),
+      execute: async ({ question }) => {
+        const identity = options.officeIdentity;
+        const signupUrl = getTrefolioSignupUrl();
+        if (!identity || (!identity.idpSub?.trim() && !identity.email?.trim())) {
+          return {
+            available: false as const,
+            reason: "no_idp" as const,
+            signupUrl,
+            note: "User has no unified trefolio identity on this Clara account.",
+          };
+        }
+        return fetchWarrenReply({
+          idpSub: identity.idpSub,
+          email: identity.email,
+          message: question,
+          language: options.locale,
+        });
       },
     }),
   };
