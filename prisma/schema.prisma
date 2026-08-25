@@ -216,6 +216,7 @@ model User {
   monthIncomeLines             MonthIncomeLine[]
   telegramMessages             TelegramMessage[]
   webChatMessages              WebChatMessage[]
+  webChatSessions              WebChatSession[]
   agentUsage                   AgentMessageUsage[]
   agentModelUsage              AgentDailyModelUsage[]
   activeDays                   DailyActiveUser[]
@@ -377,6 +378,22 @@ model TelegramMessage {
   @@index([chatId])
 }
 
+/// A bounded web-chat visit. Messages belong to a session; when the session
+/// ends we generate a short summary Clara injects into the next session.
+model WebChatSession {
+  id             String           @id @default(cuid())
+  userId         String
+  summary        String?          @db.Text
+  startedAt      DateTime         @default(now())
+  endedAt        DateTime?
+  lastActivityAt DateTime         @default(now())
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       WebChatMessage[]
+
+  @@index([userId, endedAt])
+  @@index([userId, lastActivityAt])
+}
+
 /// Conversation history for the web chat (`/app`). We persist the full
 /// `UIMessage.parts` array (`text`, `file`, `tool-*`, `dynamic-tool`) as JSON
 /// so the bubbles re-render identically when the user comes back later
@@ -384,14 +401,17 @@ model TelegramMessage {
 /// `TelegramMessage` because that table only stores plain text per channel
 /// turn.
 model WebChatMessage {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   userId    String
+  sessionId String?
   role      String // "user" | "assistant"
   parts     Json
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session   WebChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  createdAt DateTime        @default(now())
 
   @@index([userId, createdAt])
+  @@index([sessionId, createdAt])
 }
 
 model Bank {

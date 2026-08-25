@@ -18,6 +18,7 @@ vi.mock("@/lib/db", () => ({
     },
     expense: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
@@ -107,8 +108,13 @@ vi.mock("@/lib/fx/rates", async () => {
   };
 });
 
+vi.mock("@/lib/month-page-data", () => ({
+  loadMonthPageData: vi.fn(),
+}));
+
 import { buildExpenseTools } from "@/lib/ai/expense-tools";
 import { db } from "@/lib/db";
+import { loadMonthPageData } from "@/lib/month-page-data";
 import { invalidateBanksCache } from "@/lib/cache/banks";
 import { FxUnavailableError, fetchFxRate } from "@/lib/fx/rates";
 import { expireYearTimeline } from "@/lib/year-timeline-data";
@@ -847,6 +853,59 @@ describe("addMonthLine — eventId validation", () => {
         paidByUserId: "cmofve37y0000njis0lc0sdye",
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("proposeRecurringFromMonth", () => {
+  it("builds the widget spec from one-off month lines", async () => {
+    vi.mocked(loadMonthPageData).mockResolvedValue({
+      hasRecord: true,
+      expenses: [
+        {
+          id: "line_1",
+          name: "Netflix",
+          amount: "15.99",
+          currency: "USD",
+          fxRate: "1",
+          amountConverted: "15.99",
+          bankId: "bank_1",
+          bankName: "Revolut",
+          paid: true,
+          category: "SUSCRIPCIONES",
+          templateId: null,
+          kind: "ONE_OFF",
+          event: null,
+          occurredOn: "2026-07-10",
+          occurredOnSource: "USER",
+          createdAt: "2026-07-10T12:00:00.000Z",
+        },
+      ],
+    } as never);
+    vi.mocked(db.expense.findMany).mockResolvedValue([] as never);
+
+    const result = (await tools().proposeRecurringFromMonth.execute!(
+      { month: "2026-07" },
+      execOpts,
+    )) as { ok?: boolean; spec?: { candidates: unknown[] } };
+
+    expect(result.ok).toBe(true);
+    expect(result.spec?.candidates).toHaveLength(1);
+  });
+
+  it("returns an error when the month has no one-off candidates", async () => {
+    vi.mocked(loadMonthPageData).mockResolvedValue({
+      hasRecord: true,
+      expenses: [],
+    } as never);
+    vi.mocked(db.expense.findMany).mockResolvedValue([] as never);
+
+    const result = (await tools().proposeRecurringFromMonth.execute!(
+      {},
+      execOpts,
+    )) as { ok?: boolean; error?: string };
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/No one-off month lines/i);
   });
 });
 

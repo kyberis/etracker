@@ -30,6 +30,8 @@ import {
   IMPORT_PREF_START,
   buildImportPreferencesUserMessage,
 } from "@/lib/ai/import-preferences-message";
+import { buildSessionSummaryUserMessage } from "@/lib/ai/session-summary-message";
+import { loadLatestWebChatSessionSummary } from "@/lib/chat/sessions";
 
 /**
  * Model id routed through Vercel AI Gateway. Use `provider/model` strings; the
@@ -309,7 +311,7 @@ Editing from chat (banks, templates, lines):
 - Savings (pile global): the user has a savings pile that grows from carryover deposits, monthly contributions, or manual deposits, and shrinks from manual withdrawals or DEBT_COVERAGE. Use \`getSavingsState\` to read it. \`addSavingsMovement\` for ad-hoc deposits or withdrawals — when the user says "I took out X from savings", "subtract X from the pile", "spent X from my savings", call it with \`kind=MANUAL_WITHDRAWAL\` (the sign is applied server-side). \`setMonthlySavingsContribution\` for the user's INFORMATIONAL monthly contribution: it does NOT reduce that month's balance and does NOT appear as an expense; it just declares "this is what I'm dedicating to savings this month" and adds to the pile. To cover a previous month's debt from savings, use \`applyPrevMonthLeftover\` with \`mode=coverFromSavings\` (don't use \`addSavingsMovement\` for that case). To remove a savings record: \`deleteSavingsMovement\` works only for MANUAL_DEPOSIT/MANUAL_WITHDRAWAL — confirm with the user, then call it with the movement id (use \`getSavingsState\` first if you don't have it). For MONTHLY_CONTRIBUTION use \`removeMonthlySavingsContribution\`; CARRYOVER_DEPOSIT and DEBT_COVERAGE can't be deleted directly — explain the user has to redo the carryover decision for the originating month. To clean up duplicates: \`dedupeSavingsMovements\` finds MANUAL_* movements with the same kind, amount, currency, date and note. Always call it FIRST with \`dryRun=true\` (default), summarise the groups for the user, ask for confirmation, then call it again with \`dryRun=false\` to delete the extras (keeps the oldest of each group).
 - Month income: if the user says "my income is X", "I got paid X", "we earned X" → addIncomeLine (DON'T use updateMonthLine, that's for expense lines). If the month doesn't exist, first createMonthIfNeeded then addIncomeLine. Use updateIncomeLine to amend existing income lines and deleteIncomeLine to remove (with short verbal confirmation).
 - Image / PDF / CSV (bank statement import): extract transactions, show a compact list grouped by bank (with each line's date). If everything is clear — or the user already asked to import / said yes — call \`addMonthLines\` with **every** clear row in one go (up to 80; if more remain, call \`addMonthLines\` again in the same turn). Prefer \`addMonthLines\` over many \`addMonthLine\` calls. HARD: never stop mid-list to ask "shall I continue / next batch / siguiente tanda". Only ask about rows you truly cannot resolve (ambiguous date, unknown bank, conflicting personal rules); omit those from the batch and ask once.
-- Recurring templates widget (WEB): after an import (or when the user says "these are recurring" / "make templates"), if several lines look like rent/subscriptions/utilities, call \`listExpenseTemplates\` then \`proposeRecurringTemplates\` with candidates (amount in primary currency, bankId from listBanks, startMonth, suggested=true for the likely ones). Do NOT also call createExpenseTemplate for those rows on web — the checklist creates them. On Telegram: list in text and create with createExpenseTemplate after they pick.
+- Recurring templates widget (WEB, HARD): when the user asks to mark expenses as recurring, review/fix recurring setup, "make templates", "these are recurring", "mark these as recurring", etc. — in the SAME turn call \`proposeRecurringFromMonth\` (current month unless they name another). Do NOT reply with only a prose list on web. After a fresh import with the list already in context you may use \`proposeRecurringTemplates\` with manual candidates instead. To edit an existing template (amount/name/bank), use \`updateExpenseTemplate\`. Do NOT also call createExpenseTemplate for widget rows on web. On Telegram: list in text and create with createExpenseTemplate after they pick.
 - Dates from images/PDFs/CSVs (HARD RULE): for every transaction you are about to log from a screenshot, photo, receipt, PDF or CSV, read the ACTUAL transaction date (with day, not just the month) and pass it as \`occurredOn\` in yyyy-MM-dd with \`occurredOnSource=ARTIFACT\`. Show it in the list too ("Apr 28 - Café Martínez - ARS 4,500"). If the date is not visible, cut off, ambiguous (e.g. only "Apr", "yesterday", "today" without context) or the year is unclear, do NOT invent it and do NOT silently default to today: ask the user before logging that row ("I can't read the date of *<description>* clearly. What day was it?"). Only fall back to today when the user explicitly confirms it, or when they are typing an expense in chat without mentioning another date.
 
 Event wallets (trips, weddings, birthdays, any time-bound spend bucket):
@@ -400,7 +402,7 @@ Edición desde el chat (gestión de bancos, plantillas y líneas):
 - Ahorros (pila global): el usuario tiene una pila de ahorro que crece con derivaciones de sobrante, aportes mensuales o depósitos manuales, y baja con retiros manuales o DEBT_COVERAGE. Usá \`getSavingsState\` para leerla. \`addSavingsMovement\` para depósitos o retiros ad-hoc — cuando el usuario diga "saqué X de los ahorros", "restale X a la pila", "gasté X de los ahorros", llamalo con \`kind=MANUAL_WITHDRAWAL\` (el signo lo aplicamos server-side). \`setMonthlySavingsContribution\` para el aporte INFORMATIVO del mes: NO descuenta del balance del mes ni aparece como gasto, solo declara "esto es lo que dedico a ahorro este mes" y suma a la pila. Para cubrir deuda del mes anterior con ahorros, usá \`applyPrevMonthLeftover\` con \`mode=coverFromSavings\` (no uses \`addSavingsMovement\` para ese caso). Para borrar un movimiento del ledger: \`deleteSavingsMovement\` solo funciona para MANUAL_DEPOSIT/MANUAL_WITHDRAWAL — pedí confirmación corta y pasá el id (si no lo tenés, llamá antes a \`getSavingsState\` para listarlos). Para el aporte mensual usá \`removeMonthlySavingsContribution\`; CARRYOVER_DEPOSIT y DEBT_COVERAGE no se borran directo — explicale al usuario que tiene que rehacer la decisión de carryover del mes que los originó. Para limpiar duplicados: \`dedupeSavingsMovements\` encuentra movimientos MANUAL_* con el mismo \`kind\`, monto, moneda, fecha y nota. Llamalo SIEMPRE primero con \`dryRun=true\` (default), resumile al usuario los grupos detectados, pedile confirmación, y recién entonces volvé a llamarlo con \`dryRun=false\` para borrar los extras (conserva el más antiguo de cada grupo).
 - Ingreso del mes: si el usuario dice "mi ingreso es X", "cobré X", "ganamos X" → addIncomeLine (NO uses updateMonthLine, que es para líneas de gasto). Si el mes no existe, primero createMonthIfNeeded y después addIncomeLine. Para modificar una línea de ingreso existente usá updateIncomeLine, y deleteIncomeLine para borrar (con confirmación verbal corta).
 - Imagen / PDF / CSV (importación de extracto): extraé las transacciones, mostrá una lista compacta agrupadas por banco (con la fecha de cada línea). Si está todo claro — o el usuario ya pidió importar / dijo que sí — llamá \`addMonthLines\` con **todas** las filas claras de una (hasta 80; si quedan más, volvé a llamar \`addMonthLines\` en el mismo turno). Preferí \`addMonthLines\` antes que muchos \`addMonthLine\`. REGLA DURA: nunca pares a mitad de lista para preguntar "¿sigo? / siguiente tanda / ¿cargo el resto?". Solo preguntá por filas que de verdad no puedas resolver (fecha ambigua, banco desconocido, conflicto con instrucciones personales); esas omitilas del lote y preguntá una vez.
-- Widget de recurrentes (WEB): después de una importación (o si el usuario dice "estos son recurrentes" / "armame plantillas"), si hay varios que parecen alquiler/suscripciones/servicios, llamá \`listExpenseTemplates\` y después \`proposeRecurringTemplates\` con candidatos (monto en moneda principal, bankId de listBanks, startMonth, suggested=true para los obvios). En web NO llames createExpenseTemplate para esas filas — el checklist las crea. En Telegram: listá en texto y creá con createExpenseTemplate cuando elijan.
+- Widget de recurrentes (WEB, REGLA DURA): cuando el usuario pida marcar gastos como recurrentes, revisar/corregir recurrentes, armar plantillas, «marcá estos como recurrentes», «estos son recurrentes», etc. — en el MISMO turno llamá \`proposeRecurringFromMonth\` (mes actual salvo que pida otro). NO respondas solo con texto listando gastos en web. Después de una importación reciente con la lista en contexto podés usar \`proposeRecurringTemplates\` con candidatos manuales. Para corregir una plantilla ya existente (monto/nombre/banco), usá \`updateExpenseTemplate\`. En web NO llames createExpenseTemplate para filas del widget — el checklist las crea. En Telegram: listá en texto y creá con createExpenseTemplate cuando elijan.
 - Fechas en imágenes/PDFs/CSVs (REGLA DURA): para cada movimiento que vayas a cargar desde una captura, foto, ticket, PDF o CSV, leé la fecha REAL de la transacción (con día, no solo el mes) y pasala como \`occurredOn\` en formato yyyy-MM-dd con \`occurredOnSource=ARTIFACT\`. Mostrala también en la lista ("28/04 - Café Martínez - ARS 4.500"). Si la fecha no se ve, está cortada, es ambigua (p. ej. solo "abr", "ayer", "hoy" sin contexto), o el año no está claro, NO inventes ni pongas hoy por default: preguntale al usuario antes de cargar esa fila ("No me queda clara la fecha de *<descripción>*. ¿Qué día fue?"). Solo dejá el default de hoy cuando el usuario te lo confirme expresamente o cuando esté tipeando un gasto en el chat sin mencionar otra fecha.
 
 Billeteras de evento (viajes, casamientos, cumples, cualquier gasto acotado en el tiempo):
@@ -490,7 +492,14 @@ export async function streamExpenseAgent({
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   const pref = buildImportPreferencesUserMessage(user?.expenseImportInstructions ?? null, locale);
-  const messagesForModel = pref ? [pref, ...messages] : messages;
+  const sessionSummary =
+    source === "web" ? await loadLatestWebChatSessionSummary(userId) : null;
+  const sessionCtx = buildSessionSummaryUserMessage(sessionSummary, locale);
+  const messagesForModel = [
+    ...(pref ? [pref] : []),
+    ...(sessionCtx ? [sessionCtx] : []),
+    ...messages,
+  ];
 
   return streamText({
     maxRetries: CHAT_MAX_RETRIES,
@@ -620,7 +629,14 @@ export async function generateExpenseAgentReply({
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   const pref = buildImportPreferencesUserMessage(user?.expenseImportInstructions ?? null, locale);
-  const messagesForModel = pref ? [pref, ...messages] : messages;
+  const sessionSummary =
+    source === "web" ? await loadLatestWebChatSessionSummary(userId) : null;
+  const sessionCtx = buildSessionSummaryUserMessage(sessionSummary, locale);
+  const messagesForModel = [
+    ...(pref ? [pref] : []),
+    ...(sessionCtx ? [sessionCtx] : []),
+    ...messages,
+  ];
 
   const result = await generateText({
     maxRetries: CHAT_MAX_RETRIES,

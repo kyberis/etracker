@@ -7,9 +7,10 @@
 
 ## What it does
 
-1. Clara calls `proposeRecurringTemplates` with a list of candidates
-   (name, amount in primary currency, bankId, startMonth, optional
-   category/reason, `suggested` pre-check).
+1. Clara calls `proposeRecurringFromMonth` (on demand, loads one-off lines
+   from the month) or `proposeRecurringTemplates` (after import, manual list)
+   with candidates (name, amount in primary currency, bankId, startMonth,
+   optional category/reason, `suggested` pre-check).
 2. The web chat renders [`ChatRecurringPicker`](../../src/components/chat-recurring-picker.tsx).
 3. The user selects rows and taps "Crear plantillas".
 4. The client POSTs to `/api/expenses/bulk`; the widget shows a success
@@ -23,7 +24,8 @@ and uses `createExpenseTemplate` after the user picks.
 | Layer | Path |
 |-------|------|
 | Spec (Zod) | [`src/lib/ai/recurring-candidates-spec.ts`](../../src/lib/ai/recurring-candidates-spec.ts) |
-| Agent tool | [`src/lib/ai/expense-tools.ts`](../../src/lib/ai/expense-tools.ts) (`proposeRecurringTemplates`) |
+| Agent tool | [`src/lib/ai/expense-tools.ts`](../../src/lib/ai/expense-tools.ts) (`proposeRecurringFromMonth`, `proposeRecurringTemplates`) |
+| Candidate builder | [`src/lib/ai/build-recurring-candidates-from-month.ts`](../../src/lib/ai/build-recurring-candidates-from-month.ts) |
 | Prompt rules | [`src/lib/ai/run-expense-agent.ts`](../../src/lib/ai/run-expense-agent.ts) |
 | Bulk API | [`src/app/api/expenses/bulk/route.ts`](../../src/app/api/expenses/bulk/route.ts) |
 | Widget UI | [`src/components/chat-recurring-picker.tsx`](../../src/components/chat-recurring-picker.tsx) |
@@ -36,6 +38,9 @@ via the same fields as `POST /api/expenses`.
 
 ## Contracts
 
+- Tool `proposeRecurringFromMonth` — optional `month` (yyyy-MM); server loads
+  one-off month lines, dedupes, skips existing recurring templates; returns
+  `{ ok, spec }` or `{ ok: false, error }`.
 - Tool `proposeRecurringTemplates` — input = `recurringCandidatesSpecSchema`;
   execute echoes `{ ok, spec }`.
 - `POST /api/expenses/bulk` — body `{ templates: expenseSchema[] }` (1–40);

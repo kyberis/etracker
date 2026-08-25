@@ -99,28 +99,27 @@ export async function loadWebChatHistory({
 export async function persistWebChatMessage({
   userId,
   message,
+  sessionId,
 }: {
   userId: string;
   message: UIMessage;
+  sessionId?: string | null;
 }): Promise<void> {
   if (message.role !== "user" && message.role !== "assistant") return;
   if (!Array.isArray(message.parts) || message.parts.length === 0) return;
 
-  // `upsert` rather than `create` makes this safe under retries and React
-  // strict-mode double-renders on the client.
   await db.webChatMessage.upsert({
     where: { id: message.id },
     create: {
       id: message.id,
       userId,
+      sessionId: sessionId ?? null,
       role: message.role,
       parts: message.parts as unknown as Prisma.InputJsonValue,
     },
     update: {
-      // Only the assistant message grows during streaming; refresh `parts`
-      // when the same id is written again so the persisted copy matches the
-      // final on-screen message.
       parts: message.parts as unknown as Prisma.InputJsonValue,
+      ...(sessionId ? { sessionId } : {}),
     },
   });
 }

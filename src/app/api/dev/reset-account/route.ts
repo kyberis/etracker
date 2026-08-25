@@ -29,6 +29,8 @@ export async function POST() {
       db.expense.deleteMany({ where: { userId } }),
       db.bank.deleteMany({ where: { userId } }),
       db.webChatMessage.deleteMany({ where: { userId } }),
+      db.webChatSession.deleteMany({ where: { userId } }),
+      db.webChatSession.deleteMany({ where: { userId } }),
       db.telegramMessage.deleteMany({ where: { userId } }),
       db.agentMessageUsage.deleteMany({ where: { userId } }),
       db.user.update({

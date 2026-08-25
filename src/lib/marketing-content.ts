@@ -185,6 +185,25 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.17.0",
+      date: "2026-08-25",
+      title: "Sesiones de chat con memoria",
+      highlights: [
+        "Cada vez que abrís el chat arrancás con pantalla vacía; la charla igual queda guardada por sesión.",
+        "Al salir (cerrar pestaña, irte de la app o 30 min sin escribir), Clara resume la sesión y usa ese resumen la próxima vez.",
+        "Podés ver conversaciones guardadas desde el botón en la pantalla de bienvenida.",
+      ],
+    },
+    {
+      version: "0.16.1",
+      date: "2026-08-25",
+      title: "Widget recurrente a pedido",
+      highlights: [
+        "Si pedís «marcá como recurrentes» o «revisar los recurrentes» sin subir PDF, Clara abre el checklist con los gastos sueltos del mes.",
+        "Ya no hace falta que el agente arme la lista a mano ni que venga de una importación.",
+      ],
+    },
+    {
       version: "0.16.0",
       date: "2026-08-25",
       title: "Widget de gastos recurrentes",
@@ -1040,6 +1059,25 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.17.0",
+      date: "2026-08-25",
+      title: "Sesiones de chat con memoria",
+      highlights: [
+        "Cada vez que abrís el chat arrancás con pantalla vacía; la charla igual queda guardada por sesión.",
+        "Al salir (cerrar pestaña, irte de la app o 30 min sin escribir), Clara resume la sesión y usa ese resumen la próxima vez.",
+        "Podés ver conversaciones guardadas desde el botón en la pantalla de bienvenida.",
+      ],
+    },
+    {
+      version: "0.16.1",
+      date: "2026-08-25",
+      title: "On-demand recurring widget",
+      highlights: [
+        "Ask to mark expenses as recurring or review recurring setup without uploading a PDF — Clara opens the checklist from the month's one-off lines.",
+        "No manual candidate list from the agent and no import required.",
+      ],
+    },
     {
       version: "0.16.0",
       date: "2026-08-25",
