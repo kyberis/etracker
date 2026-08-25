@@ -45,6 +45,7 @@ export async function GET() {
       monthIncomeLines,
       savingsMovements,
       webChatMessages,
+      webChatSessions,
       telegramMessages,
       apiTokens,
       passkeys,
@@ -108,6 +109,7 @@ export async function GET() {
       db.monthIncomeLine.findMany({ where: { userId } }),
       db.savingsMovement.findMany({ where: { userId } }),
       db.webChatMessage.findMany({ where: { userId } }),
+      db.webChatSession.findMany({ where: { userId } }),
       db.telegramMessage.findMany({ where: { userId } }),
       db.apiToken.findMany({
         where: { userId },
@@ -217,6 +219,7 @@ export async function GET() {
       monthIncomeLines,
       savingsMovements,
       webChatMessages,
+      webChatSessions,
       telegramMessages,
       apiTokens,
       passkeys,

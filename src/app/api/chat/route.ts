@@ -18,6 +18,10 @@ import {
 import { isUpsellActive } from "@/lib/billing/stripe";
 import { buildIdpUpgradeUrlForClara, shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
 import { persistWebChatMessage } from "@/lib/chat/web-history";
+import {
+  assertOpenWebChatSession,
+  touchWebChatSession,
+} from "@/lib/chat/sessions";
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
 import { limitByUser } from "@/lib/rate-limit";
@@ -42,6 +46,7 @@ function parseChatBody(raw: unknown): {
   activeMonth: string | undefined;
   surface: "web" | "month-grid";
   cellAsk: CellAskContext | undefined;
+  sessionId: string | undefined;
 } {
   const body = raw as {
     messages?: UIMessage[];
@@ -50,6 +55,7 @@ function parseChatBody(raw: unknown): {
     activeMonth?: string;
     surface?: string;
     cellAsk?: unknown;
+    sessionId?: string;
   };
 
   const messages = body.messages ?? [];
@@ -72,7 +78,12 @@ function parseChatBody(raw: unknown): {
       ? body.cellAsk
       : undefined;
 
-  return { messages, responseStyle, activeMonth, surface, cellAsk };
+  const sessionId =
+    typeof body.sessionId === "string" && body.sessionId.length > 0
+      ? body.sessionId
+      : undefined;
+
+  return { messages, responseStyle, activeMonth, surface, cellAsk, sessionId };
 }
 
 export async function POST(request: Request) {
@@ -156,18 +167,41 @@ export async function POST(request: Request) {
       activeMonth,
       surface,
       cellAsk,
+      sessionId: bodySessionId,
     } = parseChatBody(await request.json());
     const modelMessages = await convertToModelMessages(uiMessages);
 
-    // Persist the latest user turn before streaming so the next page load
-    // shows it even if the user navigates away mid-stream. Cell-ask from the
-    // month grid keeps an isolated panel — skip web history for that surface.
+    let sessionId = bodySessionId;
+    if (surface !== "month-grid") {
+      if (sessionId && (await assertOpenWebChatSession(userId, sessionId))) {
+        // keep client session
+      } else {
+        const open = await db.webChatSession.findFirst({
+          where: { userId, endedAt: null },
+          orderBy: { startedAt: "desc" },
+          select: { id: true },
+        });
+        sessionId =
+          open?.id ??
+          (
+            await db.webChatSession.create({
+              data: { userId },
+              select: { id: true },
+            })
+          ).id;
+      }
+    }
+
     const lastUser = [...uiMessages].reverse().find((m) => m.role === "user");
     if (lastUser && surface !== "month-grid") {
       try {
-        await persistWebChatMessage({ userId, message: lastUser });
+        await persistWebChatMessage({
+          userId,
+          message: lastUser,
+          sessionId,
+        });
+        if (sessionId) await touchWebChatSession(sessionId);
       } catch (error) {
-        // History is best-effort: a DB hiccup must not block the response.
         console.error("[etracker.chat] persist user message failed", error);
       }
     }
@@ -222,7 +256,12 @@ export async function POST(request: Request) {
       onFinish: async ({ responseMessage }) => {
         if (surface === "month-grid") return;
         try {
-          await persistWebChatMessage({ userId, message: responseMessage });
+          await persistWebChatMessage({
+            userId,
+            message: responseMessage,
+            sessionId,
+          });
+          if (sessionId) await touchWebChatSession(sessionId);
         } catch (error) {
           console.error("[etracker.chat] persist assistant message failed", error);
         }

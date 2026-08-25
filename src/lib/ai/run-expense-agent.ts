@@ -30,6 +30,8 @@ import {
   IMPORT_PREF_START,
   buildImportPreferencesUserMessage,
 } from "@/lib/ai/import-preferences-message";
+import { buildSessionSummaryUserMessage } from "@/lib/ai/session-summary-message";
+import { loadLatestWebChatSessionSummary } from "@/lib/chat/sessions";
 
 /**
  * Model id routed through Vercel AI Gateway. Use `provider/model` strings; the
@@ -490,7 +492,14 @@ export async function streamExpenseAgent({
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   const pref = buildImportPreferencesUserMessage(user?.expenseImportInstructions ?? null, locale);
-  const messagesForModel = pref ? [pref, ...messages] : messages;
+  const sessionSummary =
+    source === "web" ? await loadLatestWebChatSessionSummary(userId) : null;
+  const sessionCtx = buildSessionSummaryUserMessage(sessionSummary, locale);
+  const messagesForModel = [
+    ...(pref ? [pref] : []),
+    ...(sessionCtx ? [sessionCtx] : []),
+    ...messages,
+  ];
 
   return streamText({
     maxRetries: CHAT_MAX_RETRIES,
@@ -620,7 +629,14 @@ export async function generateExpenseAgentReply({
   logAIRequest({ traceId, source, userId, model: DEFAULT_MODEL, messages });
 
   const pref = buildImportPreferencesUserMessage(user?.expenseImportInstructions ?? null, locale);
-  const messagesForModel = pref ? [pref, ...messages] : messages;
+  const sessionSummary =
+    source === "web" ? await loadLatestWebChatSessionSummary(userId) : null;
+  const sessionCtx = buildSessionSummaryUserMessage(sessionSummary, locale);
+  const messagesForModel = [
+    ...(pref ? [pref] : []),
+    ...(sessionCtx ? [sessionCtx] : []),
+    ...messages,
+  ];
 
   const result = await generateText({
     maxRetries: CHAT_MAX_RETRIES,

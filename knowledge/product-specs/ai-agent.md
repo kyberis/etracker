@@ -26,8 +26,11 @@ When the user chats with Clara (web `/app/chat` or Telegram), Clara:
    with a `traceId` for cost / behaviour analysis.
 5. For Telegram: edits a "thinking → working" status message in
    place via the `onStep` callback so the user sees motion.
-6. For web: streams via `useChat` SSE; the route records token usage
-   on `onFinish`.
+5. For web: streams via `useChat` SSE; the route records token usage
+   on `onFinish`. Each visit opens an **empty** chat (`POST
+   /api/chat/session/begin`); messages persist per `WebChatSession`.
+   When the session ends, Clara generates a summary injected into the
+   next session (see `session-summary-message.ts`).
 
 ## Where the code lives
 
@@ -40,6 +43,7 @@ When the user chats with Clara (web `/app/chat` or Telegram), Clara:
 | Cost computation | [`src/lib/ai/cost.ts`](../../src/lib/ai/cost.ts) |
 | Chart spec → QuickChart URL | [`src/lib/messaging/chart-quickchart-url.ts`](../../src/lib/messaging/chart-quickchart-url.ts) |
 | Web chat route | [`src/app/api/chat/`](../../src/app/api/chat) |
+| Web chat sessions | [`src/lib/chat/sessions.ts`](../../src/lib/chat/sessions.ts), [`src/lib/chat/session-summary.ts`](../../src/lib/chat/session-summary.ts) |
 | Telegram webhook | [`src/app/api/webhooks/telegram/`](../../src/app/api/webhooks/telegram) |
 | Quota enforcement | [`src/lib/agent-quota.ts`](../../src/lib/agent-quota.ts) |
 

@@ -185,6 +185,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.17.0",
+      date: "2026-08-25",
+      title: "Sesiones de chat con memoria",
+      highlights: [
+        "Cada vez que abrís el chat arrancás con pantalla vacía; la charla igual queda guardada por sesión.",
+        "Al salir (cerrar pestaña, irte de la app o 30 min sin escribir), Clara resume la sesión y usa ese resumen la próxima vez.",
+        "Podés ver conversaciones guardadas desde el botón en la pantalla de bienvenida.",
+      ],
+    },
+    {
       version: "0.16.1",
       date: "2026-08-25",
       title: "Widget recurrente a pedido",
@@ -1049,6 +1059,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.17.0",
+      date: "2026-08-25",
+      title: "Sesiones de chat con memoria",
+      highlights: [
+        "Cada vez que abrís el chat arrancás con pantalla vacía; la charla igual queda guardada por sesión.",
+        "Al salir (cerrar pestaña, irte de la app o 30 min sin escribir), Clara resume la sesión y usa ese resumen la próxima vez.",
+        "Podés ver conversaciones guardadas desde el botón en la pantalla de bienvenida.",
+      ],
+    },
     {
       version: "0.16.1",
       date: "2026-08-25",

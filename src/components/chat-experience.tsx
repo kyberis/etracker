@@ -48,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
 import { recurringCandidatesSpecSchema } from "@/lib/ai/recurring-candidates-spec";
 import { isCsvAttachment, isPdfAttachment } from "@/lib/chat/attachment-types";
+import { WEB_CHAT_SESSION_IDLE_MS } from "@/lib/chat/session-constants";
 import { formatBankCsvForAgent } from "@/lib/chat/bank-csv-for-agent";
 import { intlLocale } from "@/lib/i18n/format";
 import { pick, useLocale, useT, useTx } from "@/lib/i18n/client";
@@ -265,6 +266,7 @@ export function ChatExperience({
   const requestOptsRef = useRef({
     conversationMode: false,
     activeMonth: undefined as string | undefined,
+    sessionId: null as string | null,
   });
 
   useEffect(() => {
@@ -330,6 +332,9 @@ export function ChatExperience({
                 requestOptsRef.current.conversationMode ? "conversational" : "concise",
               ...(requestOptsRef.current.activeMonth
                 ? { activeMonth: requestOptsRef.current.activeMonth }
+                : {}),
+              ...(requestOptsRef.current.sessionId
+                ? { sessionId: requestOptsRef.current.sessionId }
                 : {}),
             },
           }),
@@ -521,124 +526,132 @@ export function ChatExperience({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
-  // Persistent history: hydrated from `/api/chat/history` on mount and
-  // extended via the "Cargar mensajes anteriores" button. `hydratedAtRef`
-  // gates the first auto-scroll so the user lands at the bottom on initial
-  // load (last message visible) but doesn't get yanked when prepending older
-  // history.
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(false);
-  const [oldestId, setOldestId] = useState<string | null>(null);
-  const [loadingOlder, setLoadingOlder] = useState(false);
-  // When the most recent persisted message is older than today, we start in
-  // "fresh" mode: the welcome card + suggestion grid take over the chat
-  // viewport so opening the assistant on a new day feels like a clean slate.
-  // The hidden conversation remains one click away via "ver conversación
-  // anterior" so the user never loses context.
-  const [staleHistory, setStaleHistory] = useState(false);
+  // Each visit starts empty; messages persist per session and get summarized
+  // when the session ends (navigate away, tab close, 30 min idle).
+  const [sessionInitializing, setSessionInitializing] = useState(true);
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionEndedRef = useRef(false);
+  const lastActivityRef = useRef(0);
   const skipNextAutoScrollRef = useRef(false);
-  const hydratedRef = useRef(false);
-  // Forces an instant (non-smooth) jump to bottom on initial hydration so the
-  // user lands at the last message even when markdown/avatars/images shift the
-  // layout across paints. Cleared after the first successful jump.
+  const sessionInitRef = useRef(false);
   const initialJumpPendingRef = useRef(false);
 
+  const endCurrentSession = useCallback(() => {
+    const id = sessionIdRef.current;
+    if (!id || sessionEndedRef.current) return;
+    sessionEndedRef.current = true;
+    sessionIdRef.current = null;
+    requestOptsRef.current.sessionId = null;
+    void fetch("/api/chat/session/end", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: id }),
+      keepalive: true,
+    });
+  }, []);
+
   useEffect(() => {
-    if (hydratedRef.current) return;
-    hydratedRef.current = true;
+    if (sessionInitRef.current) return;
+    sessionInitRef.current = true;
     const ac = new AbortController();
     void (async () => {
       try {
-        const res = await fetch("/api/chat/history?limit=50", {
+        const res = await fetch("/api/chat/session/begin", {
+          method: "POST",
           credentials: "same-origin",
           signal: ac.signal,
         });
         if (!res.ok) return;
-        const data = (await res.json()) as {
-          messages: UIMessage[];
-          hasMore: boolean;
-          oldestId: string | null;
-        };
-        if (data.messages.length > 0) {
-          const newest = data.messages[data.messages.length - 1];
-          const newestAt = metadataCreatedAt(newest);
-          const newestDate = newestAt ? new Date(newestAt) : null;
-          const newestIsToday =
-            newestDate !== null &&
-            !Number.isNaN(newestDate.getTime()) &&
-            isSameLocalDay(newestDate, new Date());
-          initialJumpPendingRef.current = true;
-          setMessages(data.messages);
-          setStaleHistory(!newestIsToday);
+        const data = (await res.json()) as { sessionId?: string };
+        if (data.sessionId) {
+          sessionIdRef.current = data.sessionId;
+          requestOptsRef.current.sessionId = data.sessionId;
+          sessionEndedRef.current = false;
         }
-        setHasMore(Boolean(data.hasMore));
-        setOldestId(data.oldestId);
+        setMessages([]);
       } catch {
-        // Silent: an empty chat is preferable to a crash on a flaky network.
+        // Empty chat is fine on failure.
       } finally {
-        setHistoryLoading(false);
+        setSessionInitializing(false);
       }
     })();
-    return () => {
-      ac.abort();
-    };
+    return () => ac.abort();
   }, [setMessages]);
 
-  // Once the user starts a new turn (or the assistant streams a reply),
-  // there's a fresh "today" message and the welcome card no longer makes
-  // sense — flip back to the normal threaded view automatically. We detect
-  // this by remembering how many messages were hydrated and watching for
-  // any growth past that baseline.
-  const hydratedMessageCountRef = useRef<number | null>(null);
   useEffect(() => {
-    if (historyLoading) return;
-    if (hydratedMessageCountRef.current === null) {
-      hydratedMessageCountRef.current = messages.length;
-      return;
-    }
-    if (
-      staleHistory &&
-      messages.length > (hydratedMessageCountRef.current ?? 0)
-    ) {
-      setStaleHistory(false);
-    }
-  }, [messages, staleHistory, historyLoading]);
+    lastActivityRef.current = Date.now();
+  }, [messages]);
 
-  const loadMoreHistory = useCallback(async () => {
-    if (loadingOlder || !hasMore || !oldestId) return;
-    setLoadingOlder(true);
-    const el = scrollerRef.current;
-    // Anchor the visual position so prepending older messages doesn't yank
-    // the scroller back to the top.
-    const prevScrollHeight = el?.scrollHeight ?? 0;
-    const prevScrollTop = el?.scrollTop ?? 0;
-    try {
-      const res = await fetch(
-        `/api/chat/history?limit=50&before=${encodeURIComponent(oldestId)}`,
-        { credentials: "same-origin" },
-      );
-      if (!res.ok) return;
-      const data = (await res.json()) as {
-        messages: UIMessage[];
-        hasMore: boolean;
-        oldestId: string | null;
-      };
-      if (data.messages.length > 0) {
-        skipNextAutoScrollRef.current = true;
-        setMessages((prev) => [...data.messages, ...prev]);
-        // Restore the scroll position after the prepend lays out.
-        requestAnimationFrame(() => {
-          const next = scrollerRef.current;
-          if (!next) return;
-          next.scrollTop = prevScrollTop + (next.scrollHeight - prevScrollHeight);
-        });
+  useEffect(() => {
+    const onPageHide = () => endCurrentSession();
+    window.addEventListener("pagehide", onPageHide);
+    const idleTimer = window.setInterval(() => {
+      if (Date.now() - lastActivityRef.current > WEB_CHAT_SESSION_IDLE_MS) {
+        endCurrentSession();
       }
-      setHasMore(Boolean(data.hasMore));
-      setOldestId(data.oldestId ?? oldestId);
+    }, 60_000);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      window.clearInterval(idleTimer);
+      endCurrentSession();
+    };
+  }, [endCurrentSession]);
+
+  type SavedSession = {
+    id: string;
+    startedAt: string;
+    endedAt: string | null;
+    summary: string | null;
+    messageCount: number;
+  };
+  const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
+  const [savedSessionsOpen, setSavedSessionsOpen] = useState(false);
+  const [savedSessionsLoading, setSavedSessionsLoading] = useState(false);
+  const [viewingArchiveSessionId, setViewingArchiveSessionId] = useState<
+    string | null
+  >(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+
+  const loadSavedSessions = useCallback(async () => {
+    setSavedSessionsLoading(true);
+    try {
+      const res = await fetch("/api/chat/sessions?limit=20", {
+        credentials: "same-origin",
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { sessions?: SavedSession[] };
+      setSavedSessions(data.sessions ?? []);
     } finally {
-      setLoadingOlder(false);
+      setSavedSessionsLoading(false);
     }
-  }, [hasMore, oldestId, loadingOlder, setMessages]);
+  }, []);
+
+  const openSavedSession = useCallback(
+    async (sessionId: string) => {
+      setArchiveLoading(true);
+      setSavedSessionsOpen(false);
+      try {
+        const res = await fetch(
+          `/api/chat/sessions?sessionId=${encodeURIComponent(sessionId)}`,
+          { credentials: "same-origin" },
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { messages?: UIMessage[] };
+        initialJumpPendingRef.current = true;
+        setMessages(data.messages ?? []);
+        setViewingArchiveSessionId(sessionId);
+      } finally {
+        setArchiveLoading(false);
+      }
+    },
+    [setMessages],
+  );
+
+  const exitArchiveView = useCallback(() => {
+    setViewingArchiveSessionId(null);
+    setMessages([]);
+  }, [setMessages]);
 
   // First-seen timestamp per message id. Live messages produced by
   // `useChat` (especially user turns) don't carry server metadata, so we
@@ -698,7 +711,7 @@ export function ChatExperience({
   // skeleton, which is short; jumping then clears `initialJumpPendingRef` and
   // leaves the real thread stuck at the top when it finally mounts.
   useEffect(() => {
-    if (historyLoading) return;
+    if (sessionInitializing) return;
     if (skipNextAutoScrollRef.current) {
       skipNextAutoScrollRef.current = false;
       return;
@@ -727,7 +740,7 @@ export function ChatExperience({
       };
     }
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages, isStreaming, staleHistory, historyLoading]);
+  }, [messages, isStreaming, sessionInitializing]);
 
   function clearFiles() {
     setFiles(null);
@@ -895,7 +908,9 @@ export function ChatExperience({
   // The welcome card replaces the threaded view when there's nothing to
   // continue: either a brand-new chat or a conversation whose latest
   // message is from a previous local day.
-  const showWelcome = messages.length === 0 || staleHistory;
+  const showWelcome =
+    !viewingArchiveSessionId && messages.length === 0 && !archiveLoading;
+  const archiveMode = viewingArchiveSessionId !== null;
 
   return (
     <div
@@ -915,29 +930,68 @@ export function ChatExperience({
         )}
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-          {historyLoading ? (
+          {sessionInitializing || archiveLoading ? (
             <HistoryLoadingSkeleton />
           ) : showWelcome ? (
             <>
-              {staleHistory ? (
-                <div className="flex justify-center pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Jump to the latest message after the threaded view
-                      // re-mounts so the user lands at the end of the
-                      // previous conversation (messenger behaviour).
-                      initialJumpPendingRef.current = true;
-                      setStaleHistory(false);
-                    }}
-                    className="bg-lilac/10 text-lilac border-lilac/20 hover:bg-lilac/15 inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors"
-                  >
-                    <ChevronUp className="size-3.5" aria-hidden />
-                    {pick(locale, {
-                      es: "ver conversación anterior",
-                      en: "see previous conversation",
-                    })}
-                  </button>
+              <div className="flex flex-wrap justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSavedSessionsOpen((open) => !open);
+                    if (!savedSessionsOpen) void loadSavedSessions();
+                  }}
+                  className="bg-lilac/10 text-lilac border-lilac/20 hover:bg-lilac/15 inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors"
+                >
+                  <ChevronUp className="size-3.5" aria-hidden />
+                  {pick(locale, {
+                    es: "ver conversaciones guardadas",
+                    en: "see saved conversations",
+                  })}
+                </button>
+              </div>
+              {savedSessionsOpen ? (
+                <div className="bg-card/80 mx-2 rounded-2xl border border-foreground/5 p-3 text-sm shadow-sm">
+                  {savedSessionsLoading ? (
+                    <p className="text-muted-foreground text-xs italic">
+                      {pick(locale, { es: "Cargando…", en: "Loading…" })}
+                    </p>
+                  ) : savedSessions.length === 0 ? (
+                    <p className="text-muted-foreground text-xs">
+                      {pick(locale, {
+                        es: "Todavía no hay conversaciones guardadas.",
+                        en: "No saved conversations yet.",
+                      })}
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {savedSessions.map((session) => (
+                        <li key={session.id}>
+                          <button
+                            type="button"
+                            onClick={() => void openSavedSession(session.id)}
+                            className="hover:bg-lilac/10 w-full rounded-xl px-3 py-2 text-left transition-colors"
+                          >
+                            <p className="text-xs font-semibold">
+                              {formatDaySeparator(
+                                new Date(session.startedAt),
+                                intlBcp47,
+                                daySeparatorLabels,
+                              )}
+                              {session.messageCount > 0
+                                ? ` · ${session.messageCount}`
+                                : ""}
+                            </p>
+                            {session.summary ? (
+                              <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs">
+                                {session.summary}
+                              </p>
+                            ) : null}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ) : null}
               <EmptyState
@@ -956,20 +1010,17 @@ export function ChatExperience({
             </>
           ) : (
             <>
-              {hasMore ? (
+              {archiveMode ? (
                 <div className="flex justify-center pt-1">
                   <button
                     type="button"
-                    onClick={() => void loadMoreHistory()}
-                    disabled={loadingOlder}
-                    className="bg-lilac/10 text-lilac border-lilac/20 hover:bg-lilac/15 inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors disabled:opacity-60"
+                    onClick={exitArchiveView}
+                    className="bg-lilac/10 text-lilac border-lilac/20 hover:bg-lilac/15 inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors"
                   >
-                    {loadingOlder ? (
-                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                    ) : (
-                      <ChevronUp className="size-3.5" aria-hidden />
-                    )}
-                    {pick(locale, { es: "cargar mensajes anteriores", en: "load older messages" })}
+                    {pick(locale, {
+                      es: "volver al chat nuevo",
+                      en: "back to new chat",
+                    })}
                   </button>
                 </div>
               ) : null}
@@ -1029,12 +1080,11 @@ export function ChatExperience({
           fullscreen
             ? "bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 z-20 mt-auto border-t border-foreground/5 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:px-6"
             : "sticky bottom-0 z-20 mt-3",
+          archiveMode && "pointer-events-none opacity-50",
         )}
       >
         <div className="mx-auto w-full max-w-3xl">
-          {/* suggestions when empty or when reopening on a new day
-              (skipped during history hydration) */}
-          {showWelcome && !historyLoading ? (
+          {showWelcome && !sessionInitializing ? (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {suggestions.slice(0, 2).map((s) => (
                 <button
