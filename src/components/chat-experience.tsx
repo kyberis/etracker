@@ -1657,7 +1657,10 @@ function MessageBubble({
                 </p>
               );
             }
-            if (part.type === "tool-proposeRecurringTemplates") {
+            if (
+              part.type === "tool-proposeRecurringTemplates" ||
+              part.type === "tool-proposeRecurringFromMonth"
+            ) {
               if (part.state === "output-available") {
                 const out = part.output as { ok?: boolean; spec?: unknown };
                 const parsed = recurringCandidatesSpecSchema.safeParse(

@@ -11,6 +11,7 @@ import {
 import { tool } from "ai";
 import { z } from "zod";
 
+import { buildRecurringCandidatesFromMonth } from "@/lib/ai/build-recurring-candidates-from-month";
 import { chartSpecSchema } from "@/lib/ai/chart-spec";
 import { recurringCandidatesSpecSchema } from "@/lib/ai/recurring-candidates-spec";
 import { getBanksCached, invalidateBanksCache } from "@/lib/cache/banks";
@@ -2711,10 +2712,82 @@ export function buildExpenseTools(
       },
     }),
 
+    proposeRecurringFromMonth: tool({
+      description: [
+        "Shows the recurring-templates checklist in WEB chat by loading one-off expense lines from a month.",
+        "PREFERRED when the user asks to mark expenses as recurring, review/fix recurring setup, or says 'marcá como recurrentes' / 'armame plantillas' — even without a PDF import.",
+        "Omit `month` for the current month, or pass yyyy-MM for another month.",
+        "Do NOT reply with only a text list on web — call this tool in the same turn.",
+        "Do NOT call createExpenseTemplate for those rows on web — the widget creates them on confirm.",
+        "On Telegram (no widget): do NOT use this tool; use listExpenseTemplates + text + createExpenseTemplate.",
+      ].join(" "),
+      inputSchema: z.object({
+        month: optionalMonthKey,
+        title: z.string().min(1).max(120).optional(),
+        subtitle: z.string().max(280).optional(),
+      }),
+      execute: async ({ month, title, subtitle }) => {
+        const target = month ?? getCurrentMonthKey();
+        const data = await loadMonthPageData(userId, target);
+        if (!data.hasRecord) {
+          return {
+            ok: false as const,
+            error:
+              "The month is not set up yet. Call createMonthIfNeeded or getMonthState first.",
+            month: target,
+          };
+        }
+
+        const existingTemplates = await db.expense.findMany({
+          where: { userId },
+          select: {
+            name: true,
+            amount: true,
+            bankId: true,
+            isRecurring: true,
+          },
+        });
+
+        const candidates = buildRecurringCandidatesFromMonth({
+          month: target,
+          lines: data.expenses,
+          existingTemplates: existingTemplates.map((template) => ({
+            name: template.name,
+            amount: template.amount.toString(),
+            bankId: template.bankId,
+            isRecurring: template.isRecurring,
+          })),
+        });
+
+        if (candidates.length === 0) {
+          return {
+            ok: false as const,
+            error:
+              "No one-off month lines left to propose as recurring templates (they may already be templates or tied to events).",
+            month: target,
+            existingRecurringTemplates: existingTemplates.filter(
+              (template) => template.isRecurring,
+            ).length,
+          };
+        }
+
+        const spec = recurringCandidatesSpecSchema.parse({
+          title: title ?? "¿Cuáles querés marcar como recurrentes?",
+          subtitle:
+            subtitle ??
+            `Gastos sueltos de ${target}. Marcá los que quieras convertir en plantilla.`,
+          candidates,
+        });
+
+        return { ok: true as const, spec };
+      },
+    }),
+
     proposeRecurringTemplates: tool({
       description: [
         "Shows an interactive checklist in the WEB chat so the user can mark which expenses should become recurring templates.",
-        "Use after a bank PDF/CSV/image import when several movements look like subscriptions/rent/utilities, OR when the user says things like 'estos son recurrentes' / 'marcá como recurrentes'.",
+        "Use after a bank PDF/CSV/image import when you already have the candidate list in context.",
+        "When the user asks on demand (no fresh import), prefer proposeRecurringFromMonth instead.",
         "Pass candidates with name, amount in the user's PRIMARY currency, bankId (from listBanks), startMonth (yyyy-MM), optional category/reason, suggested=true to pre-check.",
         "Do NOT call createExpenseTemplate for those rows yourself on web — the widget creates them when the user confirms.",
         "On Telegram (no widget): do NOT use this tool; instead list candidates in text and after the user picks, call createExpenseTemplate for each.",
