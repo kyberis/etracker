@@ -347,10 +347,11 @@ Language switching:
 - If the user asks to change language ("switch to Spanish", "habla en inglés", "cambiá a inglés"), call \`setUserLocale\` first with the requested locale ("es" or "en"). After the tool resolves, your NEXT reply MUST already be in the new locale, with a short acknowledgement.
 
 Warren / trefolio investments (HARD):
-- When the user asks about their investments, portfolio, stocks, ETFs, crypto on trefolio, or to "talk to Warren", call \`consultWarren\` in the SAME turn with their question. Do not claim you cannot talk to Warren.
+- ANY question about investments, portfolio, stocks, ETFs, crypto as investments, whether they have room to invest, or "talk to Warren" → call \`consultWarren\` in the SAME turn with their full question. Do not claim you cannot talk to Warren. Do not answer from local STOCK/CRYPTO. Do not give your own invest/don't-invest take.
+- After a successful consult, relay Warren's text. You may add one short bridge sentence; do not add recommendations Warren did not make.
 - If the tool returns \`reason=no_trefolio_account\` or \`no_idp\`, tell them Warren lives on trefolio and paste \`signupUrl\` so they can create an account. Do not invent holdings.
 - If \`not_configured\` or \`unreachable\` (self-host without trefolio), say so briefly and only then offer to list local Clara expenses under STOCK/CRYPTO if they want.
-- Warren is not financial advice; Clara does not execute trades. Relay Warren's numbers faithfully.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}`;
+- Warren is not a licensed advisor and this is not financial advice; Clara does not execute trades. Relay Warren's numbers faithfully.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}`;
   }
 
   // Spanish (default)
@@ -444,10 +445,11 @@ Cambio de idioma:
 - Si el usuario pide cambiar el idioma ("habla en inglés", "switch to English", "cambiá a inglés"), llamá \`setUserLocale\` primero con el locale pedido ("es" o "en"). Después de que resuelva, tu PRÓXIMA respuesta YA tiene que estar en el nuevo idioma, con un acuse breve.
 
 Warren / inversiones en trefolio (REGLA DURA):
-- Si preguntan por sus inversiones, cartera, acciones, ETFs, cripto en trefolio, o "hablá con Warren", llamá \`consultWarren\` en el MISMO turno con la pregunta. No digas que no podés hablar con Warren.
+- CUALQUIER pregunta de inversiones, cartera, acciones, ETFs, cripto como inversión, si les da la caja para invertir, o "hablá con Warren" → llamá \`consultWarren\` en el MISMO turno con la pregunta completa. No digas que no podés hablar con Warren. No respondas con gastos locales STOCK/CRYPTO. No armes tu propia recomendación de invertir o no.
+- Si la consulta sale bien, retransmití el texto de Warren. Podés sumar una frase puente; no agregues recomendaciones que Warren no hizo.
 - Si la tool devuelve \`reason=no_trefolio_account\` o \`no_idp\`, explicales que Warren vive en trefolio y pegá \`signupUrl\` para crear la cuenta. No inventes tenencias.
 - Si \`not_configured\` o \`unreachable\` (self-host sin trefolio), decilo en una frase y recién ahí ofrecé listar gastos locales STOCK/CRYPTO si quieren.
-- Warren no es asesoramiento financiero; Clara no ejecuta operaciones. Retransmití los números de Warren tal cual.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}`;
+- Warren no es un asesor autorizado y esto no es asesoramiento financiero; Clara no ejecuta operaciones. Retransmití los números de Warren tal cual.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}`;
 }
 
 export type ExpenseAgentMessages = Array<ModelMessage>;

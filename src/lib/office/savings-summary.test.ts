@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { buildClaraOfficeSavingsSummary } from "./savings-summary";
+import { buildClaraOfficeSavingsSummary, utcCalendar } from "./savings-summary";
 import type { ResolvedOfficeUser } from "./resolve-office-user";
 
 function user(partial: Partial<ResolvedOfficeUser>): ResolvedOfficeUser {
@@ -40,5 +40,14 @@ describe("buildClaraOfficeSavingsSummary", () => {
       }),
     );
     expect(summary.note).toContain("USD");
+  });
+});
+
+describe("utcCalendar", () => {
+  it("reports day-of-month and length in UTC", () => {
+    const cal = utcCalendar(new Date("2026-08-26T12:00:00.000Z"));
+    expect(cal.monthKey).toBe("2026-08");
+    expect(cal.dayOfMonth).toBe(26);
+    expect(cal.daysInMonth).toBe(31);
   });
 });

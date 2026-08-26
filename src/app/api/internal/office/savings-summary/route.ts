@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { buildClaraOfficeSavingsSummary } from "@/lib/office/savings-summary";
+import { buildClaraOfficeCashflowSnapshot } from "@/lib/office/savings-summary";
 import { readOfficeUserLookup, requireIdpServiceToken } from "@/lib/office/idp-service-auth";
 import { resolveOfficeUser } from "@/lib/office/resolve-office-user";
 
@@ -20,5 +20,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "user_not_found" }, { status: 404 });
   }
 
-  return NextResponse.json(buildClaraOfficeSavingsSummary(user));
+  return NextResponse.json(await buildClaraOfficeCashflowSnapshot(user));
 }
