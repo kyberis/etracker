@@ -71,6 +71,7 @@ app. `BANK_SYNC_ENCRYPTION_KEY` is generated locally (`openssl rand -hex 32`).
 - No MCP / agent tools in v1.
 - No landing-page feature card in v1. In-app CTA (chat / menu / Banks / month) ships when the flag is on.
 - Restricted production only returns accounts whitelisted in the Control Panel.
+- ASPSP payloads may send `account_id.other` / `iban` as JSON `null` (seen with Rabobank NL); Zod schemas must use `.nullish()`, not `.optional()`.
 
 ## Related
 

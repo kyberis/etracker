@@ -390,8 +390,8 @@ export async function linkSessionAccounts(input: {
     details?: string | null;
     product?: string | null;
     currency?: string | null;
-    identification?: { iban?: string };
-    account_id?: { iban?: string };
+    identification?: { iban?: string | null };
+    account_id?: { iban?: string | null };
   }>;
 }): Promise<number> {
   let linked = 0;

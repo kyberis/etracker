@@ -17,15 +17,17 @@ export const startAuthResponseSchema = z.object({
   authorization_id: z.string().optional(),
 });
 
+// ASPSPs (e.g. Rabobank NL) often send `"other": null` / `"iban": null`
+// instead of omitting the key — treat both as absent.
 const accountIdentificationSchema = z
   .object({
-    iban: z.string().optional(),
+    iban: z.string().nullish(),
     other: z
       .object({
         identification: z.string().optional(),
         scheme_name: z.string().optional(),
       })
-      .optional(),
+      .nullish(),
   })
   .passthrough();
 
