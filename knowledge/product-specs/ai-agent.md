@@ -121,7 +121,7 @@ Grouped by domain:
 | Events | `listEvents`, `getActiveEvents`, `getEvent`, `createEvent`, `updateEvent`, `closeEvent`, `reopenEvent`, `deleteEvent`, `createEventShareLink`, `attachLineToEvent`, `detachLineFromEvent`, `listEventParticipants` |
 | FX & preferences | `getFxRate`, `setPrimaryCurrency`, `setUserLocale`, `updateExpenseImportInstructions` |
 | Charts | `renderChart` |
-| Sister apps | `consultWarren` — delegates investment questions to Warren on trefolio (`POST {TREFOLIO_BASE_URL}/api/internal/office/warren-chat`, Bearer `IDP_SERVICE_TOKEN`, `billingSource: "clara"`). Does not consume trefolio `ai_consult`; already billed via Clara `consumeAgentQuota`. Missing trefolio account → `signupUrl`. Self-host without `TREFOLIO_BASE_URL` degrades. Not exposed to GUEST event-wallet users. |
+| Sister apps | `consultWarren` — always used for investment / portfolio / "room to invest" questions (`POST {TREFOLIO_BASE_URL}/api/internal/office/warren-chat`). Warren receives an aggregated current-month cashflow snapshot from `GET /api/internal/office/savings-summary` (income, planned/paid/remaining, balance, savings pile, day of month — not expense lines). Does not consume trefolio `ai_consult`. Missing trefolio account → `signupUrl`. Self-host without `TREFOLIO_BASE_URL` degrades. Not exposed to GUEST. |
 
 Step budget: **24** (`stopWhen: stepCountIs(24)`). Retries: **6**
 (env override `AI_CHAT_MAX_RETRIES`, capped 4–12). Default model:

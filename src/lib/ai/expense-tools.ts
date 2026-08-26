@@ -2816,11 +2816,11 @@ export function buildExpenseTools(
 
     consultWarren: tool({
       description: [
-        "Ask Warren (trefolio portfolio assistant) about the user's investments, holdings, allocation, or valuation.",
-        "Call in the SAME turn when they ask to talk to Warren, see stocks/ETFs/crypto on trefolio, or 'mis inversiones'.",
-        "Never invent holdings. Pass the user's question as `question`.",
+        "Ask Warren (trefolio portfolio assistant) about the user's investments, holdings, allocation, valuation, or whether their monthly cashflow leaves room to invest.",
+        "Call in the SAME turn for any investment / portfolio / 'conviene invertir' / 'mis inversiones' / talk-to-Warren question. Pass the user's full question as `question`.",
+        "Never invent holdings. Do not answer from local STOCK/CRYPTO.",
         "If the result includes signupUrl, paste that URL verbatim and invite them to create a trefolio account.",
-        "Do not use this for Clara monthly expenses. Local STOCK/CRYPTO categories are fallback only when Warren is unavailable.",
+        "Local STOCK/CRYPTO categories are fallback only when Warren is unavailable.",
       ].join(" "),
       inputSchema: z.object({
         question: z

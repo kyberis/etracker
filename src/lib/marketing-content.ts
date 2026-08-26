@@ -185,6 +185,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.18.1",
+      date: "2026-08-26",
+      title: "Warren mira tu caja del mes",
+      highlights: [
+        "Si hablás de inversiones, Clara le pasa la pregunta a Warren sí o sí.",
+        "Warren cruza tu cartera con cómo viene el mes (gastos, sobrante, qué día es) y te dice si la caja da, sin decirte qué comprar.",
+        "Siempre aclara que no es un asesor y que esto no es recomendación de inversión.",
+      ],
+    },
+    {
       version: "0.18.0",
       date: "2026-08-26",
       title: "Clara consulta a Warren",
@@ -704,7 +714,7 @@ const ES: LocalisedMarketingContent = {
         "Open Banking (opt-in): si conectás un banco europeo vía Enable Banking, guardamos el identificador de sesión cifrado, el nombre del banco, país, fecha de vencimiento del consentimiento, cuentas linkeadas (IBAN enmascarado) y un registro de los movimientos importados. Los logs de API de admin no guardan IBANs ni descripciones.",
         "Billeteras de evento compartidas: si invitás a alguien a un viaje vía un share-link, guardamos por cada participante su nombre de pantalla a nivel evento, su rol (organizador o invitado) y, en el caso de invitados nuevos por Telegram, un código de un solo uso para vincular el bot. Los share-links se guardan como hash sha256 — nunca el link en claro — y los podés revocar desde la pantalla del viaje cuando quieras; revocación, expiración y último uso son visibles para vos.",
         "Conversaciones: mensajes del chat web (texto + adjuntos como JSON estructurado), mensajes de Telegram si vinculás el bot, contadores de uso del agente y modelos consumidos por día.",
-        "Consulta a Warren (opt-in por mensaje): si le pedís a Clara tus inversiones o que hable con Warren, Clara envía tu identificador de cuenta unificada (IdP `sub` y email) y la pregunta a trefolio.com (misma organización). No se comparte tu ledger de gastos. Si self-hosteás, esto se desactiva cuando no configurás `TREFOLIO_BASE_URL`.",
+        "Consulta a Warren (opt-in por mensaje): si le pedís a Clara tus inversiones o que hable con Warren, Clara envía tu identificador de cuenta unificada (IdP `sub` y email), la pregunta y un resumen agregado del mes en curso (ingresos, gastos planificados/pagados, balance, pila de ahorro, día del mes) — no el detalle de cada gasto — a trefolio (misma organización) para que Warren cruce caja con cartera. Si self-hosteás, esto se desactiva cuando no configurás `TREFOLIO_BASE_URL`.",
         "Preferencia de recordatorios por Telegram y fecha del último recordatorio enviado (solo aplica si tenés Telegram vinculado; se usa para no mandarte más de un mensaje por día y para que puedas apagarlos cuando quieras desde Configuración).",
         "Pagos (sólo si te suscribís o donás): identificador de cliente de Stripe, estado de la suscripción y fecha de fin de periodo, registro de cada donación (id de Stripe, monto, fecha).",
         "Tokens de acceso para AI (MCP): nombre, prefijo de 12 caracteres, fecha de creación, último uso, expiración y revocación. El token completo se hashea con SHA-256 antes de guardarlo; el plaintext sólo se muestra una vez.",
@@ -1070,6 +1080,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.18.1",
+      date: "2026-08-26",
+      title: "Warren sees this month's cash",
+      highlights: [
+        "Investment questions always go to Warren — Clara does not answer them from local STOCK/CRYPTO.",
+        "Warren crosses your trefolio portfolio with this month's cashflow (spend, surplus, day of month) and talks capacity, not what to buy.",
+        "He always states he is not a licensed advisor and this is not investment advice.",
+      ],
+    },
     {
       version: "0.18.0",
       date: "2026-08-26",
@@ -1590,7 +1610,7 @@ const EN: LocalisedMarketingContent = {
         "Open Banking (opt-in): if you connect a European bank via Enable Banking we store an encrypted session id, bank name, country, consent expiry, linked accounts (masked IBAN) and a record of imported movements. Admin API logs never store IBANs or descriptions.",
         "Shared event wallets: if you invite someone to a trip via a share-link, we store per participant their event-scoped display name, their role (organiser or guest) and, for fresh Telegram-only invitees, a single-use code to bind the bot. Share-links are stored as a sha256 hash — never the plaintext link — and you can revoke them from the trip screen at any time; revocation, expiration and last-use timestamps are visible to you.",
         "Conversations: web chat messages (text + structured attachments as JSON), Telegram messages if you link the bot, agent usage counters and per-day model usage.",
-        "Warren consult (per-message opt-in): if you ask Clara about your investments or to talk to Warren, Clara sends your unified-account identifier (IdP `sub` and email) and the question to trefolio.com (same organisation). Your expense ledger is not shared. If you self-host, this is off unless you set `TREFOLIO_BASE_URL`.",
+        "Warren consult (per-message opt-in): if you ask Clara about your investments or to talk to Warren, Clara sends your unified-account identifier (IdP `sub` and email), the question, and an aggregated snapshot of the current month (income, planned/paid expenses, balance, savings pile, day of month) — not each expense line — to trefolio (same organisation) so Warren can cross cashflow with the portfolio. If you self-host, this is off unless you set `TREFOLIO_BASE_URL`.",
         "Telegram reminder preference and the timestamp of the last reminder we sent (only applies if you linked Telegram; used to avoid more than one outbound message per day and so you can turn reminders off whenever you want from Settings).",
         "Payments (only if you subscribe or donate): a Stripe customer id, subscription status and current period end, a record of each donation (Stripe id, amount, date).",
         "AI access tokens (MCP): name, 12-character prefix, creation date, last use, expiration and revocation. The full token is hashed with SHA-256 before storage; the plaintext is shown only once.",
