@@ -397,7 +397,8 @@ export async function linkSessionAccounts(input: {
   let linked = 0;
   for (const account of input.accounts) {
     if (!account.uid) continue;
-    const iban = account.identification?.iban ?? account.account_id?.iban;
+    const iban =
+      account.identification?.iban ?? account.account_id?.iban ?? undefined;
     const currency = (account.currency ?? "EUR").toUpperCase();
     const accountName = account.details ?? account.product ?? account.name ?? null;
     const bankId = await ensureBankForAccount({
