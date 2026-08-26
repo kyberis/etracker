@@ -29,6 +29,29 @@ describe("enable-banking schemas", () => {
     expect(parsed.accounts[0]?.uid).toBe("acc_1");
   });
 
+  it("accepts Rabobank-style null account_id.other / iban", () => {
+    const parsed = sessionSchema.parse({
+      session_id: "sess_rabobank",
+      accounts: [
+        {
+          uid: "acc_nl_1",
+          currency: "EUR",
+          account_id: { iban: "NL91ABNA0417164300", other: null },
+        },
+        {
+          uid: "acc_nl_2",
+          currency: "EUR",
+          account_id: { iban: null, other: null },
+        },
+      ],
+      access: { valid_until: "2026-09-01T12:00:00.000Z" },
+    });
+    expect(parsed.accounts).toHaveLength(2);
+    expect(parsed.accounts[0]?.account_id?.iban).toBe("NL91ABNA0417164300");
+    expect(parsed.accounts[0]?.account_id?.other).toBeNull();
+    expect(parsed.accounts[1]?.account_id?.iban).toBeNull();
+  });
+
   it("parses transaction fixtures", () => {
     const parsed = transactionListSchema.parse(load("transactions.json"));
     expect(parsed.transactions).toHaveLength(2);
