@@ -6,9 +6,14 @@ const linkAccounts = vi.fn();
 const sync = vi.fn();
 const verifyState = vi.fn();
 const enabled = vi.fn();
+const available = vi.fn();
 
 vi.mock("@/lib/enable-banking/config", () => ({
   isEnableBankingEnabled: () => enabled(),
+}));
+
+vi.mock("@/lib/enable-banking/access", () => ({
+  isOpenBankingAvailable: (...args: unknown[]) => available(...args),
 }));
 
 vi.mock("@/lib/enable-banking/oauth-state", () => ({
@@ -41,6 +46,7 @@ import { GET } from "./route";
 beforeEach(() => {
   vi.clearAllMocks();
   enabled.mockReturnValue(true);
+  available.mockResolvedValue(true);
   verifyState.mockReturnValue({
     userId: "u1",
     institutionName: "Nordea",
@@ -78,6 +84,15 @@ describe("open-banking callback", () => {
     );
     expect(res.headers.get("location")).toContain("openBanking=empty");
     expect(createActive).not.toHaveBeenCalled();
+  });
+
+  it("redirects unavailable when the user is not allowed", async () => {
+    available.mockResolvedValue(false);
+    const res = await GET(
+      new Request("http://localhost/api/open-banking/callback?code=abc&state=signed"),
+    );
+    expect(res.headers.get("location")).toContain("openBanking=unavailable");
+    expect(createSession).not.toHaveBeenCalled();
   });
 
   it("redirects invalid when state is missing", async () => {
