@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { encryptSecret } from "@/lib/crypto";
 import { createActiveConnection } from "@/lib/db/bank-connections";
+import { isOpenBankingAvailable } from "@/lib/enable-banking/access";
 import { isEnableBankingEnabled } from "@/lib/enable-banking/config";
 import { createSession } from "@/lib/enable-banking/client";
 import { verifyOAuthState } from "@/lib/enable-banking/oauth-state";
@@ -39,6 +40,10 @@ export async function GET(request: Request) {
     payload = verifyOAuthState(state);
   } catch {
     return settingsRedirect(request, { openBanking: "invalid" });
+  }
+
+  if (!(await isOpenBankingAvailable(payload.userId))) {
+    return settingsRedirect(request, { openBanking: "unavailable" });
   }
 
   try {

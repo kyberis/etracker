@@ -15,7 +15,9 @@ Consent lasts up to the ASPSP `maximum_consent_validity` (typically 180
 days). There is no refresh token — expiry or `EXPIRED_SESSION` marks the
 connection `NEEDS_REAUTH`.
 
-Phase 1: sandbox + restricted production (operator's own accounts).
+Phase 1: sandbox + restricted production — **admin accounts only**
+(`User.isAdmin`). UI, CTA, user APIs and OAuth callback all require admin;
+the `open_banking` feature flag remains an additional kill switch.
 
 ## Where the code lives
 
@@ -44,12 +46,12 @@ Cascade delete with `User`. Session ids are omitted from the GDPR export.
 
 | Method | Route | Auth | Notes |
 |--------|-------|------|-------|
-| GET | `/api/open-banking/aspsps?country=` | user + flag | ASPSP list |
-| POST | `/api/open-banking/connect` | user + flag | `{ institutionName, country }` → `{ url }` |
-| GET | `/api/open-banking/callback` | signed `state` | public prefix in `proxy.ts` |
-| GET | `/api/open-banking/connections` | user + flag | |
-| DELETE | `/api/open-banking/connections/[id]` | user + flag | disconnect, keep imported lines |
-| POST | `/api/open-banking/sync` | user + flag | optional `{ connectionId }` |
+| GET | `/api/open-banking/aspsps?country=` | admin + flag | ASPSP list |
+| POST | `/api/open-banking/connect` | admin + flag | `{ institutionName, country }` → `{ url }` |
+| GET | `/api/open-banking/callback` | signed `state` + admin | public prefix in `proxy.ts` |
+| GET | `/api/open-banking/connections` | admin + flag | |
+| DELETE | `/api/open-banking/connections/[id]` | admin + flag | disconnect, keep imported lines |
+| POST | `/api/open-banking/sync` | admin + flag | optional `{ connectionId }` |
 | GET/POST | `/api/cron/bank-sync` | `CRON_SECRET` | every 6h |
 | GET | `/api/admin/open-banking/{stats,connections,sync-runs,api-logs}` | admin | |
 
@@ -62,6 +64,8 @@ app. `BANK_SYNC_ENCRYPTION_KEY` is generated locally (`openssl rand -hex 32`).
 ## Invariants
 
 - Open Banking is read-only (AIS). No payment initiation.
+- Phase 1: only `isAdmin` users can see or use connect (gated in
+  [`access.ts`](../../src/lib/enable-banking/access.ts)).
 - Missing env degrades: UI hidden, APIs 503.
 - Admin API logs never persist IBANs or remittance text.
 - Duplicate provider ids and the existing month-line unique index both skip writes.

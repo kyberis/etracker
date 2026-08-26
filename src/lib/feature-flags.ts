@@ -36,7 +36,7 @@ export const FEATURE_FLAGS: Record<FeatureFlagKey, FeatureFlagDefinition> = {
   },
   open_banking: {
     description:
-      "Conectar bancos europeos vía Enable Banking (PSD2). Requiere ENABLE_BANKING_* y BANK_SYNC_ENCRYPTION_KEY. Default off; activar por entorno o override de usuario.",
+      "Conectar bancos europeos vía Enable Banking (PSD2). Solo admins (fase 1). Requiere ENABLE_BANKING_* y BANK_SYNC_ENCRYPTION_KEY. Default off.",
     defaultEnabled: false,
   },
 };
