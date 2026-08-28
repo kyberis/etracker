@@ -13,7 +13,7 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
   with a 30-day grace queue and one-click restore. Daily cron hard-deletes past
   the window; chat, MCP and Telegram nudge are paused while pending.
 - [`ai-agent`](ai-agent.md) — chat-first AI agent: one tool registry (~46 tools),
-  three entrypoints (web stream, Telegram one-shot, system-initiated tool-less
+  four entrypoints (web stream, Telegram one-shot, trefolio sister-chat, system-initiated tool-less
   reply), Spanish + English, 8-step budget, per-user-bound tools, guest-event
   scope variant.
 - [`banks`](banks.md) — per-user banks/wallets/cards used to route every

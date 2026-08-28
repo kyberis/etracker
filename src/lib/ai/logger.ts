@@ -10,7 +10,7 @@ import { calculateCost, formatUSD, type CostBreakdown } from "@/lib/ai/cost";
  */
 
 type BaseFields = {
-  source: "web" | "telegram";
+  source: "web" | "telegram" | "trefolio";
   userId: string;
   model: string;
   /** A short id grouping the request + its steps + finish event. */
