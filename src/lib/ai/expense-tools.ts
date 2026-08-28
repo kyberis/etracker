@@ -231,6 +231,11 @@ export type BuildExpenseToolsOptions = {
   };
   /** Passed to Warren so it replies in the user's language. */
   locale?: Locale;
+  /**
+   * Trefolio → Clara relay: omit `consultWarren` so Clara cannot loop back
+   * into Warren/Clover on the same turn.
+   */
+  omitConsultWarren?: boolean;
 };
 
 /**
@@ -2850,9 +2855,24 @@ export function buildExpenseTools(
     }),
   };
 
+  if (options.omitConsultWarren) {
+    const { consultWarren: _omit, ...withoutWarren } = fullToolset;
+    void _omit;
+    const source = withoutWarren as typeof fullToolset;
+    if (!isGuest) {
+      return source;
+    }
+    return filterGuestTools(source);
+  }
+
   if (!isGuest) {
     return fullToolset;
   }
+
+  return filterGuestTools(fullToolset);
+}
+
+function filterGuestTools<T extends Record<string, unknown>>(fullToolset: T): T {
 
   // GUEST scope: surface ONLY the tools that make sense for someone whose
   // entire world is a single shared event. The LLM cannot invoke any

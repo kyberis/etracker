@@ -185,6 +185,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.19.0",
+      date: "2026-08-28",
+      title: "Clover y Warren te preguntan a vos",
+      highlights: [
+        "Si le hablás a Clover o Warren de gastos, caja o ahorros, ahora te consultan a Clara de verdad — no solo un resumen de la pila.",
+        "Cuenta contra el cupo de trefolio, no contra tu tope diario de Clara.",
+        "Si todavía no tenés cuenta en Clara, te proponen crearla con el mismo login.",
+      ],
+    },
+    {
       version: "0.18.1",
       date: "2026-08-26",
       title: "Warren mira tu caja del mes",
@@ -1080,6 +1090,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.19.0",
+      date: "2026-08-28",
+      title: "Clover and Warren ask you",
+      highlights: [
+        "Ask Clover or Warren about spending, cashflow, or savings — they now run a full Clara turn, not just a savings snapshot.",
+        "Counts against trefolio AI consults, not your Clara daily cap.",
+        "If you do not have a Clara account yet, they offer to create one with the same login.",
+      ],
+    },
     {
       version: "0.18.1",
       date: "2026-08-26",

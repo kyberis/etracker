@@ -49,7 +49,7 @@ const CHAT_MAX_RETRIES = Math.min(
   Math.max(4, Number.parseInt(process.env.AI_CHAT_MAX_RETRIES ?? "6", 10) || 6),
 );
 
-type AgentSource = "web" | "telegram";
+type AgentSource = "web" | "telegram" | "trefolio";
 
 /** Web chat can switch tone; Telegram stays concise unless overridden. */
 export type ExpenseAgentResponseStyle = "concise" | "conversational";
@@ -146,7 +146,46 @@ type SystemPromptOptions = {
   guestEventScope?: GuestEventScope;
   /** Month-grid cell-ask snapshot (optional). */
   cellAskBlock?: string;
+  /** Trefolio → Clara: omit consultWarren HARD rules (anti-loop). */
+  omitConsultWarren?: boolean;
+  /** Extra system block appended after the canonical prompt. */
+  systemAppendix?: string;
 };
+
+function sisterConsultPromptBlock(locale: Locale, omitConsultWarren: boolean): string {
+  if (omitConsultWarren) {
+    return locale === "en"
+      ? `
+Clover / Warren relay (HARD):
+- You are answering **through Clover or Warren** on trefolio. The user is already in that chat.
+- Do **not** call \`consultWarren\` (that would loop). Do not tell them to open Clara or paste clara.trefolio.com.
+- Answer spending, cashflow, savings, and monthly detail from your Clara tools. Put every material fact in prose.
+- Keep replies under ~250 words unless they ask for more.
+- This is not financial advice; you categorise and remember — decisions stay with the user.`
+      : `
+Relay Clover / Warren (REGLA DURA):
+- Estás respondiendo **a través de Clover o Warren** en trefolio. El usuario ya está en ese chat.
+- No llames \`consultWarren\` (loop). No les digas que abran Clara ni pegues clara.trefolio.com.
+- Respondé gastos, caja, ahorros y detalle del mes con tus tools. Todos los datos materiales van en prosa.
+- Menos de ~250 palabras salvo que pidan más.
+- Esto no es asesoramiento financiero; Clara categoriza y recuerda — las decisiones son del usuario.`;
+  }
+  return locale === "en"
+    ? `
+Warren / trefolio investments (HARD):
+- ANY question about investments, portfolio, stocks, ETFs, crypto as investments, whether they have room to invest, or "talk to Warren" → call \`consultWarren\` in the SAME turn with their full question. Do not claim you cannot talk to Warren. Do not answer from local STOCK/CRYPTO. Do not give your own invest/don't-invest take.
+- After a successful consult, relay Warren's text. You may add one short bridge sentence; do not add recommendations Warren did not make.
+- If the tool returns \`reason=no_trefolio_account\` or \`no_idp\`, tell them Warren lives on trefolio and paste \`signupUrl\` so they can create an account. Do not invent holdings.
+- If \`not_configured\` or \`unreachable\` (self-host without trefolio), say so briefly and only then offer to list local Clara expenses under STOCK/CRYPTO if they want.
+- Warren is not a licensed advisor and this is not financial advice; Clara does not execute trades. Relay Warren's numbers faithfully.`
+    : `
+Warren / inversiones en trefolio (REGLA DURA):
+- CUALQUIER pregunta de inversiones, cartera, acciones, ETFs, cripto como inversión, si les da la caja para invertir, o "hablá con Warren" → llamá \`consultWarren\` en el MISMO turno con la pregunta completa. No digas que no podés hablar con Warren. No respondas con gastos locales STOCK/CRYPTO. No armes tu propia recomendación de invertir o no.
+- Si la consulta sale bien, retransmití el texto de Warren. Podés sumar una frase puente; no agregues recomendaciones que Warren no hizo.
+- Si la tool devuelve \`reason=no_trefolio_account\` o \`no_idp\`, explicales que Warren vive en trefolio y pegá \`signupUrl\` para crear la cuenta. No inventes tenencias.
+- Si \`not_configured\` o \`unreachable\` (self-host sin trefolio), decilo en una frase y recién ahí ofrecé listar gastos locales STOCK/CRYPTO si quieren.
+- Warren no es un asesor autorizado y esto no es asesoramiento financiero; Clara no ejecuta operaciones. Retransmití los números de Warren tal cual.`;
+}
 
 /**
  * AI-driven first-run guide for Telegram. Only injected when the source is
@@ -345,13 +384,7 @@ Charts (renderChart):
 
 Language switching:
 - If the user asks to change language ("switch to Spanish", "habla en inglés", "cambiá a inglés"), call \`setUserLocale\` first with the requested locale ("es" or "en"). After the tool resolves, your NEXT reply MUST already be in the new locale, with a short acknowledgement.
-
-Warren / trefolio investments (HARD):
-- ANY question about investments, portfolio, stocks, ETFs, crypto as investments, whether they have room to invest, or "talk to Warren" → call \`consultWarren\` in the SAME turn with their full question. Do not claim you cannot talk to Warren. Do not answer from local STOCK/CRYPTO. Do not give your own invest/don't-invest take.
-- After a successful consult, relay Warren's text. You may add one short bridge sentence; do not add recommendations Warren did not make.
-- If the tool returns \`reason=no_trefolio_account\` or \`no_idp\`, tell them Warren lives on trefolio and paste \`signupUrl\` so they can create an account. Do not invent holdings.
-- If \`not_configured\` or \`unreachable\` (self-host without trefolio), say so briefly and only then offer to list local Clara expenses under STOCK/CRYPTO if they want.
-- Warren is not a licensed advisor and this is not financial advice; Clara does not execute trades. Relay Warren's numbers faithfully.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}`;
+${sisterConsultPromptBlock(locale, Boolean(options?.omitConsultWarren))}${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}${options?.systemAppendix ?? ""}`;
   }
 
   // Spanish (default)
@@ -443,13 +476,7 @@ Gráficos (renderChart):
 
 Cambio de idioma:
 - Si el usuario pide cambiar el idioma ("habla en inglés", "switch to English", "cambiá a inglés"), llamá \`setUserLocale\` primero con el locale pedido ("es" o "en"). Después de que resuelva, tu PRÓXIMA respuesta YA tiene que estar en el nuevo idioma, con un acuse breve.
-
-Warren / inversiones en trefolio (REGLA DURA):
-- CUALQUIER pregunta de inversiones, cartera, acciones, ETFs, cripto como inversión, si les da la caja para invertir, o "hablá con Warren" → llamá \`consultWarren\` en el MISMO turno con la pregunta completa. No digas que no podés hablar con Warren. No respondas con gastos locales STOCK/CRYPTO. No armes tu propia recomendación de invertir o no.
-- Si la consulta sale bien, retransmití el texto de Warren. Podés sumar una frase puente; no agregues recomendaciones que Warren no hizo.
-- Si la tool devuelve \`reason=no_trefolio_account\` o \`no_idp\`, explicales que Warren vive en trefolio y pegá \`signupUrl\` para crear la cuenta. No inventes tenencias.
-- Si \`not_configured\` o \`unreachable\` (self-host sin trefolio), decilo en una frase y recién ahí ofrecé listar gastos locales STOCK/CRYPTO si quieren.
-- Warren no es un asesor autorizado y esto no es asesoramiento financiero; Clara no ejecuta operaciones. Retransmití los números de Warren tal cual.${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}`;
+${sisterConsultPromptBlock(locale, Boolean(options?.omitConsultWarren))}${currencyBlock}${activeMonth ? activeMonthUiBlock(activeMonth, locale) : ""}${setupBlock}${options?.cellAskBlock ?? ""}${options?.systemAppendix ?? ""}`;
 }
 
 export type ExpenseAgentMessages = Array<ModelMessage>;
@@ -599,6 +626,8 @@ export async function generateExpenseAgentReply({
   responseStyle = "concise",
   setupHint,
   guestEventScope,
+  omitConsultWarren = false,
+  systemAppendix,
   onStep,
 }: {
   userId: string;
@@ -613,6 +642,10 @@ export async function generateExpenseAgentReply({
    * filtered to event-related tools only.
    */
   guestEventScope?: GuestEventScope;
+  /** Trefolio → Clara: omit consultWarren (anti-loop). */
+  omitConsultWarren?: boolean;
+  /** Extra system block for the trefolio relay channel. */
+  systemAppendix?: string;
   /**
    * Fired after each agent step completes, with the tool names that ran
    * during that step. Used by the Telegram webhook to edit a "status"
@@ -679,6 +712,8 @@ export async function generateExpenseAgentReply({
       locale,
       setupHint,
       guestEventScope,
+      omitConsultWarren,
+      systemAppendix,
     }),
     messages: messagesForModel,
     tools: buildExpenseTools(userId, {
@@ -686,6 +721,7 @@ export async function generateExpenseAgentReply({
       scopedEventId: guestEventScope?.eventId,
       officeIdentity: { idpSub: user?.idpSub, email: user?.email },
       locale,
+      omitConsultWarren,
     }),
     stopWhen: stepCountIs(24),
     onStepFinish: async (step) => {

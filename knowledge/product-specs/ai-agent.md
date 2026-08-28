@@ -121,7 +121,19 @@ Grouped by domain:
 | Events | `listEvents`, `getActiveEvents`, `getEvent`, `createEvent`, `updateEvent`, `closeEvent`, `reopenEvent`, `deleteEvent`, `createEventShareLink`, `attachLineToEvent`, `detachLineFromEvent`, `listEventParticipants` |
 | FX & preferences | `getFxRate`, `setPrimaryCurrency`, `setUserLocale`, `updateExpenseImportInstructions` |
 | Charts | `renderChart` |
-| Sister apps | `consultWarren` — always used for investment / portfolio / "room to invest" questions (`POST {TREFOLIO_BASE_URL}/api/internal/office/warren-chat`). Warren receives an aggregated current-month cashflow snapshot from `GET /api/internal/office/savings-summary` (income, planned/paid/remaining, balance, savings pile, day of month — not expense lines). Does not consume trefolio `ai_consult`. Missing trefolio account → `signupUrl`. Self-host without `TREFOLIO_BASE_URL` degrades. Not exposed to GUEST. |
+| Sister apps | `consultWarren` — always used for investment / portfolio / "room to invest" questions (`POST {TREFOLIO_BASE_URL}/api/internal/office/warren-chat`). Warren receives an aggregated current-month cashflow snapshot from `GET /api/internal/office/savings-summary` (income, planned/paid/remaining, balance, savings pile, day of month — not expense lines). Does not consume trefolio `ai_consult`. Missing trefolio account → `signupUrl`. Self-host without `TREFOLIO_BASE_URL` degrades. Not exposed to GUEST. When Clara is invoked **from trefolio** (`POST /api/internal/office/clara-chat`, `billingSource: trefolio`), `consultWarren` is omitted to prevent a loop. |
+
+### Trefolio inbound (`POST /api/internal/office/clara-chat`)
+
+Clover / Warren can start a full Clara turn (same `generateExpenseAgentReply` as Telegram):
+
+- Auth: Bearer `IDP_SERVICE_TOKEN`. Identity: IdP `sub` + email via `resolveOfficeUser`.
+- **No Clara quota** — trefolio already consumed `ai_consult`.
+- **Omits `consultWarren`.** System appendix: answering through Clover/Warren; do not tell the user to open Clara.
+- 404 + `loginUrl` when no Clara account. Response `{ available, text }`.
+- Does not persist a Clara web chat session.
+
+Route: [`src/app/api/internal/office/clara-chat/route.ts`](../../src/app/api/internal/office/clara-chat/route.ts).
 
 Step budget: **24** (`stopWhen: stepCountIs(24)`). Retries: **6**
 (env override `AI_CHAT_MAX_RETRIES`, capped 4–12). Default model:
@@ -150,8 +162,9 @@ event. Anything else is gently declined.
   function signature of `generateSystemInitiatedReply`. Don't add a
   bypass.
 - **Quota is checked BEFORE `streamExpenseAgent` /
-  `generateExpenseAgentReply` runs.** Saves cost on refusal and
-  prevents the model acknowledging a request it can't fulfil.
+  `generateExpenseAgentReply` runs**, except:
+  - `generateSystemInitiatedReply` (user did not initiate).
+  - `POST /api/internal/office/clara-chat` (trefolio already billed `ai_consult`).
 - **Tokens are recorded AFTER the agent returns.** Web stream:
   `onFinish` callback. Telegram: webhook calls
   `recordAgentTokens` with the returned `usage`.

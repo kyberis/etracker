@@ -1675,3 +1675,15 @@ describe("consultWarren", () => {
     expect(result).toEqual({ available: true, text: "Tenés AAPL." });
   });
 });
+
+describe("omitConsultWarren", () => {
+  it("omits consultWarren from the toolset", () => {
+    const t = buildExpenseTools(USER_ID, { omitConsultWarren: true });
+    expect("consultWarren" in t).toBe(false);
+    expect(t.addMonthLine).toBeDefined();
+  });
+
+  it("keeps consultWarren by default", () => {
+    expect("consultWarren" in tools()).toBe(true);
+  });
+});
