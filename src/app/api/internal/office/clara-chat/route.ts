@@ -80,11 +80,8 @@ export async function POST(req: NextRequest) {
       ? [...history, { role: "user", content: body.message }]
       : [{ role: "user", content: body.message }];
 
-  const localeHint = body.language ? normalizeLocale(body.language) : undefined;
-  const languageLine = localeHint
-    ? localeHint === "en"
-      ? "\nReply in English unless the user's question is clearly in another language."
-      : "\nRespondé en español rioplatense salvo que la pregunta esté claramente en otro idioma."
+  const languageLine = body.language
+    ? `\nPrefer the user's language (hint: ${normalizeLocale(body.language)}). Infer from their question if mixed.`
     : "";
 
   try {
