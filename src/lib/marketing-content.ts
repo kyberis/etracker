@@ -185,6 +185,15 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.19.1",
+      date: "2026-08-29",
+      title: "Activá Clara desde trefolio sin saltar de pestaña",
+      highlights: [
+        "Desde el onboarding o el CTA de Clara en trefolio podés crear tu espacio Clara sin abrir otra pestaña.",
+        "Usa el mismo login de user.trefolio.com; la primera vez que entres a Clara seguís aceptando términos y el onboarding propio.",
+      ],
+    },
+    {
       version: "0.19.0",
       date: "2026-08-28",
       title: "Clover y Warren te preguntan a vos",
@@ -1090,6 +1099,15 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.19.1",
+      date: "2026-08-29",
+      title: "Activate Clara from trefolio without leaving the tab",
+      highlights: [
+        "From trefolio onboarding or the Clara CTA you can create your Clara space without opening another tab.",
+        "Same user.trefolio.com login; the first time you open Clara you still accept terms and finish Clara’s own onboarding.",
+      ],
+    },
     {
       version: "0.19.0",
       date: "2026-08-28",
