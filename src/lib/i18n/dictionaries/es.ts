@@ -274,6 +274,10 @@ export const es = {
   auth: {
     loginTitle: "Iniciá sesión en Clara",
     loginSubtitle: "Volvé a tu balance financiero personalizado.",
+    pendingApprovalTitle: "Tu cuenta está en espera",
+    pendingApprovalBody:
+      "Recibimos tu registro. Un administrador tiene que habilitarla antes de que puedas usar Clara. Te avisamos por email cuando esté lista.",
+    pendingApprovalSignOut: "Salir",
     registerTitle: "Crear cuenta en Clara",
     registerSubtitle:
       "Tu money coach con IA: planificá gastos, conectá tu banco y mandá notas de voz.",

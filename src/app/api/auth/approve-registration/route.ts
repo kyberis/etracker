@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 function html(title: string, body: string, ok: boolean): Response {
   return new Response(
-    `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><title>${title}</title></head>
+    `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><title>${title}</title></head>
 <body style="font-family:system-ui,sans-serif;max-width:480px;margin:72px auto;padding:0 20px;">
 <h1 style="color:${ok ? "#0f172a" : "#b91c1c"}">${title}</h1>
 <p>${body}</p>
@@ -24,8 +24,8 @@ export async function GET(request: Request) {
   const parsed = token ? await verifyRegistrationApprovalJwt(token) : null;
   if (!parsed) {
     return html(
-      "Link inválido",
-      "Este enlace de aprobación no es válido o venció.",
+      "Invalid or expired link",
+      "This approval link is not valid. Ask the operator to send a new one.",
       false,
     );
   }
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     },
   });
   if (!user || user.email.toLowerCase() !== parsed.email.toLowerCase()) {
-    return html("Usuario no encontrado", "Esa cuenta ya no existe.", false);
+    return html("User not found", "That account is no longer on Clara.", false);
   }
 
   if (!user.registrationApprovedAt) {
@@ -53,15 +53,15 @@ export async function GET(request: Request) {
       locale: user.locale,
     });
     return html(
-      "Cuenta habilitada",
-      `${user.email} ya puede entrar a Clara. Le mandamos un email.`,
+      "Account approved",
+      `${user.email} can sign in to Clara. We emailed them.`,
       true,
     );
   }
 
   return html(
-    "Ya estaba habilitada",
-    `${user.email} ya tenía la cuenta habilitada.`,
+    "Already approved",
+    `${user.email} was already enabled.`,
     true,
   );
 }
