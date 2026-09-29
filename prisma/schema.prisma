@@ -144,6 +144,9 @@ model User {
   isAdmin                      Boolean                @default(false)
   /// Soft-disable: when false, blocks login (web + Google) and the agent (chat + Telegram).
   isActive                     Boolean                @default(true)
+  /// Local signup approval (self-host / IdP-off). Null = waiting for an operator.
+  /// GUEST event users and IdP-provisioned users are stamped on create.
+  registrationApprovedAt       DateTime?
   /// Per-user daily cap for agent messages (chat web + Telegram combined). Editable by admins.
   dailyAgentMessageLimit       Int                    @default(30)
   monthlyIncome                Decimal                @default(0) @db.Decimal(12, 2)

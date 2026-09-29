@@ -26,6 +26,9 @@ import { Resend } from "resend";
 import { getSignupNotifyEmail, legalController } from "@/lib/legal";
 import { log } from "@/lib/log";
 import { getPublicAppBaseUrl } from "@/lib/public-app-url";
+import {
+  createRegistrationApprovalJwt,
+} from "@/lib/registration-approval";
 
 export type SignupSource = "credentials" | "google" | "oauth" | "passkey" | "other";
 
@@ -33,6 +36,7 @@ export interface SignupNotifyArgs {
   userId: string;
   email: string;
   source: SignupSource;
+  needsApproval?: boolean;
 }
 
 export async function notifyAdminOfNewUser(
@@ -55,15 +59,40 @@ export async function notifyAdminOfNewUser(
   const adminLink = baseUrl ? `${baseUrl}/admin` : null;
   const controller = legalController();
 
-  const subject = `[Clara] New signup: ${args.email}`;
+  let approveUrl = "";
+  if (args.needsApproval) {
+    try {
+      const token = await createRegistrationApprovalJwt({
+        userId: args.userId,
+        email: args.email,
+      });
+      approveUrl = baseUrl
+        ? `${baseUrl}/api/auth/approve-registration?token=${encodeURIComponent(token)}`
+        : "";
+      log.info("signup_notify_approve_url", {
+        userId: args.userId,
+        approveUrl,
+      });
+    } catch (err) {
+      log.warn("signup_notify_approve_token_failed", {
+        userId: args.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  const subject = args.needsApproval
+    ? `[Clara] Approve signup: ${args.email}`
+    : `[Clara] New signup: ${args.email}`;
   const text = [
-    `New Clara signup`,
+    args.needsApproval ? `Approve Clara signup` : `New Clara signup`,
     `Controller: ${controller.name}`,
     "",
     `Email: ${args.email}`,
     `User ID: ${args.userId}`,
     `Source: ${args.source}`,
     `When: ${new Date().toISOString()}`,
+    ...(approveUrl ? ["", `Approve: ${approveUrl}`] : []),
     ...(adminLink ? ["", `Admin: ${adminLink}`] : []),
   ].join("\n");
 

@@ -128,6 +128,7 @@ export async function runDailyNudge(
       telegramChatId: { not: null },
       telegramVerifiedAt: { not: null },
       telegramNudgeEnabled: true,
+      OR: [{ kind: "GUEST" }, { registrationApprovedAt: { not: null } }],
     },
     select: {
       id: true,

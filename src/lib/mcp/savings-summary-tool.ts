@@ -37,6 +37,7 @@ export function registerClaraSavingsSummaryTool(server: McpServer): void {
         primaryCurrency: user.primaryCurrency,
         isActive: true,
         kind: "REGULAR",
+        registrationApprovedAt: new Date(),
       });
       return jsonContent(summary);
     },

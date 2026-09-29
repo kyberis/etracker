@@ -8,6 +8,10 @@ import { isoBase64URL } from "@simplewebauthn/server/helpers";
 
 import { touchActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
+import {
+  isRegistrationApproved,
+  registrationApprovedAtForCreate,
+} from "@/lib/registration-approval";
 import { notifyAdminOfNewUser } from "@/lib/signup-notify";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 import {
@@ -254,10 +258,26 @@ const allAuthProviders = [
       : []),
 ];
 
+function claraPrismaAdapter() {
+  const base = PrismaAdapter(db);
+  return {
+    ...base,
+    async createUser(data: Parameters<NonNullable<typeof base.createUser>>[0]) {
+      const created = await base.createUser!(data);
+      const approvedAt = registrationApprovedAtForCreate();
+      await db.user.update({
+        where: { id: created.id },
+        data: { registrationApprovedAt: approvedAt },
+      });
+      return created;
+    },
+  };
+}
+
 export const authOptions = {
   // Behind Caddy/Vercel, use X-Forwarded-Host so OAuth redirect_uri matches the browser URL.
   trustHost: true,
-  adapter: PrismaAdapter(db),
+  adapter: claraPrismaAdapter(),
   session: {
     strategy: "jwt",
   },
@@ -359,15 +379,24 @@ export const authOptions = {
       // changes elsewhere). We avoid querying on every request because the
       // JWT is read on every request — that would defeat the point.
       const shouldRefresh =
-        Boolean(user) || trigger === "update" || token.isAdmin === undefined;
+        Boolean(user) ||
+        trigger === "update" ||
+        token.isAdmin === undefined ||
+        token.registrationApproved === undefined;
       if (shouldRefresh && token.sub) {
         const dbUser = await db.user.findUnique({
           where: { id: token.sub },
-          select: { isAdmin: true, isActive: true },
+          select: {
+            isAdmin: true,
+            isActive: true,
+            kind: true,
+            registrationApprovedAt: true,
+          },
         });
         if (dbUser) {
           token.isAdmin = dbUser.isAdmin;
           token.isActive = dbUser.isActive;
+          token.registrationApproved = isRegistrationApproved(dbUser);
         }
       }
 
@@ -390,6 +419,7 @@ export const authOptions = {
         session.user.id = token.sub;
         session.user.isAdmin = Boolean(token.isAdmin);
         session.user.isActive = token.isActive ?? true;
+        session.user.registrationApproved = token.registrationApproved ?? true;
       }
       return session;
     },
@@ -401,12 +431,18 @@ export const authOptions = {
      */
     async createUser({ user }) {
       if (!user?.id || !user.email) return;
-      // Unified IdP notifies ops when the identity row is created at user.trefolio.com — avoid duplicate mail from Clara.
-      if (isClaraIdpOAuthConfigured()) return;
+      const row = await db.user.findUnique({
+        where: { id: user.id },
+        select: { registrationApprovedAt: true, kind: true },
+      });
+      const needsApproval = row
+        ? !isRegistrationApproved(row)
+        : !isClaraIdpOAuthConfigured();
       void notifyAdminOfNewUser({
         userId: user.id,
         email: user.email,
         source: "oauth",
+        needsApproval,
       });
     },
     /**

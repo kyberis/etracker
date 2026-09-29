@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { introspectTfpPat, isTfpPatToken } from "@/lib/accounts-pat-introspect";
 import { db } from "@/lib/db";
+import { isRegistrationApproved } from "@/lib/registration-approval";
 
 /**
  * Prefix new personal-access tokens carry on the wire. Old tokens minted under
@@ -82,9 +83,9 @@ export async function verifyBearerToken(
     if (!intro) return null;
     const user = await db.user.findFirst({
       where: { idpSub: intro.sub },
-      select: { id: true, isActive: true, deletedAt: true },
+      select: { id: true, isActive: true, deletedAt: true, kind: true, registrationApprovedAt: true },
     });
-    if (!user || !user.isActive || user.deletedAt) return null;
+    if (!user || !user.isActive || user.deletedAt || !isRegistrationApproved(user)) return null;
     const tokenId = intro.tokenId ? `acc:${intro.tokenId}` : "acc:unknown";
     return { userId: user.id, tokenId, scopes: intro.scopes };
   }
@@ -102,13 +103,13 @@ export async function verifyBearerToken(
       // Pulled together with the token so soft-deleted accounts (and
       // admin-disabled users) cannot use a previously-minted PAT during
       // the 30-day grace window. One join, no extra round-trip.
-      user: { select: { isActive: true, deletedAt: true } },
+      user: { select: { isActive: true, deletedAt: true, kind: true, registrationApprovedAt: true } },
     },
   });
   if (!row) return null;
   if (row.revokedAt) return null;
   if (row.expiresAt && row.expiresAt < new Date()) return null;
-  if (!row.user || !row.user.isActive || row.user.deletedAt) return null;
+  if (!row.user || !row.user.isActive || row.user.deletedAt || !isRegistrationApproved(row.user)) return null;
 
   // Best-effort `lastUsedAt` bump — failures here must not block the
   // request, so we swallow errors but log for debugging.

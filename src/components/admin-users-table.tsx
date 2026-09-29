@@ -22,6 +22,7 @@ export type AdminUser = {
   email: string;
   isAdmin: boolean;
   isActive: boolean;
+  registrationApprovedAt: string | null;
   dailyAgentMessageLimit: number;
   createdAt: string;
   telegram: {
@@ -56,7 +57,7 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
 
   async function patchUser(
     id: string,
-    body: { isActive?: boolean; dailyAgentMessageLimit?: number },
+    body: { isActive?: boolean; dailyAgentMessageLimit?: number; registrationApproved?: boolean },
   ): Promise<boolean> {
     setError(null);
     setPendingId(id);
@@ -74,7 +75,7 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
       const data = (await res.json()) as {
         user: Pick<
           AdminUser,
-          "id" | "email" | "isAdmin" | "isActive" | "dailyAgentMessageLimit"
+          "id" | "email" | "isAdmin" | "isActive" | "dailyAgentMessageLimit" | "registrationApprovedAt"
         >;
       };
       setUsers((prev) =>
@@ -84,6 +85,8 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
                 ...u,
                 isActive: data.user.isActive,
                 dailyAgentMessageLimit: data.user.dailyAgentMessageLimit,
+                registrationApprovedAt:
+                  data.user.registrationApprovedAt ?? u.registrationApprovedAt,
               }
             : u,
         ),
@@ -177,6 +180,22 @@ export function AdminUsersTable({ initialUsers, currentAdminId }: Props) {
                         ? tx({ es: "activo", en: "active" })
                         : tx({ es: "desactivado", en: "inactive" })}
                     </span>
+                    {u.registrationApprovedAt ? (
+                      <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                        {tx({ es: "aprobado", en: "approved" })}
+                      </Badge>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-xs underline"
+                        disabled={pendingId === u.id}
+                        onClick={() =>
+                          void patchUser(u.id, { registrationApproved: true })
+                        }
+                      >
+                        {tx({ es: "Aprobar", en: "Approve" })}
+                      </button>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="text-sm">

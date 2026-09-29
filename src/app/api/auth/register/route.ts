@@ -2,10 +2,10 @@ import bcrypt from "bcrypt";
 
 import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
-import { isClaraIdpOAuthConfigured } from "@/lib/idp-base";
 import { pickFromAcceptLanguage } from "@/lib/i18n/locale";
 import { CURRENT_TERMS_VERSION } from "@/lib/legal";
 import { limitByIp } from "@/lib/rate-limit";
+import { registrationApprovedAtForCreate } from "@/lib/registration-approval";
 import { notifyAdminOfNewUser } from "@/lib/signup-notify";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 import {
@@ -83,14 +83,16 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(payload.password, 12);
 
+    const approvedAt = registrationApprovedAtForCreate();
     const user = await db.user.create({
       data: {
         email: payload.email,
         passwordHash,
         acceptedTermsAt: new Date(),
         acceptedTermsVersion: payload.acceptedTermsVersion,
+        registrationApprovedAt: approvedAt,
       },
-      select: { id: true, email: true },
+      select: { id: true, email: true, registrationApprovedAt: true },
     });
 
     const locale = pickFromAcceptLanguage(request.headers.get("accept-language"));
@@ -102,13 +104,12 @@ export async function POST(request: Request) {
     );
 
     // Best-effort admin ping for self-hosted / legacy register only (IdP sends once from user.trefolio.com).
-    if (!isClaraIdpOAuthConfigured()) {
-      void notifyAdminOfNewUser({
-        userId: user.id,
-        email: user.email,
-        source: "credentials",
-      });
-    }
+    void notifyAdminOfNewUser({
+      userId: user.id,
+      email: user.email,
+      source: "credentials",
+      needsApproval: !user.registrationApprovedAt,
+    });
 
     return new Response(
       JSON.stringify({

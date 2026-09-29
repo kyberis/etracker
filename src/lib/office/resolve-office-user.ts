@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { isRegistrationApproved } from "@/lib/registration-approval";
 
 import type { OfficeUserLookup } from "./idp-service-auth";
 
@@ -13,6 +14,7 @@ const userSelect = {
   primaryCurrency: true,
   isActive: true,
   kind: true,
+  registrationApprovedAt: true,
 } satisfies Prisma.UserSelect;
 
 export type ResolvedOfficeUser = Prisma.UserGetPayload<{ select: typeof userSelect }>;
@@ -39,9 +41,13 @@ export async function resolveOfficeUser(lookup: OfficeUserLookup): Promise<Resol
       where: { email },
       select: userSelect,
     });
-    if (user && (!user.isActive || user.kind !== "REGULAR")) {
+    if (user && (!user.isActive || user.kind !== "REGULAR" || !isRegistrationApproved(user))) {
       user = null;
     }
+  }
+
+  if (user && !isRegistrationApproved(user)) {
+    user = null;
   }
 
   if (user && sub && !user.idpSub) {

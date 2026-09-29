@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
+import { isRegistrationApproved } from "@/lib/registration-approval";
 
 /**
  * Per-user, per-day quota for the AI agent. The same counter is shared
@@ -63,12 +64,18 @@ function getResetAtUtc(): string {
 export async function consumeAgentQuota(userId: string): Promise<QuotaResult> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { isActive: true, deletedAt: true, dailyAgentMessageLimit: true },
+    select: {
+      isActive: true,
+      deletedAt: true,
+      dailyAgentMessageLimit: true,
+      kind: true,
+      registrationApprovedAt: true,
+    },
   });
   if (!user) {
     return { ok: false, reason: "disabled" };
   }
-  if (!user.isActive || user.deletedAt) {
+  if (!user.isActive || user.deletedAt || !isRegistrationApproved(user)) {
     // Treat soft-deleted accounts as disabled for the chat agent so the
     // (app) layout's redirect to /account/restore is enforced even when
     // the chat is reached via Telegram or a stale tab.

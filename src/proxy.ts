@@ -27,7 +27,7 @@ const MARKETING_ROUTES = [
   "changelog",
 ];
 
-const APP_PUBLIC_ROUTES = ["/login", "/register"];
+const APP_PUBLIC_ROUTES = ["/login", "/register", "/pending-approval"];
 
 /**
  * API paths that must stay reachable without a session.
@@ -168,8 +168,24 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Logged-in users hitting login/register get pushed into the app.
+  const approved = token?.registrationApproved !== false;
+
+  // Logged-in users hitting login/register get pushed into the app — or
+  // the waiting room when the operator has not approved them yet.
   if (token && (pathname === "/login" || pathname === "/register")) {
+    return NextResponse.redirect(
+      new URL(approved ? "/app" : "/pending-approval", request.url),
+    );
+  }
+
+  if (token && !approved && pathname !== "/pending-approval") {
+    const isAuthApi = pathname.startsWith("/api/auth");
+    if (!isAuthApi && !isPublic) {
+      return NextResponse.redirect(new URL("/pending-approval", request.url));
+    }
+  }
+
+  if (token && approved && pathname === "/pending-approval") {
     return NextResponse.redirect(new URL("/app", request.url));
   }
 

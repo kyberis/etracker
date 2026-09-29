@@ -185,6 +185,16 @@ const ES: LocalisedMarketingContent = {
   ],
   CHANGELOG: [
     {
+      version: "0.20.0",
+      date: "2026-09-26",
+      title: "Registro con aprobación",
+      highlights: [
+        "Las cuentas nuevas quedan en espera hasta que un admin las habilite.",
+        "El admin recibe un mail con un link para aprobar; vos recibís otro cuando ya podés entrar.",
+        "En trefolio.com esto se decide en la cuenta unificada (Clara, Will y el portfolio).",
+      ],
+    },
+    {
       version: "0.19.1",
       date: "2026-08-29",
       title: "Activá Clara desde trefolio sin saltar de pestaña",
@@ -727,7 +737,7 @@ const ES: LocalisedMarketingContent = {
     {
       heading: "2. Qué datos recolectamos",
       body: [
-        "Cuenta y autenticación: email, contraseña hasheada (bcrypt), nombre y avatar opcionales sincronizados desde Google si entrás con Google, marca de email verificado, passkeys (WebAuthn) que registres, idioma preferido, país declarado en el onboarding.",
+        "Cuenta y autenticación: email, contraseña hasheada (bcrypt), nombre y avatar opcionales sincronizados desde Google si entrás con Google, marca de email verificado, passkeys (WebAuthn) que registres, idioma preferido, país declarado en el onboarding, y la fecha en que un operador habilitó la cuenta (`registrationApprovedAt`) cuando el registro requiere aprobación.",
         "Tipo de cuenta (`User.kind`): por defecto REGULAR. Si entraste a Clara aceptando la invitación a un viaje compartido sin crear cuenta, tu cuenta es GUEST: solo tiene tu nombre de pantalla, el chat de Telegram vinculado y acceso a ese único viaje. No tiene contraseña, ni email obligatorio, ni acceso al panel ni a tus propios meses; podés convertirla en REGULAR en cualquier momento desde /upgrade-guest.",
         "Datos financieros: bancos que registres, plantillas de gastos e ingresos, líneas mensuales (monto, descripción, categoría, fecha, moneda, tipo de cambio congelado), y, en gastos cargados dentro de una billetera de evento compartida, qué participante pagó esa línea (`paidByUserId`); pila global de ahorro y su ledger de movimientos, instrucciones para el agente.",
         "Open Banking (opt-in): si conectás un banco europeo vía Enable Banking, guardamos el identificador de sesión cifrado, el nombre del banco, país, fecha de vencimiento del consentimiento, cuentas linkeadas (IBAN enmascarado) y un registro de los movimientos importados. Los logs de API de admin no guardan IBANs ni descripciones.",
@@ -1099,6 +1109,16 @@ const EN: LocalisedMarketingContent = {
     },
   ],
   CHANGELOG: [
+    {
+      version: "0.20.0",
+      date: "2026-09-26",
+      title: "Registration approval",
+      highlights: [
+        "New accounts stay pending until an operator enables them.",
+        "The admin gets an email with an approve link; you get one when the account is ready.",
+        "On trefolio.com this is decided once on the unified account (Clara, Will, and the portfolio tracker).",
+      ],
+    },
     {
       version: "0.19.1",
       date: "2026-08-29",
@@ -1642,7 +1662,7 @@ const EN: LocalisedMarketingContent = {
     {
       heading: "2. What we collect",
       body: [
-        "Account and authentication: email, hashed password (bcrypt), optional name and avatar synced from Google if you sign in with Google, email-verified flag, passkeys (WebAuthn) you register, preferred language, country declared during onboarding.",
+        "Account and authentication: email, hashed password (bcrypt), optional name and avatar synced from Google if you sign in with Google, email-verified flag, passkeys (WebAuthn) you register, preferred language, country declared during onboarding, and the timestamp when an operator enabled the account (`registrationApprovedAt`) when registration requires approval.",
         "Account kind (`User.kind`): REGULAR by default. If you joined Clara by accepting a shared-trip invite without creating an account, your account is a GUEST: it only holds your display name, the linked Telegram chat, and access to that one trip. It has no password, no required email, and no access to the dashboard or to your own months; you can convert it to REGULAR at any time at /upgrade-guest.",
         "Financial data: banks you register, expense and income templates, monthly lines (amount, description, category, date, currency, frozen FX rate) and, for expenses logged inside a shared event wallet, which participant paid that line (`paidByUserId`); the global savings pile and its movement ledger, agent instructions.",
         "Open Banking (opt-in): if you connect a European bank via Enable Banking we store an encrypted session id, bank name, country, consent expiry, linked accounts (masked IBAN) and a record of imported movements. Admin API logs never store IBANs or descriptions.",

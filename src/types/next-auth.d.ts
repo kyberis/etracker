@@ -6,6 +6,7 @@ declare module "next-auth" {
       id: string;
       isAdmin: boolean;
       isActive: boolean;
+      registrationApproved: boolean;
     };
   }
 }
@@ -15,5 +16,6 @@ declare module "next-auth/jwt" {
     sub?: string;
     isAdmin?: boolean;
     isActive?: boolean;
+    registrationApproved?: boolean;
   }
 }
