@@ -45,6 +45,7 @@ From this skill file directory, approximate path to those docs: `../../../../../
 - `IDP_CLIENT_SECRET` — Same secret value as **`IDP_CLIENT_SECRET_CLARA`** on the IdP Vercel project (`external/accounts`).
 - `IDP_SERVICE_TOKEN` — Same bearer string as **`IDP_SERVICE_TOKEN`** on the IdP (admin import, Telegram link, `by-id` lookup, service probes).
 - **`isClaraIdpOAuthConfigured()`** — when `IDP_BASE_URL`, `IDP_CLIENT_ID`, and `IDP_CLIENT_SECRET` are set, `/login` uses **`IdpUnifiedBridge`** into the unified IdP; NextAuth exposes **`trefolio-id`** only in that mode. Omit `IDP_CLIENT_SECRET` locally if you still need the legacy `LoginForm`.
+- **Registration approval** is an IdP invariant (`registration_approved_at` on `user.trefolio.com`). Clara does not issue product access until the IdP mints tokens. When IdP OAuth is off, Clara applies the same pending rule locally (`User.registrationApprovedAt`).
 
 NextAuth reads **`authorization_endpoint`** from IdP discovery; ensure **`external/accounts`** sets **`IDP_ISSUER`** (and usually **`IDP_SERVER_ORIGIN`**) per [`dev/README.md`](../../../../../dev/README.md) so the browser is not sent to `localhost`.
 

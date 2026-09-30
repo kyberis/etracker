@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { jsonError, withApi } from "@/lib/http";
 import { CURRENT_TERMS_VERSION } from "@/lib/legal";
 import { limitByIp } from "@/lib/rate-limit";
+import { registrationApprovedAtForCreate } from "@/lib/registration-approval";
+import { notifyAdminOfNewUser } from "@/lib/signup-notify";
 import { guestUpgradeSchema } from "@/lib/validators";
 
 /**
@@ -89,6 +91,7 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(payload.password, 12);
 
+    const approvedAt = registrationApprovedAtForCreate();
     const updated = await db.user.update({
       where: { id: guest.id },
       data: {
@@ -97,10 +100,19 @@ export async function POST(request: Request) {
         kind: UserKind.REGULAR,
         acceptedTermsAt: new Date(),
         acceptedTermsVersion: payload.acceptedTermsVersion,
+        registrationApprovedAt: approvedAt,
         ...(payload.locale ? { locale: payload.locale } : {}),
       },
-      select: { id: true, email: true, kind: true },
+      select: { id: true, email: true, kind: true, registrationApprovedAt: true },
     });
+    if (!updated.registrationApprovedAt) {
+      void notifyAdminOfNewUser({
+        userId: updated.id,
+        email: updated.email,
+        source: "credentials",
+        needsApproval: true,
+      });
+    }
 
     return {
       ok: true as const,

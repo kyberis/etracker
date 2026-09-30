@@ -270,6 +270,10 @@ export const en: Dict = {
   auth: {
     loginTitle: "Sign in to Clara",
     loginSubtitle: "Back to your personalized financial balance.",
+    pendingApprovalTitle: "Your account is waiting",
+    pendingApprovalBody:
+      "We received your signup. An administrator has to enable the account before you can use Clara. We will email you when it is ready.",
+    pendingApprovalSignOut: "Sign out",
     registerTitle: "Create your Clara account",
     registerSubtitle:
       "Your AI money coach: plan expenses, connect your bank and send voice notes.",

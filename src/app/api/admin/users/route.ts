@@ -20,6 +20,7 @@ export async function GET() {
         email: true,
         isAdmin: true,
         isActive: true,
+        registrationApprovedAt: true,
         dailyAgentMessageLimit: true,
         createdAt: true,
         agentUsage: {
@@ -38,6 +39,7 @@ export async function GET() {
           email: u.email,
           isAdmin: u.isAdmin,
           isActive: u.isActive,
+          registrationApprovedAt: u.registrationApprovedAt?.toISOString() ?? null,
           dailyAgentMessageLimit: u.dailyAgentMessageLimit,
           createdAt: u.createdAt.toISOString(),
           todayUsage: {

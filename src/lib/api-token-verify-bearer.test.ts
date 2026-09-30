@@ -60,6 +60,8 @@ describe("verifyBearerToken (unified tfp_pat_)", () => {
       id: "user-1",
       isActive: true,
       deletedAt: null,
+      kind: "REGULAR",
+      registrationApprovedAt: new Date("2026-01-01T00:00:00.000Z"),
     });
     const out = await verifyBearerToken("tfp_pat_ok");
     expect(out).toEqual({ userId: "user-1", tokenId: "acc:pat-uuid" });

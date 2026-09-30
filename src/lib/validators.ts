@@ -571,6 +571,7 @@ export const contactMessageSchema = z.object({
 export const adminUpdateUserSchema = z
   .object({
     isActive: z.boolean().optional(),
+    registrationApproved: z.boolean().optional(),
     dailyAgentMessageLimit: z
       .number()
       .int("El límite debe ser un entero.")
@@ -580,7 +581,9 @@ export const adminUpdateUserSchema = z
   })
   .refine(
     (data) =>
-      data.isActive !== undefined || data.dailyAgentMessageLimit !== undefined,
+      data.isActive !== undefined ||
+      data.dailyAgentMessageLimit !== undefined ||
+      data.registrationApproved !== undefined,
     { message: "Nada para actualizar." },
   );
 

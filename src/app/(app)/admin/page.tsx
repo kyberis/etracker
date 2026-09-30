@@ -80,6 +80,7 @@ export default async function AdminPage() {
       email: true,
       isAdmin: true,
       isActive: true,
+      registrationApprovedAt: true,
       dailyAgentMessageLimit: true,
       createdAt: true,
       telegramUserId: true,
@@ -100,6 +101,7 @@ export default async function AdminPage() {
       email: u.email,
       isAdmin: u.isAdmin,
       isActive: u.isActive,
+      registrationApprovedAt: u.registrationApprovedAt?.toISOString() ?? null,
       dailyAgentMessageLimit: u.dailyAgentMessageLimit,
       createdAt: u.createdAt.toISOString(),
       telegram: {

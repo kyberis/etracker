@@ -87,7 +87,7 @@ includes:
 
 | Category | Examples | Where stored | Retention |
 |----------|----------|--------------|-----------|
-| Account | email, name, hashed password, Google linkage | Postgres | account lifetime |
+| Account | email, name, hashed password, Google linkage, `registrationApprovedAt` | Postgres | account lifetime |
 | Financial templates | recurring expenses, categories, banks | Postgres | account lifetime |
 | Monthly expense lines | amounts, descriptions, paid/unpaid, dates | Postgres | account lifetime |
 | Bank metadata | bank name, default-import flags | Postgres | account lifetime |

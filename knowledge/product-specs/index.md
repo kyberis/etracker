@@ -56,6 +56,9 @@ following [`../templates/product-spec.template.md`](../templates/product-spec.te
 - [`open-banking`](open-banking.md) — Enable Banking PSD2: connect a European
   bank, auto-import accounts/balances/movements into month lines, cron sync,
   consent re-auth, admin observability. Feature flag `open_banking`.
+- [`registration-approval`](registration-approval.md) — new accounts stay
+  pending until an operator approves them (IdP-wide on trefolio.com; local
+  fallback when Clara auth is self-hosted).
 - [`recurring-templates-widget`](recurring-templates-widget.md) — in-chat
   checklist to mark import/month expenses as recurring; confirm creates
   `Expense` templates via `/api/expenses/bulk` (Telegram falls back to text).
